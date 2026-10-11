@@ -11,7 +11,7 @@ never grows during a run. ``SeedGate`` is the only door to host lowering.
 
 Regenerate after an intended compiler change, then review the diff:
 
-    python3 -m shear.hosted_bootstrap.seed --write
+    python3 -m shear.hosted_bootstrap.seed_cli --write
 """
 
 from __future__ import annotations
@@ -20,7 +20,6 @@ from dataclasses import dataclass
 from functools import cache
 import json
 from pathlib import Path
-import sys
 
 from .. import bytecode
 from ..examples._support import program
@@ -203,7 +202,7 @@ def verified_manifest() -> SeedManifest:
     if declared != derive(compiler_source_state()):
         raise AdmissionRejected(
             "the seed manifest does not match the compiler source; "
-            "regenerate it with `python3 -m shear.hosted_bootstrap.seed "
+            "regenerate it with `python3 -m shear.hosted_bootstrap.seed_cli "
             "--write` and review the difference"
         )
 
@@ -272,6 +271,3 @@ def main(argv: list[str]) -> int:
     print(f"the seed manifest is current ({len(derived.code_nodes)} nodes)")
     return 0
 
-
-if __name__ == "__main__":
-    raise SystemExit(main(sys.argv[1:]))

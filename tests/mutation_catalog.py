@@ -97,6 +97,8 @@ OMITTED = {
         "command-line entry shim that calls hosted_bootstrap.command.main",
     "shear/hosted_bootstrap/diagnostics.py":
         "diagnostic measurement harness (section 10); reports, asserts no contract",
+    "shear/hosted_bootstrap/seed_cli.py":
+        "command-line entry shim that calls hosted_bootstrap.seed.main; nothing imports it",
     "shear/hosted_bootstrap/errors.py":
         "exception classes only; no behaviour to mutate",
     "shear/examples/__init__.py":
