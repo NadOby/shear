@@ -27,9 +27,11 @@ from shear import EntityID, Runtime, bytecode, machine
 from shear.canonical import canonicalize
 from shear.examples import EXAMPLES
 from shear.examples._support import program
+from shear.examples.compiler_source import compiler_entities
 from shear.hosted_bootstrap import AdmissionRejected, HostedSession
-from shear.hosted_bootstrap import seed
+from shear.hosted_bootstrap import command, generations, seed
 from shear.hosted_bootstrap.command import _jsonable
+from shear.hosted_bootstrap.artifacts import Artifact
 from shear.hosted_bootstrap.descriptors import (
     SUPPORTED_KINDS,
     _plain,
@@ -38,6 +40,8 @@ from shear.hosted_bootstrap.descriptors import (
 )
 from shear.hosted_bootstrap.errors import UnsupportedOperation
 from shear.hosted_bootstrap.trace import HOST_LOWER
+from shear.identity import StateID, VersionID
+from shear.syntax import render_program
 from shear.hosted_bootstrap.validation import validate_chunk
 from shear.lang import (
     NODE_KINDS,
@@ -971,6 +975,265 @@ class DescriptorValueDecoding(unittest.TestCase):
 
         self.assertEqual(_plain(mapping), {"a": 1, "b": (1, 2)})
         self.assertEqual(_plain(unknown), unknown)
+
+
+class RefusalsAreReachable(unittest.TestCase):
+    """Every way the pipeline fails closed, driven by a wrong input rather
+    than by reading the code: a refusal nothing ever triggers is a refusal
+    nobody has seen work."""
+
+    def prepared(self):
+        runtime = small_runtime()
+        session = HostedSession(runtime)
+        session.prepare(compiler_generation=1)
+
+        return runtime, session, runtime.active.state
+
+    def refused(self, pattern, action, *args, **kwargs):
+        with self.assertRaisesRegex(AdmissionRejected, pattern):
+            action(*args, **kwargs)
+
+    # -- the target ---------------------------------------------------------
+
+    def test_only_owned_code_of_the_pinned_state_can_be_produced(self):
+        _, session, state = self.prepared()
+
+        self.refused("not in the pinned state", session.produce, EntityID("zz"))
+        self.refused("not owned code", session.produce, F)
+        self.refused("not owned code", session.produce, G)
+
+    def test_a_chunk_that_cannot_be_serialized_is_not_the_compilers(self):
+        _, session, state = self.prepared()
+        node = body(state, G)
+        version = state.values[node].version_id
+        evidence = session.produce(node)[1]
+
+        for chunk in ((object(),), (frozenset(),)):
+            with self.subTest(chunk=chunk):
+                self.refused(
+                    "differs", session.admit, node, version, chunk, evidence,
+                )
+
+    # -- artifacts ----------------------------------------------------------
+
+    def test_an_artifact_whose_content_changed_fails_its_integrity_check(self):
+        _, session, state = self.prepared()
+        node = body(state, G)
+        chunk, evidence = session.produce(node)
+        artifact = session.admit(
+            node, state.values[node].version_id, chunk, evidence,
+        )
+
+        artifact.verify()
+        forged = dataclasses.replace(artifact, chunk=(("LIT", 9), ("END",)))
+        self.refused("integrity", forged.verify)
+
+    def test_an_invalidated_artifact_set_admits_and_resolves_nothing(self):
+        runtime, session, state = self.prepared()
+        node = body(state, G)
+        artifacts = session._bound()._artifacts
+        chunk, evidence = session.produce(node)
+        admitted = session.admit(
+            node, state.values[node].version_id, chunk, evidence,
+        )
+        resolve = artifacts.resolver()
+
+        artifacts.invalidate()
+
+        self.refused("invalidated", artifacts.admit, admitted)
+        self.refused("invalidated", resolve, state, node, G)
+
+    def test_an_unknown_entity_has_no_artifact(self):
+        _, session, state = self.prepared()
+        resolve = session._bound()._artifacts.resolver()
+
+        self.refused("no admitted artifact", resolve, state, EntityID("zz"), G)
+        self.refused(
+            "no admitted artifact", resolve, state, body(state, G), F,
+        )
+
+    # -- the compiler chain -------------------------------------------------
+
+    def test_a_generation_that_is_not_built_is_not_available(self):
+        session = HostedSession(small_runtime())
+
+        self.refused("not built", session.compiler_artifacts, 2)
+
+        session.rebuild_through(1)
+        self.refused("not built", session.compiler_artifacts, 2)
+
+    def test_an_invalidated_generation_cannot_compile(self):
+        runtime, session, state = self.prepared()
+        node = body(state, G)
+        descriptor = describe(state, node, G)
+
+        session.invalidate_compiler_generation(1)
+        self.refused(
+            "not available", session._chain.compile, descriptor, 1,
+        )
+        self.refused(
+            "not available", session._chain.compile, descriptor, 3,
+        )
+
+    def test_a_failing_compiler_run_is_a_refusal_not_a_program_error(self):
+        _, session, state = self.prepared()
+
+        class Garbage:
+            value = ("not", "a", "descriptor")
+
+        self.refused("compiler failed", session._chain.compile, Garbage(), 1)
+
+    def test_a_compiler_run_may_not_change_its_own_source(self):
+        _, session, state = self.prepared()
+        node = body(state, G)
+        descriptor = describe(state, node, G)
+        chain = session._chain
+        source = chain._runtime.active.state
+
+        def activating(*args, **kwargs):
+            chain._runtime.activate(define(source, {
+                EntityID("hb_z"): Function((), ("lit", 1)),
+            }))
+
+            return ()
+
+        with mock.patch.object(generations.machine, "run", activating):
+            self.refused("changed its source", chain.compile, descriptor, 1)
+
+    # -- the seed -----------------------------------------------------------
+
+    def test_a_manifest_that_does_not_match_the_source_is_not_trusted(self):
+        data = json.loads(seed.MANIFEST_PATH.read_text(encoding="utf-8"))
+        damaged = dict(data, code_nodes=data["code_nodes"][1:])
+
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "manifest.json"
+            path.write_text(json.dumps(damaged), encoding="utf-8")
+            damaged_manifest = seed.load_manifest(path)
+
+        seed.verified_manifest.cache_clear()
+
+        try:
+            with mock.patch.object(
+                seed, "load_manifest", return_value=damaged_manifest,
+            ):
+                self.refused("does not match", seed.verified_manifest)
+        finally:
+            seed.verified_manifest.cache_clear()
+
+        self.assertTrue(seed.verified_manifest().code_nodes)
+
+    def test_a_seed_needs_the_compiler_functions_and_only_lowerable_ops(self):
+        self.refused("not a compiler function", seed.derive, load(program({})))
+
+        entities = compiler_entities()
+        root = seed.ROOTS[0]
+        entities[root] = Function((), ("quote", ("lit", 1)))
+
+        self.refused(
+            "cannot lower", seed.derive, load(program(entities)),
+        )
+
+    def test_the_seed_command_reports_a_current_manifest(self):
+        out = io.StringIO()
+
+        with contextlib.redirect_stdout(out):
+            self.assertEqual(seed.main([]), 0)
+
+        self.assertIn("current", out.getvalue())
+
+
+class ValueDecodingAndCounts(unittest.TestCase):
+
+    def test_every_canonical_tag_decodes_to_its_plain_value(self):
+        self.assertEqual(_plain(canonicalize(VersionID("v"))), VersionID("v"))
+        self.assertEqual(_plain(canonicalize(StateID("s"))), StateID("s"))
+        self.assertEqual(_plain(canonicalize([1, (2,)])), [1, (2,)])
+        self.assertEqual(
+            _plain((1, canonicalize(EntityID("e")))), (1, EntityID("e")),
+        )
+
+    def test_a_counted_instruction_must_count_the_nodes_operands(self):
+        runtime = Runtime(load(program({
+            F: Function((), ("tuple", ("lit", 1), ("lit", 2))),
+        })))
+        state = runtime.active.state
+        session = HostedSession(runtime)
+        session.prepare(compiler_generation=1)
+        node = body(state, F)
+        chunk = session.produce(node)[0]
+        count = next(i for i in chunk if i[0] == "MKTUPLE")
+
+        validate_chunk(state, node, F, chunk)
+
+        for wrong in (1, 3, 0, "2"):
+            forged = tuple(
+                (*i[:-1], wrong) if i is count else i for i in chunk
+            )
+
+            with self.subTest(count=wrong):
+                # The stack check would refuse most of these too; the count
+                # check must refuse them first, on the count.
+                with self.assertRaisesRegex(AdmissionRejected, "count"):
+                    validate_chunk(state, node, F, forged)
+
+
+class CommandRunsInProcess(unittest.TestCase):
+    """The documented command, called directly (the protected tests run it
+    in a subprocess, which coverage cannot follow)."""
+
+    def run_command(self, *argv):
+        out, err = io.StringIO(), io.StringIO()
+
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            code = command.main(list(argv))
+
+        return code, out.getvalue(), err.getvalue()
+
+    def source(self, directory):
+        path = Path(directory) / "program.shear"
+        path.write_text(render_program(small_runtime().active.state))
+
+        return path
+
+    def test_a_plain_run_prints_the_result_and_the_route(self):
+        with tempfile.TemporaryDirectory() as directory:
+            code, out, _ = self.run_command(
+                "--source-file", str(self.source(directory)),
+                "--entry", "hb_g", "--args-json", "[1]",
+            )
+
+        self.assertEqual(code, 0)
+        document = json.loads(out)
+        self.assertEqual(document["result"], 2)
+        self.assertEqual(document["route"], "admitted-host")
+        self.assertTrue(document["executed_artifacts"])
+
+    def test_the_two_edit_options_go_together(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source = str(self.source(directory))
+
+            for extra in (
+                ("--edit-mode", "prepare"),
+                ("--edited-source-file", source),
+            ):
+                with self.subTest(extra=extra):
+                    code, out, err = self.run_command(
+                        "--source-file", source, "--entry", "hb_g", *extra,
+                    )
+                    self.assertEqual((code, out), (2, ""))
+                    self.assertIn("go together", err)
+
+    def test_a_mistyped_entry_exits_with_one_and_names_it(self):
+        with tempfile.TemporaryDirectory() as directory:
+            code, out, err = self.run_command(
+                "--source-file", str(self.source(directory)),
+                "--entry", "hb_nothing",
+            )
+
+        self.assertEqual((code, out), (1, ""))
+        self.assertIn("unknown entry: hb_nothing", err)
+        self.assertNotIn("Traceback", err)
 
 
 if __name__ == "__main__":

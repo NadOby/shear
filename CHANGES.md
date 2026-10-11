@@ -1791,3 +1791,10 @@ golden records or historical measurements changed.
   resolver fallback passed the protected tests); costs are recorded in
   `docs/hosted_bootstrap.md` and are inside D4's aspirations.
 
+- Full mutation campaign at `e9fc515`: nine survivors in the hosted modules
+  got regression tests. A coverage pass of the oracle over the hosted modules
+  then showed refusal branches no test reached; each is now driven by a wrong
+  input (`RefusalsAreReachable` and related classes). The documented command
+  now reports a mistyped `--entry` as `unknown entry` with exit status 1
+  instead of a traceback. A condition in `target._owner_of` that ownership
+  validation makes unreachable (`owner == node`) was removed.

@@ -124,11 +124,7 @@ class HostedTarget:
 
         owner = self.state.owner_of(node)
 
-        if (
-            owner is None
-            or owner == node
-            or _definition_of(self.state.values[owner]) is None
-        ):
+        if owner is None or _definition_of(self.state.values[owner]) is None:
             raise AdmissionRejected(f"{node.value} is not owned code")
 
         return owner

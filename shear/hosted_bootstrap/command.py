@@ -79,6 +79,10 @@ def main(argv: list[str] | None = None) -> int:
     runtime = Runtime(load(parse(text)))
     session = HostedSession(runtime)
 
+    if entry not in runtime.active.state.values:
+        print(f"unknown entry: {entry.value}", file=sys.stderr)
+        return 1
+
     try:
         if options.edit_mode is None:
             session.prepare(compiler_generation=1)

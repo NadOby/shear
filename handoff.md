@@ -102,7 +102,13 @@ not evidence.
   `7c99964` succeeded and its artifact holds the CI-runner report.
 - P3s: `compiler_source.py` mutation-target comment states the manifest
   masking; descriptor deviation documented; `applyv`/`linksof` witnesses added.
-- Still open: the mutation campaign (`mutation_count` 10 or more) on CI.
+- Full campaign (`mutation_count` 400, 16 shards) at `e9fc515`: survivors in
+  shards 6, 10, 13 and 15 were fixed with tests; shard 5 produced no report
+  (probable baseline timeout: the oracle takes ~170 s locally against a fixed
+  180 s limit in `tests/mutation.py`, whose hash is the engine pin). Re-run
+  on the pushed head is still open.
+- A coverage pass over the hosted modules found unreached refusal branches;
+  they now have tests. The command reports an unknown `--entry` as a refusal.
 
 ## Nonblocking P3 observations for Review
 
@@ -129,13 +135,13 @@ No further Plan revision is required for any of them.
    Publish adds a clarification referencing D4 and
    `docs/hosted_pipeline.md`.
 
-## Follow-up (not created)
+## Follow-ups (not part of Task 30)
 
-Source files over the ~500-line threshold: `lang.py`, `machine.py`, `vm.py`,
-`transforms.py`, `continuity.py`. They are pinned mutation targets, so a
-split needs its own `follow-up` issue (a maintainability assessment with
-targeted candidates, not a mandatory split) and survivor re-review. Not part
-of Task 30.
+- #94: maintainability assessment of the oversized modules (`lang.py`,
+  `machine.py`, `vm.py`, `transforms.py`, `continuity.py`); a split needs
+  survivor re-review because they are pinned mutation targets.
+- Coverage diagnostic and faster mutation campaign: see the issue linked
+  from #66.
 
 ## Next action
 
