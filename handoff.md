@@ -6,14 +6,10 @@ Verify this checkpoint against GitHub before relying on it.
 
 ## Current state
 
-- Task: 30 – Hosted-bootstrap pipeline. Issue: #66.
-- Branch: `task/30-hosted-bootstrap`.
-- Protected Plan head: `fbbb32379c327c1e29f5646e89d30fd1bb8a8084`.
-- Role: Resolve of the first independent Review (2 P2 findings) done; ready for confirmation.
-- Execute commits: `504daa8` (compiler move and unification), `f678c00`
-  (machine resolver), `1592f09` (pipeline and tests), `1b77784` (spike
-  removal, mutation catalog, workflow, `CHANGES.md`).
-- No PR opened by Execute.
+- Task: 30 – Hosted-bootstrap pipeline. Issue: #66. PR: #98.
+- Branch: `task/30-hosted-bootstrap`; protected Plan head `fbbb32379c327c1e29f5646e89d30fd1bb8a8084`.
+- Role: Publish (PR opened); two independent Reviews accepted
+  `248a5e1` (full 16-shard mutation campaign green). Waiting for the owner to merge.
 
 `docs/hosted_pipeline.md` is authoritative. This handoff is a checkpoint,
 not evidence.
@@ -70,90 +66,26 @@ not evidence.
 
 - New targets: `compiler_source.py` and every `hosted_bootstrap` module
   except `__init__`, `__main__`, `errors`, `diagnostics` (omissions justified
-  in `tests/mutation_catalog.py`).
-- `self_hosting.py`, `vm.py`, `machine.py` survivors: every classified site
-  and its context were checked unchanged by inspection and repinned. They
-  were **not** re-run locally; the CI campaign must confirm them.
-- Locally, 68 mutants of the new resolver hook and hosted modules were
-  killed; the rest are left to CI by owner's decision. Every
-  `compiler_source.py` mutant is killed at once by the manifest check, so
-  behavioural coverage of the compiler rests on the differential test.
+  in `tests/mutation_catalog.py`). Repins of `self_hosting.py`, `vm.py` and
+  `machine.py` are confirmed by the green campaign.
+- Mutants of `compiler_source.py` all die at the manifest check; behavioural
+  coverage rests on the differential test.
+- The oracle owns its 900 s limit and a 3 GiB address-space cap; the engine
+  `tests/mutation.py` is unchanged. A mutant that times out counts as killed (#95).
 
 ## Known limitations
 
-- Cross-activation reuse and live evolution: Task 31.
-- Local timing figures are from a 2-vCPU container; CI report not tabulated.
-
-## Review findings resolved
-
-- P2 admission did not check stack effects or termination: `validation.py`
-  now simulates the operand stack in one pass and checks operand types;
-  negative tests in `AdmissionChecksTheStack` fail on the old code.
-- P2 no witnesses for `applyv` and `linksof`: `OperationWitnesses` runs both
-  on admitted artifacts, host lowering forbidden, against ordinary execution.
-- P3 conditional seed test: an unconditional Execute-owned test was added;
-  the protected test is unchanged.
-- Second Review, P2 no fail-closed regression test: `MissingArtifactsFailClosed`
-  withholds a callee artifact and prepares an unsupported node, with host
-  lowering forbidden. A planted resolver fallback passes the protected tests
-  and fails these.
-- Second Review, P2 costs not recorded: medians are in
-  `docs/hosted_bootstrap.md` section 4 (local run); the CI dispatch at
-  `7c99964` succeeded and its artifact holds the CI-runner report.
-- P3s: `compiler_source.py` mutation-target comment states the manifest
-  masking; descriptor deviation documented; `applyv`/`linksof` witnesses added.
-- Full campaign (`mutation_count` 400, 16 shards) at `e9fc515`: survivors in
-  shards 6, 10, 13 and 15 were fixed with tests; shard 5 produced no report
-  (probable baseline timeout: the oracle takes ~170 s locally against a fixed
-  180 s limit in `tests/mutation.py`, whose hash is the engine pin). Re-run
-  on the pushed head is still open.
-- Campaign at `1770c31`: 7 shards had no report (baseline over 180 s). The
-  limit is now `mutation_oracle.TIMEOUT_SECONDS`; the engine is unchanged.
-  Shard 4 had one survivor (`validation._stack_effect`), removed by a
-  refactor with killed mutants. Existing mutation tests edited: they now
-  expect the `timeout` argument. A mutant that times out counts as killed,
-  so earlier campaigns may have hidden survivors; #95 covers reporting
-  timeouts separately.
-- Shard 13 died (exit 143, no artifact) in two campaigns: a `matching.py`
-  mutant (`if (`) allocates ~65 MB/s and exhausts the runner within the 900 s
-  limit. The oracle now caps its address space at 3 GiB. Found by probing
-  the shard's mutants locally, not by CI.
-- A coverage pass over the hosted modules found unreached refusal branches;
-  they now have tests. The command reports an unknown `--entry` as a refusal.
-
-## Nonblocking P3 observations for Review
-
-No further Plan revision is required for any of them.
-
-1. **vm.py survivor pins.** `vm.py` has six blob-pinned survivors and Execute
-   modified it. Execute checked by inspection that all six sites and their
-   contexts are unchanged and repinned; they were not re-run locally. Review
-   must re-review the classifications, as for `self_hosting.py` (two) and
-   `machine.py` (eleven).
-2. **Conditional seed negative test.** `test_hosted_pipeline.py` guards its
-   unrelated-compiler-node check with `if unrelated_code:`. An approximate
-   count by Execute found 4 such nodes in the compiler state, so the branch
-   should run; Review must verify actual negative coverage and record any
-   remaining limitation. Protected test not changed.
-3. **Generation ancestry coverage.** The `machine._open` instrumentation
-   verifies admitted compiler function-body chunks consumed during G2/G3
-   production. It does not establish child-node or closure-chunk ancestry.
-   Review must distinguish this from complete per-node provenance.
-4. **Trace completeness; issue text.** Trace assertions show each reported
-   execution has production and admission records, not that every executed
-   node emits an event (events are first use per artifact). Review should
-   audit execution coverage. Issue #66 still describes the pre-D4 workload;
-   Publish adds a clarification referencing D4 and
-   `docs/hosted_pipeline.md`.
+- Cross-activation reuse and live evolution: Task 31 (#67).
+- Generation ancestry is witnessed for function bodies only; events record
+  first use of an artifact; recorded timings predate the last fixes.
 
 ## Follow-ups (not part of Task 30)
 
-- #94: maintainability assessment of the oversized modules (`lang.py`,
-  `machine.py`, `vm.py`, `transforms.py`, `continuity.py`); a split needs
-  survivor re-review because they are pinned mutation targets.
+- #94: maintainability of oversized production modules.
 - #95: coverage diagnostic and faster mutation campaign.
+- #96: split `tests/test_hosted_bootstrap.py`.
+- #97: record the per-example operation inventory.
 
 ## Next action
 
-Independent Review of Task 30 in a fresh context against the protected Plan
-head, then Resolve/Publish per the roadmap.
+The owner merges #98. Then Plan task 31 (#67) in a fresh chat.

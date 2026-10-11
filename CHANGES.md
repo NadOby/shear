@@ -1781,54 +1781,41 @@ golden records or historical measurements changed.
   were re-reviewed by inspection (every classified site and its context
   are unchanged) and repinned. They were not re-run locally; the CI
   campaign confirms them.
-- Resolved independent Review findings: admission now checks the operand
-  stack of a chunk (underflow, handovers, unreachable instructions, a single
-  result) and operand types, and `applyv` and `linksof` have admitted-route
-  witnesses compared with ordinary execution. An unconditional test covers
-  the seed's refusal of undeclared compiler nodes.
-- Second Review: a regression test now withholds a callee artifact and
-  prepares an unsupported node with host lowering forbidden (a planted
-  resolver fallback passed the protected tests); costs are recorded in
-  `docs/hosted_bootstrap.md` and are inside D4's aspirations.
-
-- Full mutation campaign at `e9fc515`: nine survivors in the hosted modules
-  got regression tests. A coverage pass of the oracle over the hosted modules
-  then showed refusal branches no test reached; each is now driven by a wrong
-  input (`RefusalsAreReachable` and related classes). The documented command
-  now reports a mistyped `--entry` as `unknown entry` with exit status 1
-  instead of a traceback. A condition in `target._owner_of` that ownership
-  validation makes unreachable (`owner == node`) was removed.
-- Full campaign at `1770c31`: seven shards produced no report because the
-  baseline run of the semantic oracle exceeded the engine's fixed 180 s
-  limit on CI. The campaign, the replay and the baseline now pass the
-  oracle's own limit, `mutation_oracle.TIMEOUT_SECONDS` (900 s), which is
-  generous because a mutant that times out counts as killed. `tests/mutation.py`
-  (the engine pin) is unchanged. Existing tests edited to match: three
-  `baseline.assert_called_once_with` assertions and one
-  `killed.assert_called_once_with` assertion now expect the `timeout`
-  argument; one test was added. One more survivor (a raise's unobservable
-  stack effect in `validation._stack_effect`) was removed by folding the
-  raising and handover cases into one return.
-- Campaign at `3f15799`, shards 0, 5, 6, 9 and 15: eleven survivors in
-  `command.py`, `target.py`, `generations.py`, `seed.py` and `validation.py`
-  got tests (required options, output format, exit codes of program errors
-  and refusals, the target's own no-activation default, equal state objects,
-  seed generation in the trace, a link to a non-function, endpoint values).
-  Two conditions that no state can make observable were simplified:
-  `seed.derive` no longer tests a link target for absence (states reject
-  dangling endpoints) and the command's `executed_artifacts` filters on the
-  event kind only (`execute` events always have the admitted-host route).
-  Shards 7, 10 and 11 added one more gap, closed by a test: the resolver
-  refuses a state other than the pinned one even for a node whose content
-  is the same in both.
-- Shard 13 was terminated from outside in two campaigns after the oracle
-  limit was raised to 900 s. Cause found by probing its mutants: a mutant in
-  `matching.py` (`if (`) allocates about 65 MB a second, so within 900 s it
-  exhausts the runner and the job is killed with exit code 143 and no
-  artifact. The oracle process now caps its own address space at 3 GiB
-  (`mutation_oracle.limit_memory`; the honest suite peaks near 110 MB), so
-  such a mutant fails its test run in about a minute. Engine unchanged.
-- Campaign at `bf6e024`: eleven shards green; shards 4, 6 and 13 were
-  terminated from outside (runaway mutants, fixed by the memory cap); shards
-  1 and 8 had one survivor each in `command.py`, now covered (the compiler
-  generation of a plain run, and JSON arrays becoming tuples).
+- Independent Review resolved: admission checks the operand stack of a chunk
+  (underflow, handovers, unreachable instructions, a single result) and
+  operand types; `applyv` and `linksof` have admitted-route witnesses
+  compared with ordinary execution; an unconditional test covers the seed's
+  refusal of undeclared compiler nodes; a regression test withholds a callee
+  artifact with host lowering forbidden (a planted resolver fallback passed
+  the protected tests); costs are recorded in `docs/hosted_bootstrap.md`
+  and are inside D4's aspirations.
+- Mutation tooling (a second coherent change, kept in this PR because the
+  campaign could not pass without it):
+  - The full campaign's baseline run of the oracle (about 170 s) exceeded the
+    engine's fixed 180 s limit on CI, so shards produced no report. The
+    campaign, the replay and the baseline now pass the oracle's own limit,
+    `mutation_oracle.TIMEOUT_SECONDS` (900 s). The engine `tests/mutation.py`
+    (the pin) is unchanged, so survivor pins stay valid.
+  - A `matching.py` mutant allocated about 65 MB a second and exhausted the
+    runner (exit 143, no artifact). The oracle process now caps its address
+    space at 3 GiB (`mutation_oracle.limit_memory`; the honest suite peaks
+    near 110 MB).
+  - Existing tests edited, called out: three `baseline` assertions and one
+    `killed` assertion in `test_mutation_campaign.py` and
+    `test_mutation_reporting.py` now expect the `timeout` argument.
+- Mutation results: the full campaign (`mutation_count` 400, 16 shards) is
+  green at `248a5e1`. Survivors found on the way got regression tests or,
+  where no state could make a condition observable, the condition was
+  removed (`target._owner_of`, `seed.derive`, `validation._stack_effect`,
+  the command's `executed_artifacts` filter). A coverage pass of the oracle
+  over the hosted modules found refusal branches no test reached; each is
+  now driven by a wrong input. A mistyped `--entry` is reported as
+  `unknown entry` with exit status 1 instead of a traceback. The
+  survivor classifications of `self_hosting.py`, `vm.py` and `machine.py`
+  were repinned and are confirmed by the green campaign.
+- Limitations: generation ancestry is witnessed for function bodies only,
+  not for child nodes or closures; execution events record first use of an
+  artifact, not every invocation; mutants of `compiler_source.py` all die at
+  the manifest check, so their results are not behavioural evidence (the
+  differential test is); a mutant that times out counts as killed (#95); the
+  recorded timings predate the last fixes.
