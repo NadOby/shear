@@ -13,6 +13,8 @@ See docs/hosted_pipeline.md and issue #66.
 from __future__ import annotations
 
 import json
+import subprocess
+import sys
 import tempfile
 import unittest
 from unittest import mock
@@ -303,6 +305,30 @@ class SeedIsExactlyTheDeclaredNodes(unittest.TestCase):
             with self.subTest(entity=entity.value):
                 with self.assertRaises(AdmissionRejected):
                     session.attempt_seed_lower(entity)
+
+    def test_the_documented_command_checks_the_manifest(self):
+        done = subprocess.run(
+            [sys.executable, "-m", "shear.hosted_bootstrap.seed"],
+            capture_output=True, text=True, cwd=seed.MANIFEST_PATH.parents[2],
+        )
+
+        self.assertEqual(done.returncode, 0, done.stderr)
+        self.assertIn("the seed manifest is current", done.stdout)
+
+    def test_write_regenerates_exactly_the_checked_in_manifest(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "manifest.json"
+
+            with mock.patch.object(seed, "MANIFEST_PATH", path):
+                self.assertEqual(seed.main(["--write"]), 0)
+
+            self.assertEqual(
+                path.read_text(encoding="utf-8"),
+                seed.MANIFEST_PATH.read_text(encoding="utf-8"),
+            )
+
+    def test_the_command_refuses_unknown_arguments(self):
+        self.assertEqual(seed.main(["--nope"]), 2)
 
     def test_only_declared_nodes_lower_on_the_host(self):
         session = HostedSession(small_runtime())
