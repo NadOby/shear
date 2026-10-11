@@ -545,7 +545,11 @@ class BootstrapTests(unittest.TestCase):
             expressions = cls.EXPRESSIONS + [
                 Generator(seed).expression(3) for seed in range(5)
             ]
-            original = function_at(runtime.active.state, LOWER).body
+            # The compiler's own code to compile is the lowering core;
+            # ``lower`` itself only delegates to it.
+            original = function_at(
+                runtime.active.state, EntityID("lower_op")
+            ).body
             before = [run(runtime, LOWER, e) for e in expressions]
             before_self = run(runtime, LOWER, original)
 

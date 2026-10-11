@@ -1739,3 +1739,82 @@ the hybrid D3 execution architecture.
 
 Documentation-only decision record. No production semantics, tests,
 golden records or historical measurements changed.
+
+
+## 2026-10-11
+
+### Hosted bootstrap pipeline (#66)
+
+- Implemented the Task 30 hosted pipeline of `docs/hosted_pipeline.md`.
+  One SHEAR compiler (`shear/examples/compiler_source.py`) now has a single
+  lowering core with an expanded entry (`lower`) and a node-aware entry
+  (`compile_node`); `self_hosting.py` keeps the self-rewriting programs.
+- `shear/hosted_bootstrap/` builds compiler generations 1 to 3 from a
+  checked-in seed of 682 host-lowered nodes, each generation running its
+  predecessor's admitted artifacts. It produces and admits per-node artifacts
+  for a target, runs them on the host machine, and invalidates them
+  conservatively on any state change. `python3 -m shear.hosted_bootstrap`
+  is the documented command, including staged edits that are never
+  activated.
+- `machine.run` takes an optional per-run chunk resolver. This replaces the
+  Task 29 spike's process-global patching; without a resolver nothing changes.
+  A resolver failure is `AdmissionRejected`, which a program cannot catch.
+- Removed the Task 29 spike module, its tests and its workflow job. Its
+  measurements stay in `docs/spikes/execution_route.md` and the Task 29
+  entry. A `hosted_diagnostics` dispatch input runs the section 10
+  measurements (diagnostic only).
+- Plan-owned acceptance tests (22) pass, with the three declared golden
+  changes and no others. Execute adds `tests/test_hosted_bootstrap.py`,
+  which compares the compiler's chunk with `bytecode.lower` for every
+  supported node of the whole corpus.
+- Changes to existing tests, called out: `test_self_hosting.py`,
+  `test_bootstrap_boundary.py` and `test_vm.py` follow the compiler's move
+  and its new `catch`/`raise` coverage; `content_baseline_evidence.py` names
+  the compiler's new file. `vm.py` swaps the extra lowering functions and
+  derives its retained-source links from the compiler. `tests/lanes.py`
+  registers the new test module and drops the removed one.
+- Operations the SHEAR compiler does not lower (`activate`, `function`,
+  `quote`, `trial`, `unquote`) are recorded as rejected and fail closed at
+  run; nothing falls back to host lowering.
+- Mutation: the new modules are targets, with three justified omissions.
+  The survivor classifications of `self_hosting.py`, `vm.py` and `machine.py`
+  were re-reviewed by inspection (every classified site and its context
+  are unchanged) and repinned; the green full campaign confirms them.
+- Independent Review resolved: admission checks the operand stack of a chunk
+  (underflow, handovers, unreachable instructions, a single result) and
+  operand types; `applyv` and `linksof` have admitted-route witnesses
+  compared with ordinary execution; an unconditional test covers the seed's
+  refusal of undeclared compiler nodes; a regression test withholds a callee
+  artifact with host lowering forbidden (a planted resolver fallback passed
+  the protected tests); costs are recorded in `docs/hosted_bootstrap.md`
+  and are inside D4's aspirations.
+- Mutation tooling (a second coherent change, kept in this PR because the
+  campaign could not pass without it):
+  - The full campaign's baseline run of the oracle (about 170 s) exceeded the
+    engine's fixed 180 s limit on CI, so shards produced no report. The
+    campaign, the replay and the baseline now pass the oracle's own limit,
+    `mutation_oracle.TIMEOUT_SECONDS` (900 s). The engine `tests/mutation.py`
+    (the pin) is unchanged, so survivor pins stay valid.
+  - A `matching.py` mutant allocated about 65 MB a second and exhausted the
+    runner (exit 143, no artifact). The oracle process now caps its address
+    space at 3 GiB (`mutation_oracle.limit_memory`; the honest suite peaks
+    near 110 MB).
+  - Existing tests edited, called out: three `baseline` assertions and one
+    `killed` assertion in `test_mutation_campaign.py` and
+    `test_mutation_reporting.py` now expect the `timeout` argument.
+- Mutation results: the full campaign (`mutation_count` 400, 16 shards) is
+  green at `248a5e1`. Survivors found on the way got regression tests or,
+  where no state could make a condition observable, the condition was
+  removed (`target._owner_of`, `seed.derive`, `validation._stack_effect`,
+  the command's `executed_artifacts` filter). A coverage pass of the oracle
+  over the hosted modules found refusal branches no test reached; each is
+  now driven by a wrong input. A mistyped `--entry` is reported as
+  `unknown entry` with exit status 1 instead of a traceback. The
+  survivor classifications of `self_hosting.py`, `vm.py` and `machine.py`
+  were repinned and are confirmed by the green campaign.
+- Limitations: generation ancestry is witnessed for function bodies only,
+  not for child nodes or closures; execution events record first use of an
+  artifact, not every invocation; mutants of `compiler_source.py` all die at
+  the manifest check, so their results are not behavioural evidence (the
+  differential test is); a mutant that times out counts as killed (#95); the
+  recorded timings predate the last fixes.

@@ -225,6 +225,7 @@ def _require_replay_baseline(
     baseline = mutation.baseline(
         root,
         oracle,
+        timeout=mutation_oracle.TIMEOUT_SECONDS,
     )
 
     if baseline.returncode != 0:
@@ -250,6 +251,7 @@ def _execute_exact(
         selected.target,
         selected.index,
         oracle,
+        timeout=mutation_oracle.TIMEOUT_SECONDS,
     )
 
     if executed.key != selected.key:

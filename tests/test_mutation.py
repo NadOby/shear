@@ -809,6 +809,7 @@ class SuiteMutationTests(unittest.TestCase):
         baseline = mutation.baseline(
             mutation.ROOT,
             oracle,
+            timeout=mutation_oracle.TIMEOUT_SECONDS,
         )
 
         self.assertEqual(

@@ -17,7 +17,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TextIO
 
-from tests import mutation
+from tests import mutation, mutation_oracle
 
 
 @dataclass(frozen=True)
@@ -70,6 +70,7 @@ def _execute_one(
         selected.target,
         selected.index,
         command,
+        timeout=mutation_oracle.TIMEOUT_SECONDS,
     )
 
     elapsed = time.perf_counter() - started

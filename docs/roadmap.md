@@ -926,7 +926,7 @@ remain unchanged in the spike report.
 
 ### 30. Hosted-bootstrap pipeline (handoff)
 
-**Planned.** Issue #66. After D3 and D4.
+**Implemented** (PR #98). Issue #66. After D3 and D4.
 
 Integrate D3 route B, replacing or explicitly promoting the task-29
 spike without its experimental process-global interception. Use

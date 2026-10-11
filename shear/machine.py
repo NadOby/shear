@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from contextvars import ContextVar
-from typing import Any, Mapping
+from typing import Any, Callable, Mapping
 
 from . import bytecode
 from .canonical import CanonicalNode, canonical_serialize, canonicalize
@@ -25,6 +25,30 @@ _RETURN: bytecode.Chunk = (("RETURN",),)
 # The run whose machine is currently executing. ``_attach`` stamps the errors
 # it creates with it; ``catch`` accepts only errors stamped by its own run.
 _RUN: ContextVar[object | None] = ContextVar("shear_run", default=None)
+
+# Where the current run gets the chunk of a node: ``(state, entity, owner)``
+# to chunk. None, the default, lowers on demand and caches on the node's value
+# (bytecode.chunk_of). A caller that must run only artifacts it has admitted
+# passes ``resolver`` to :func:`run`; the resolver then replaces lowering and
+# its value cache completely, for every node the run opens.
+ChunkResolver = Callable[[Any, EntityID, EntityID], bytecode.Chunk]
+_RESOLVER: ContextVar[ChunkResolver | None] = ContextVar(
+    "shear_chunk_resolver",
+    default=None,
+)
+
+
+def _chunk_for(
+    state: Any,
+    entity: EntityID,
+    owner: EntityID,
+) -> bytecode.Chunk:
+    resolver = _RESOLVER.get()
+
+    if resolver is not None:
+        return resolver(state, entity, owner)
+
+    return bytecode.chunk_of(state, entity, owner)
 
 
 class _Raised(LanguageError):
@@ -395,6 +419,15 @@ def _child_chunk(
     entity: EntityID,
     function: EntityID,
 ) -> bytecode.Chunk:
+    resolver = _RESOLVER.get()
+
+    if resolver is not None:
+        return resolver(
+            activation.hold.version.state,
+            entity,
+            function,
+        )
+
     value = activation.values.get(entity)
     child = (
         None
@@ -486,7 +519,7 @@ def _open(
         )
 
     try:
-        chunk = bytecode.chunk_of(
+        chunk = _chunk_for(
             state,
             definition.body,
             entity,
@@ -613,7 +646,7 @@ def _open_closure(
     )
 
     try:
-        chunk = bytecode.chunk_of(
+        chunk = _chunk_for(
             state,
             closure.body,
             closure.owner,
@@ -1864,10 +1897,17 @@ def run(
     entry: EntityID,
     *args: Any,
     may_activate: bool = False,
+    resolver: ChunkResolver | None = None,
 ) -> Any:
-    """Evaluate one graph-form function."""
+    """Evaluate one graph-form function.
+
+    ``resolver`` supplies the chunk of every node the run opens instead of
+    lowering it (see ``_RESOLVER``). A run nested in one that has a resolver
+    keeps it: no run inside an admitted run falls back to lowering.
+    """
 
     failures = _HOST_FAILURES.set({})
+    chunks = None if resolver is None else _RESOLVER.set(resolver)
 
     try:
         return _execute(
@@ -1881,4 +1921,7 @@ def run(
             object(),
         )
     finally:
+        if chunks is not None:
+            _RESOLVER.reset(chunks)
+
         _HOST_FAILURES.reset(failures)

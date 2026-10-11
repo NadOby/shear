@@ -36,7 +36,7 @@ from __future__ import annotations
 from typing import Any
 
 from .. import ActivationRejected, EntityID
-from ..lang import Function, links
+from ..lang import FUNCTION_ROLE, Function, links
 from . import Example, Raises, Step
 from ._support import program
 from .self_hosting import LOWER, UPPER, _arg, _item, _lit
@@ -890,10 +890,16 @@ def vm_entities() -> dict[EntityID, Any]:
 ARG_EXPRS = EntityID("arg_exprs")
 SWAP_ALL = EntityID("swap_all")
 GENERATION = EntityID("generation")
+# The functions of the expanded lowering pass, each replaced by a wrapper that
+# runs its own compiled chunk on the interpreter. compile_node and self_lower
+# are not part of that pass.
 SWAPPED = (
     "upper",
+    "named_tail",
+    "child",
     "evals",
     "seq_code",
+    "lower_op",
     "lower",
 )
 
@@ -1102,6 +1108,23 @@ def _swap_all_body() -> tuple:
     return body
 
 
+def _source_links(
+    compiler: dict[EntityID, Any],
+    target: str,
+) -> dict[str, EntityID]:
+    """The links of target's retained source: the compiler's own links of
+    target, without the interpreter's, read from the compiler so that the
+    twin and its original cannot disagree."""
+
+    table = compiler[EntityID(f"{target}.links")]
+
+    return {
+        role: endpoint
+        for role, endpoint in table.roles.items()
+        if role not in (FUNCTION_ROLE, "vm")
+    }
+
+
 def bootstrap_entities() -> dict[EntityID, Any]:
     """The compiler, retained source, interpreter, and rebuild program."""
 
@@ -1127,22 +1150,12 @@ def bootstrap_entities() -> dict[EntityID, Any]:
         ),
     }
 
-    source_dependencies = {
-        "upper": (),
-        "evals": ("evals", "lower"),
-        "seq_code": ("seq_code", "lower"),
-        "lower": ("lower", "upper", "evals", "seq_code"),
-    }
-
     for target in SWAPPED:
         source = source_name(target)
         entities[source] = compiler[EntityID(target)]
         entities[EntityID(f"{source.value}.links")] = links(
             source,
-            **{
-                name: EntityID(name)
-                for name in source_dependencies[target]
-            },
+            **_source_links(compiler, target),
         )
 
     for target in SWAPPED:

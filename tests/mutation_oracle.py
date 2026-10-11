@@ -7,6 +7,7 @@ mandatory in ordinary CI but are not mutation-kill oracles.
 
 from __future__ import annotations
 
+import resource
 import sys
 import unittest
 
@@ -14,6 +15,30 @@ from tests.lanes import LANES, validate_partition
 
 
 EXCLUDED_LANES = frozenset({"mutation"})
+
+# The whole semantic suite runs once per mutant that survives and once as the
+# baseline, on shared runners that vary in speed. The limit only has to stop
+# a mutant that never terminates; a mutant that hits it counts as killed, so
+# it must stay well above the slowest honest run.
+TIMEOUT_SECONDS = 900.0
+
+# A mutant can make code allocate without bound (one in ``matching.py`` grows
+# by tens of megabytes a second); within the time limit that exhausts the
+# runner and terminates the whole job. The honest suite peaks near 110 MB of
+# resident memory, so a cap on the oracle process's address space turns such a
+# mutant into an ordinary failing test within seconds.
+MEMORY_LIMIT_BYTES = 3 * 1024**3
+
+
+def limit_memory(limit: int = MEMORY_LIMIT_BYTES) -> None:
+    """Cap this process's address space; never raise it above the hard limit."""
+
+    _, hard = resource.getrlimit(resource.RLIMIT_AS)
+
+    if hard != resource.RLIM_INFINITY:
+        limit = min(limit, hard)
+
+    resource.setrlimit(resource.RLIMIT_AS, (limit, hard))
 
 
 def modules() -> tuple[str, ...]:
@@ -56,6 +81,7 @@ def command() -> list[str]:
 
 
 def main() -> int:
+    limit_memory()
     result = unittest.TextTestRunner(
         verbosity=0,
         failfast=True,

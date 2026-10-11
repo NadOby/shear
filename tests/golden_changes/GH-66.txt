@@ -1,0 +1,7 @@
+# GH-66: the unified SHEAR compiler adds node-aware lowering and
+# catch/raise support while retaining the expanded-chunk compiler.
+# Compiler-containing examples acquire changed canonical compiler code.
+# Existing behavioral expectations and unrelated records remain protected.
+programs/compiler
+programs/bootstrap
+programs/instrument

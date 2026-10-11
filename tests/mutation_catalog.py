@@ -64,8 +64,22 @@ TARGETS = (
     "shear/syntax/printer.py",
     "shear/transforms.py",
     "shear/values.py",
+    # The seed manifest pins this file's exact semantic source, so every
+    # mutant is killed by the manifest check before behaviour is exercised.
+    # A kill here is not evidence that a behavioural test caught the change;
+    # that evidence is tests/test_hosted_bootstrap.py's differential test.
+    "shear/examples/compiler_source.py",
     "shear/examples/self_hosting.py",
     "shear/examples/vm.py",
+    "shear/hosted_bootstrap/artifacts.py",
+    "shear/hosted_bootstrap/command.py",
+    "shear/hosted_bootstrap/descriptors.py",
+    "shear/hosted_bootstrap/generations.py",
+    "shear/hosted_bootstrap/seed.py",
+    "shear/hosted_bootstrap/session.py",
+    "shear/hosted_bootstrap/target.py",
+    "shear/hosted_bootstrap/trace.py",
+    "shear/hosted_bootstrap/validation.py",
 )
 
 
@@ -77,10 +91,16 @@ OMITTED = {
         "re-export surface of the syntax package; behaviour lives in its modules",
     "shear/__init__.py":
         "public re-export surface; semantic behaviour lives in its modules",
-    "shear/execution_route_spike.py": (
-        "Experimental Task 29 spike; remove or replace in Task 30, "
-        "or promote with an explicit mutation-testing decision"
-    ),
+    "shear/hosted_bootstrap/__init__.py":
+        "public re-export surface of the hosted pipeline; behaviour lives in its modules",
+    "shear/hosted_bootstrap/__main__.py":
+        "command-line entry shim that calls hosted_bootstrap.command.main",
+    "shear/hosted_bootstrap/diagnostics.py":
+        "diagnostic measurement harness (section 10); reports, asserts no contract",
+    "shear/hosted_bootstrap/seed_cli.py":
+        "command-line entry shim that calls hosted_bootstrap.seed.main; nothing imports it",
+    "shear/hosted_bootstrap/errors.py":
+        "exception classes only; no behaviour to mutate",
     "shear/examples/__init__.py":
         "example/corpus harness rather than a semantic implementation",
     "shear/examples/_support.py":

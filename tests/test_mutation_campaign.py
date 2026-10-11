@@ -5,6 +5,7 @@ from __future__ import annotations
 import io
 import json
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -15,6 +16,62 @@ from tests import mutation_campaign
 from tests import mutation_oracle
 from tests import mutation_reporting
 from tests.lanes import LANES
+
+
+class OracleMemoryLimitTests(unittest.TestCase):
+    """A mutant that allocates without bound must fail its test run, not
+    exhaust the runner (a campaign shard was terminated by exactly that)."""
+
+    def test_the_oracle_process_cannot_allocate_past_the_cap(self) -> None:
+        done = subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                "from tests import mutation_oracle as o\n"
+                "o.limit_memory(512 * 1024 * 1024)\n"
+                "block = bytearray(1024 * 1024 * 1024)\n",
+            ],
+            capture_output=True,
+            cwd=mutation.ROOT,
+        )
+
+        self.assertNotEqual(done.returncode, 0)
+        self.assertIn(b"MemoryError", done.stderr)
+
+    def test_the_oracle_applies_the_cap_before_running_any_test(self) -> None:
+        order: list[str] = []
+
+        with (
+            patch.object(
+                mutation_oracle,
+                "limit_memory",
+                side_effect=lambda: order.append("limit"),
+            ),
+            patch.object(
+                mutation_oracle,
+                "suite",
+                side_effect=lambda: (order.append("suite"), unittest.TestSuite())[1],
+            ),
+        ):
+            self.assertEqual(mutation_oracle.main(), 0)
+
+        self.assertEqual(order, ["limit", "suite"])
+
+    def test_the_cap_is_never_above_the_inherited_hard_limit(self) -> None:
+        with patch.object(
+            mutation_oracle.resource,
+            "getrlimit",
+            return_value=(1 << 40, 1 << 30),
+        ), patch.object(
+            mutation_oracle.resource,
+            "setrlimit",
+        ) as setter:
+            mutation_oracle.limit_memory(1 << 33)
+
+        setter.assert_called_once_with(
+            mutation_oracle.resource.RLIMIT_AS,
+            (1 << 30, 1 << 30),
+        )
 
 
 class MutationCampaignTests(unittest.TestCase):
@@ -480,12 +537,14 @@ class MutationCampaignTests(unittest.TestCase):
         baseline.assert_called_once_with(
             self.root,
             command,
+            timeout=mutation_oracle.TIMEOUT_SECONDS,
         )
         killed.assert_called_once_with(
             self.root,
             mutant.target,
             mutant.index,
             command,
+            timeout=mutation_oracle.TIMEOUT_SECONDS,
         )
 
     def test_exact_replay_stops_when_baseline_fails(self) -> None:
