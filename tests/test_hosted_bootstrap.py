@@ -12,6 +12,7 @@ See docs/hosted_pipeline.md and issue #66.
 
 from __future__ import annotations
 
+import dataclasses
 import json
 import subprocess
 import sys
@@ -584,6 +585,64 @@ class MissingArtifactsFailClosed(unittest.TestCase):
 
         with self.assertRaises(AdmissionRejected):
             self.run_forbidding_host_lowering(session, entry)
+
+
+class RecordsAreImmutable(unittest.TestCase):
+    """The pipeline's records are frozen (CLAUDE.md): nothing can edit an
+    admitted artifact, the manifest or the trace after the fact."""
+
+    def records(self):
+        runtime = small_runtime()
+        session = HostedSession(runtime)
+        reports = session.rebuild_through(1)
+        session.prepare(compiler_generation=1)
+        state = runtime.active.state
+        node = body(state, G)
+        chunk, evidence = session.produce(node)
+        artifact = session.admit(
+            node, state.values[node].version_id, chunk, evidence,
+        )
+        text = "fn hb_f(n):\n    n + 1\n"
+        staged = session.stage_edit(text, EntityID("hb_f"), (1,))
+
+        return {
+            "artifact": artifact,
+            "seed node": session.seed_manifest.code_nodes[0],
+            "manifest": session.seed_manifest,
+            "report": reports[0],
+            "event": session.trace()[0],
+            "descriptor": describe(state, node, G),
+            "production": next(iter(session._target._productions.values())),
+            "staged edit": staged,
+        }
+
+    def test_no_record_accepts_an_assignment(self):
+        for name, record in self.records().items():
+            field = dataclasses.fields(record)[0].name
+
+            with self.subTest(record=name):
+                with self.assertRaises(dataclasses.FrozenInstanceError):
+                    setattr(record, field, None)
+
+
+class PrepareDefaults(unittest.TestCase):
+
+    def test_prepare_defaults_to_the_first_generation(self):
+        session = HostedSession(small_runtime())
+        session.prepare()
+
+        produced = {
+            e.compiler_generation for e in session.trace()
+            if e.kind == "produce" and e.target_state_id is not None
+        }
+
+        self.assertEqual(produced, {1})
+
+    def test_a_target_is_never_compiled_by_the_seed(self):
+        session = HostedSession(small_runtime())
+
+        with self.assertRaises(ValueError):
+            session.prepare(compiler_generation=0)
 
 
 class MachineResolverHook(unittest.TestCase):
