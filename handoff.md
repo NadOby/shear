@@ -140,8 +140,7 @@ No further Plan revision is required for any of them.
 - #94: maintainability assessment of the oversized modules (`lang.py`,
   `machine.py`, `vm.py`, `transforms.py`, `continuity.py`); a split needs
   survivor re-review because they are pinned mutation targets.
-- Coverage diagnostic and faster mutation campaign: see the issue linked
-  from #66.
+- #95: coverage diagnostic and faster mutation campaign.
 
 ## Next action
 
