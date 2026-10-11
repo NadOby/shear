@@ -29,12 +29,15 @@ from shear.examples import EXAMPLES
 from shear.examples._support import program
 from shear.hosted_bootstrap import AdmissionRejected, HostedSession
 from shear.hosted_bootstrap import seed
+from shear.hosted_bootstrap.command import _jsonable
 from shear.hosted_bootstrap.descriptors import (
     SUPPORTED_KINDS,
+    _plain,
     decode_chunk,
     describe,
 )
 from shear.hosted_bootstrap.errors import UnsupportedOperation
+from shear.hosted_bootstrap.trace import HOST_LOWER
 from shear.hosted_bootstrap.validation import validate_chunk
 from shear.lang import (
     NODE_KINDS,
@@ -812,6 +815,162 @@ class TraceRecordsFirstUseOnly(unittest.TestCase):
 
         self.assertTrue(executed)
         self.assertEqual(len(executed), len(set(executed)))
+
+
+class EvidenceNamesTheNode(unittest.TestCase):
+    """A produced chunk is evidence for one node only, even when a sibling
+    of the same function has the same chunk and is itself well formed."""
+
+    def test_the_same_chunk_does_not_admit_a_different_node(self):
+        runtime = Runtime(load(program({
+            F: Function(("n",), ("add", ("arg", "n"), ("arg", "n"))),
+        })))
+        session = HostedSession(runtime)
+        session.prepare(compiler_generation=1)
+        state = runtime.active.state
+        args = [
+            n for n in code_nodes(state)
+            if relation_of(state.values[n]).kind == "arg"
+        ]
+        self.assertEqual(len(args), 2)
+        chunk, evidence = session.produce(args[0])
+
+        for other in args[1:]:
+            self.assertEqual(session.produce(other)[0], chunk)
+
+            # The integrity check would also refuse it later; the evidence
+            # check must refuse it first, on the node.
+            with self.assertRaisesRegex(AdmissionRejected, "wrong node"):
+                session.admit(
+                    other, state.values[other].version_id, chunk, evidence,
+                )
+
+
+class ResolverChecksTheState(unittest.TestCase):
+
+    def setUp(self):
+        self.runtime = small_runtime()
+        self.session = HostedSession(self.runtime)
+        self.session.prepare(compiler_generation=1)
+        self.node = body(self.runtime.active.state, G)
+        self.resolve = self.session._bound()._artifacts.resolver()
+
+    def test_an_equal_state_is_the_same_state(self):
+        twin = small_runtime().active.state
+
+        self.assertIsNot(twin, self.runtime.active.state)
+        self.assertEqual(twin.id, self.runtime.active.state.id)
+        self.assertTrue(self.resolve(twin, self.node, G))
+
+    def test_a_different_state_is_refused(self):
+        other = define(self.runtime.active.state, {
+            G: Function(("n",), ("add", ("arg", "n"), ("lit", 7))),
+        }).destination
+
+        self.assertNotEqual(other.id, self.runtime.active.state.id)
+
+        with self.assertRaises(AdmissionRejected):
+            self.resolve(other, self.node, G)
+
+
+class HostedRunGrantsNoActivation(unittest.TestCase):
+
+    def test_no_capability_unless_asked(self):
+        session = HostedSession(small_runtime())
+        session.prepare(compiler_generation=1)
+
+        with mock.patch.object(machine, "run", return_value=2) as run:
+            session.run(F, 1)
+            session.run(F, 1, may_activate=True)
+
+        self.assertEqual(
+            [call.kwargs["may_activate"] for call in run.call_args_list],
+            [False, True],
+        )
+
+
+class SeedLoweringIsGenerationZero(unittest.TestCase):
+
+    def test_host_lowered_nodes_are_reported_as_generation_zero(self):
+        session = HostedSession(small_runtime())
+        session.prepare(compiler_generation=1)
+        lowered = [e for e in session.trace() if e.kind == HOST_LOWER]
+
+        self.assertTrue(lowered)
+        self.assertEqual({e.generation for e in lowered}, {0})
+
+
+class OperandTypesOfClosureAndCatch(unittest.TestCase):
+
+    def setUp(self):
+        self.runtime = Runtime(load(program({
+            F: Function(
+                ("n",),
+                ("closure", ("x",), ("n",), ("add", ("arg", "n"), ("arg", "x"))),
+            ),
+            G: Function((), ("catch", ("lit", 1))),
+        })))
+        self.state = self.runtime.active.state
+        self.session = HostedSession(self.runtime)
+        self.session.prepare(compiler_generation=1)
+
+    def instruction(self, function, opcode):
+        node = body(self.state, function)
+        chunk = self.session.produce(node)[0]
+
+        return node, next(i for i in chunk if i[0] == opcode)
+
+    def check(self, function, instruction):
+        node = body(self.state, function)
+        validate_chunk(self.state, node, function, (instruction, ("END",)))
+
+    def accepts(self, function, instruction):
+        self.check(function, instruction)
+
+    def rejects(self, function, instruction):
+        with self.assertRaises(AdmissionRejected):
+            self.check(function, instruction)
+
+    def test_closure_params_and_captures_are_tuples_of_names(self):
+        _, closure = self.instruction(F, "CLOSURE")
+        child = closure[1]
+
+        self.accepts(F, closure)
+        self.rejects(F, ("CLOSURE", child, "x", ("n",)))
+        self.rejects(F, ("CLOSURE", child, (1,), ("n",)))
+        self.rejects(F, ("CLOSURE", child, ("x",), "n"))
+        self.rejects(F, ("CLOSURE", child, ("x",), (2,)))
+
+    def test_catch_kinds_are_none_or_a_tuple_of_names(self):
+        _, catch = self.instruction(G, "CATCH")
+        child = catch[1]
+
+        self.accepts(G, catch)
+        self.accepts(G, ("CATCH", child, ("invalid",)))
+        self.rejects(G, ("CATCH", child, "invalid"))
+        self.rejects(G, ("CATCH", child, (1,)))
+        self.rejects(G, ("CATCH", child, 7))
+
+
+class CommandOutputBoundary(unittest.TestCase):
+    """The documented command prints JSON: identities as their names,
+    canonical tuples as arrays, plain values unchanged."""
+
+    def test_identities_and_canonical_values_become_json(self):
+        self.assertEqual(_jsonable(EntityID("e")), "e")
+        self.assertEqual(_jsonable(canonicalize((1, EntityID("e")))), [1, "e"])
+        self.assertEqual(_jsonable(5), 5)
+        self.assertEqual(_jsonable([EntityID("e"), (2,)]), ["e", [2]])
+
+
+class DescriptorValueDecoding(unittest.TestCase):
+
+    def test_maps_decode_to_dicts_and_unknown_tags_stay_canonical(self):
+        mapping = canonicalize({"a": 1, "b": (1, 2)})
+        unknown = canonicalize(b"x")
+
+        self.assertEqual(_plain(mapping), {"a": 1, "b": (1, 2)})
+        self.assertEqual(_plain(unknown), unknown)
 
 
 if __name__ == "__main__":
