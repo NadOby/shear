@@ -12,7 +12,9 @@ See docs/hosted_pipeline.md and issue #66.
 
 from __future__ import annotations
 
+import contextlib
 import dataclasses
+import io
 import json
 import subprocess
 import sys
@@ -34,7 +36,15 @@ from shear.hosted_bootstrap.descriptors import (
 )
 from shear.hosted_bootstrap.errors import UnsupportedOperation
 from shear.hosted_bootstrap.validation import validate_chunk
-from shear.lang import NODE_KINDS, Function, _definition_of, define, links, load
+from shear.lang import (
+    NODE_KINDS,
+    Function,
+    LanguageError,
+    _definition_of,
+    define,
+    links,
+    load,
+)
 from shear.lang import run as reference_run
 from shear.relations import relation_of
 
@@ -309,7 +319,7 @@ class SeedIsExactlyTheDeclaredNodes(unittest.TestCase):
 
     def test_the_documented_command_checks_the_manifest(self):
         done = subprocess.run(
-            [sys.executable, "-m", "shear.hosted_bootstrap.seed"],
+            [sys.executable, "-m", "shear.hosted_bootstrap.seed_cli"],
             capture_output=True, text=True, cwd=seed.MANIFEST_PATH.parents[2],
         )
 
@@ -320,7 +330,10 @@ class SeedIsExactlyTheDeclaredNodes(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "manifest.json"
 
-            with mock.patch.object(seed, "MANIFEST_PATH", path):
+            with (
+                mock.patch.object(seed, "MANIFEST_PATH", path),
+                contextlib.redirect_stdout(io.StringIO()),
+            ):
                 self.assertEqual(seed.main(["--write"]), 0)
 
             self.assertEqual(
@@ -328,8 +341,27 @@ class SeedIsExactlyTheDeclaredNodes(unittest.TestCase):
                 seed.MANIFEST_PATH.read_text(encoding="utf-8"),
             )
 
+    def test_a_stale_manifest_is_reported_with_status_one(self):
+        damaged = seed.derive(seed.compiler_source_state())
+        damaged = dataclasses.replace(damaged, code_nodes=damaged.code_nodes[1:])
+
+        with (
+            mock.patch.object(seed, "load_manifest", return_value=damaged),
+            contextlib.redirect_stdout(io.StringIO()),
+        ):
+            self.assertEqual(seed.main([]), 1)
+
+    def test_importing_the_module_runs_no_command(self):
+        done = subprocess.run(
+            [sys.executable, "-c", "import shear.hosted_bootstrap.seed"],
+            capture_output=True, text=True, cwd=seed.MANIFEST_PATH.parents[2],
+        )
+
+        self.assertEqual((done.returncode, done.stdout), (0, ""), done.stderr)
+
     def test_the_command_refuses_unknown_arguments(self):
-        self.assertEqual(seed.main(["--nope"]), 2)
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(seed.main(["--nope"]), 2)
 
     def test_only_declared_nodes_lower_on_the_host(self):
         session = HostedSession(small_runtime())
@@ -643,6 +675,79 @@ class PrepareDefaults(unittest.TestCase):
 
         with self.assertRaises(ValueError):
             session.prepare(compiler_generation=0)
+
+
+class NodesTheCorpusLacks(unittest.TestCase):
+    """Cases the corpus does not reach but admission and the compiler must
+    still get right."""
+
+    def test_an_invalid_node_lowers_like_the_host(self):
+        entry = EntityID("hb_bogus")
+        runtime = Runtime(load(program({
+            entry: Function((), ("not_an_operation", ("lit", 1))),
+        })))
+        state = runtime.active.state
+        session = HostedSession(runtime)
+        session.prepare(compiler_generation=1)
+        node = body(state, entry)
+        relation = relation_of(state.values[node])
+        chunk, _ = session.produce(node)
+
+        self.assertEqual(relation.kind, "invalid")
+        self.assertEqual(chunk, bytecode.lower(relation))
+
+        with self.assertRaises(LanguageError) as hosted:
+            session.run(entry)
+
+        with self.assertRaises(LanguageError) as reference:
+            reference_run(
+                Runtime(load(program({
+                    entry: Function((), ("not_an_operation", ("lit", 1))),
+                }))),
+                entry,
+            )
+
+        self.assertEqual(str(hosted.exception), str(reference.exception))
+
+    def test_both_branch_targets_must_be_children(self):
+        entry = EntityID("hb_branchy")
+        runtime = Runtime(load(program({
+            entry: Function(
+                ("n",),
+                ("if", ("lt", ("arg", "n"), ("lit", 1)),
+                 ("lit", 1), ("lit", 2)),
+            ),
+        })))
+        state = runtime.active.state
+        session = HostedSession(runtime)
+        session.prepare(compiler_generation=1)
+        node = body(state, entry)
+        chunk, _ = session.produce(node)
+        branch = next(i for i in chunk if i[0] == "BRANCH")
+        stranger = EntityID("hb_stranger")
+
+        validate_chunk(state, node, entry, chunk)
+
+        for position in (1, 2):
+            forged = list(branch)
+            forged[position] = stranger
+            replaced = tuple(
+                tuple(forged) if i == branch else i for i in chunk
+            )
+
+            with self.subTest(position=position):
+                with self.assertRaises(AdmissionRejected):
+                    validate_chunk(state, node, entry, replaced)
+
+    def test_validation_refuses_entities_that_are_not_code(self):
+        runtime = small_runtime()
+        state = runtime.active.state
+        chunk = (("LIT", 1), ("END",))
+
+        for entity in (EntityID("hb_missing"), F, EntityID("hb_f.links")):
+            with self.subTest(entity=entity.value):
+                with self.assertRaises(AdmissionRejected):
+                    validate_chunk(state, entity, F, chunk)
 
 
 class MachineResolverHook(unittest.TestCase):
