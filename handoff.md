@@ -1,137 +1,136 @@
 # Handoff
 
-Read `CLAUDE.md`, `docs/roadmap.md`, and the relevant specifications before continuing. Independently verify this checkpoint against GitHub.
+Read `CLAUDE.md`, the Workflow and D3/D4 sections of
+`docs/roadmap.md`, and `docs/hosted_pipeline.md`.
+Verify this checkpoint against GitHub before relying on it.
 
 ## Current state
 
 - Task: 30 – Hosted-bootstrap pipeline.
 - Issue: #66.
 - Branch: `task/30-hosted-bootstrap`.
-- Role: Revised Plan complete; next role is Execute in a fresh chat.
 - Main baseline: `c1a4596ff555b1f3483b93398a3e8f73fd89bffa`.
-- Original Plan head: `2f2081b866ca2d686a4cabed3fa4a05a48a31789`.
-- **Revised protected Plan head: `94ac037cbcd5e08ed86a3ae6e39c8d20c08f464a`.**
-- The subsequent handoff-only commit is not part of the protected specification/test baseline.
-- Execute starts from the task branch HEAD, including this handoff.
+- Original protected Plan head: `2f2081b866ca2d686a4cabed3fa4a05a48a31789`.
+- First revised Plan head: `94ac037cbcd5e08ed86a3ae6e39c8d20c08f464a`.
+- **Current protected Plan head: `fbbb32379c327c1e29f5646e89d30fd1bb8a8084`.**
+- Role: Plan revision complete; ready for independent final Plan verification before Execute.
+- The subsequent handoff-only commit is not part of the protected Plan baseline.
 
-The authoritative specification is `docs/hosted_pipeline.md`. This handoff records the execution contract; it is not independent architectural authority.
+`docs/hosted_pipeline.md` is authoritative for Task 30.
+This handoff is a checkpoint, not architectural authority.
 
-## Settled architecture
+## Settled scope
 
-D3 and D4 in `docs/roadmap.md` are Decided. The older issue #66 full-workload assumptions are superseded by D4.
+D3 and D4 remain Decided. The eight owner-approved decisions are unchanged:
 
-The eight owner-approved Task 30 decisions remain unchanged:
+1. One SHEAR compiler implementation shared between expanded and node-aware lowering.
+2. All 20 specified non-evolution corpus examples, preserving failures and cell effects.
+3. `catch` and `raise` included; dedicated error canaries deferred to Task 31.
+4. Real G1–G3 compiler generations over unchanged pinned compiler source.
+5. Immutable host-provided, version-pinned descriptors; no expanded language reflection.
+6. Finite, independently checked, closed G0 compiler seed.
+7. Conservative artifact invalidation; cross-activation reuse deferred.
+8. Remaining metaprogramming operations deferred unless a real Task 30 dependency is established.
 
-1. One SHEAR-authored compiler lowering implementation shared by expanded and node-aware modes.
-2. All 20 declared non-evolution corpus examples, including ordinary failures and cell effects.
-3. `catch` and `raise` added to Task 30; dedicated error canaries remain Task 31.
-4. Three distinct compiler artifact generations, G1–G3, over unchanged canonical compiler source.
-5. Immutable, host-provided, version-pinned compiler descriptors; reflection unchanged.
-6. Finite, closed, audited G0 compiler seed.
-7. Conservative dependency invalidation; cross-activation reuse deferred.
-8. `quote`, `unquote`, `function`, `activate` and `trial` lowering deferred unless a concrete Task 30 dependency requires them.
+Final text syntax, filename extensions, live evolution and Python removal are outside Task 30.
 
-No final textual syntax or filename extension is being selected.
+## Independent Plan reviews and corrections
 
-## Independent Plan review and resolution
+The first independent review identified four P2 acceptance gaps:
 
-An independent read-only Plan review at `f220578` reported four P2 acceptance-contract gaps. It accepted the D3/D4 architecture, exact workload, exclusions, unified compiler requirement, admission and invalidation principles, and golden-record policy.
+- Unspecified compiler/target source separation.
+- Insufficient evidence of genuine G1–G3 rebuilding.
+- Insufficiently verified G0 seed closure.
+- Missing reconciliation command acceptance.
 
-All four findings have been addressed in the revised Plan-owned specification and acceptance tests:
+The first revision addressed these in the specification and tests.
 
-1. **Compiler/target boundary:** The compiler executes from its own pinned canonical compiler source state. Target programs retain separate canonical states and need not contain compiler functions. `compiler_source_state_id` and `target_state_id` have distinct meanings and provenance bindings.
-2. **Genuine self-rebuilding:** Acceptance tests independently observe compiler execution through the existing machine boundary, compare G1–G3 artifacts against the host oracle, and invalidate predecessor artifacts to test fail-closed generation dependencies.
-3. **Exact seed closure:** Tests independently traverse the compiler source's owned executable nodes and linked compiler functions. Manifest membership must equal that closure; unrelated target nodes and undeclared host lowering are rejected.
-4. **Reconciliation command:** An end-to-end edit-mode test checks original and edited source, independent reconciliation, continuity, admitted execution of both states, and preservation of the original active state.
+Two subsequent independent reviews found remaining verification gaps and compatibility conflicts. The second revision includes:
 
-Revision commits:
+- An actual link-rebinding witness: redefine the caller and its link table together, verify the resolved target and compare against ordinary host execution.
+- Corpus admission failures cannot satisfy expected `LanguageError` or `CellContentRejected` outcomes.
+- G2 and G3 tests observe actual compiler chunks consumed by `machine._open`, comparing object identity against the immediately preceding generation's admitted artifact bindings.
+- Negative predecessor-generation invalidation remains required.
+- In-process reconciliation testing instruments the CLI's `HostedSession.stage_edit` path and guards `Runtime.activate`, independently checking that the original target runtime remains active.
+- Explicit authorization for the known shared-compiler consequences in Task 28's bootstrap-boundary tests, route-A compiler dependencies, mutation-catalog source pins and golden records.
+- Separate hosted witnesses required for `applyv` and `linksof`, which are not exercised by the selected corpus.
 
-- `46c8762996d90d76bf00b5db8bfc4c018eb961a3` – specification clarification.
-- `94ac037cbcd5e08ed86a3ae6e39c8d20c08f464a` – strengthened acceptance tests.
+These are Plan-contract corrections. They do not reopen D3/D4 or expand the agreed Task 30 workload.
 
-These are Plan corrections, not production defect fixes. No new owner decision was required.
+## Second revision commits
+
+- `26177c0620784a79d4128f203302fc088a2e65e3` – correct link-rebinding witness.
+- `942fe7d5d10520f464f5fa97a6488a4475e5928b` – prevent vacuous corpus failure acceptance.
+- `96be6d2fa2ff51ee33826d3e9944d66743a2f805` – verify consumed compiler artifacts and staged edit isolation.
+- `297e7e990f53992b50ed0c957a6ef4d8467594e1` – reconcile specification and compiler compatibility obligations.
+- `fbbb32379c327c1e29f5646e89d30fd1bb8a8084` – declare expected golden changes.
 
 ## Protected Plan-owned files
 
-- `docs/hosted_pipeline.md` – authoritative Task 30 contract, revised after independent review.
-- `tests/test_hosted_corpus.py` – entire selected corpus, preserved expectations and admitted execution.
-- `tests/test_hosted_pipeline.py` – compiler isolation, exact seed, genuine generation ancestry, admission, error operations and reconciliation command.
-- `tests/test_hosted_safety.py` – invalidation, link rebinding, cache isolation and error semantics.
-- `tests/lanes.py` – the three modules registered under `cross-boundary`.
+At the current protected Plan head:
 
-The latter three files, other than `test_hosted_pipeline.py`, were unchanged during Plan revision.
+- `docs/hosted_pipeline.md`
+- `tests/test_hosted_corpus.py`
+- `tests/test_hosted_pipeline.py`
+- `tests/test_hosted_safety.py`
+- `tests/lanes.py`
+- `tests/golden_changes/GH-66.txt`
 
-No golden-record changes are intended or declared.
+Execute must not silently weaken acceptance tests or change declared expectations. A material defect in the protected Plan contract returns to Plan.
 
-Execute must preserve these files and their assertions. A material Plan error must return to Plan rather than be silently absorbed into implementation.
+The expected golden changes are exactly:
 
-## Test-facing contract
+- `programs/compiler`
+- `programs/bootstrap`
+- `programs/instrument`
 
-The provisional host-only interface is recorded at the top of `tests/test_hosted_pipeline.py` and in `docs/hosted_pipeline.md`.
-
-It includes:
-
-- `HostedSession(runtime)` and `compiler_source_state`.
-- `seed_manifest`, including pinned compiler source identity, roots, executable members and fixed services.
-- `rebuild_through(3)` and generation reports.
-- `compiler_artifacts(generation)` and a host-only generation invalidation hook.
-- `attempt_seed_lower(node)` for negative verification.
-- `prepare`, `produce`, `admit`, `run`, and `trace`.
-- `AdmissionRejected` and authentic production/admission/execution evidence.
-- The normal source-text command and explicitly specified reconciliation edit mode.
-
-Host-only verification mechanisms must not create program-visible authority to install arbitrary executable artifacts.
-
-The new tests intentionally fail before implementation because `shear.hosted_bootstrap` does not exist. No successful CI run or implementation-level validation is claimed.
+The declaration must match actual compiler-derived changes during Execute. Any additional, missing or unrelated changes require explicit Plan reconsideration.
 
 ## Execute requirements
 
 Implement the revised specification, including:
 
-1. The unified SHEAR lowering algorithm and pinned compiler-node descriptors.
-2. Distinct compiler and target canonical states.
-3. The independently verifiable finite G0 seed.
-4. Real G1–G3 compiler self-rebuilding through predecessor-produced admitted code.
-5. Per-runtime route-B execution, admission, provenance and transitive artifact resolution, without process-global interception.
-6. Complete selected corpus execution, including ordinary failures and `catch`/`raise`.
-7. Conservative invalidation for changed code and link dependencies.
-8. Source-text execution and candidate reconciliation without unintended activation.
-9. Independent correctness comparisons, diagnostics and performance measurements.
-10. Task 29 prototype and mutation-catalog disposition, existing regression coverage, and an appended `CHANGES.md` entry.
+1. Separate pinned compiler and target canonical states.
+2. Unified SHEAR lowering, including `catch` and `raise`.
+3. Exact G0 seed manifest and independent closure verification.
+4. Authentic G1–G3 generation ancestry, with actual admitted predecessor-code execution.
+5. Per-runtime route-B admission, transitive artifact resolution and fail-closed behavior.
+6. Complete selected corpus execution, including ordinary failures.
+7. Correct dependency invalidation and existing host chunk-cache isolation.
+8. Text-source execution and staged reconciliation without activating the candidate.
+9. Independent operation witnesses and correctness oracles.
+10. Diagnostics, performance measurements, historical evidence preservation and `CHANGES.md`.
 
-Host lowering is allowed for the sealed G0 seed and as an independent test oracle. It is not a fallback for ordinary route-B execution or part of admission.
+Known compatibility work is authorized:
 
-D4's performance targets are diagnostic, not acceptance gates. Preserve the historical Task 29 performance evidence.
+- Adjust `tests/test_bootstrap_boundary.py` for genuinely supported `catch`/`raise` lowering.
+- Update `shear/examples/vm.py` dependencies only as needed while preserving route-A behavior.
+- Re-review source-pinned mutation survivors for `self_hosting.py` before updating the catalog.
+- Reconcile exactly the declared golden-record changes.
+- Resolve Task 29's experimental execution-route and mutation-catalog disposition.
 
-## Task 31 exclusions
+Preserve existing semantics. Neither compiler-shaped Python synthesis nor silent host-lowering fallback may be attributed to SHEAR execution.
 
-Task 31 retains language-driven trial and activation, remaining metaprogramming operations, dedicated error canaries, sustained self-modification, held frames and closures across activation, cross-activation artifact reuse and retirement.
+Tests currently lack the `shear.hosted_bootstrap` implementation and are expected to fail. The golden declaration is also expected to remain unfulfilled until the compiler changes. No successful acceptance run is claimed.
 
-Host-orchestrated generation changes do not establish live evolution.
+## Independent verification
 
-Native compilation, final human-facing syntax, Python removal and full SHEAR-VM parity are not Task 30 requirements.
+Before Execute, independently review the latest Plan against the previous findings, particularly:
 
-## Independent Review requirements
+1. Actual G1/G2 artifact consumption rather than reported ancestry.
+2. Reconciliation's independently guarded non-activation.
+3. The corrected link-rebinding oracle.
+4. Expected failure classification.
+5. Golden, mutation-catalog, Task 28 and route-A compatibility allowances.
 
-Review in a fresh context after Execute:
+After Execute, review in a fresh context against protected head `fbbb32379c327c1e29f5646e89d30fd1bb8a8084`.
 
-1. Fetch current main and the task branch.
-2. Diff all Plan-owned specification, acceptance-test and golden-declaration files against `94ac037cbcd5e08ed86a3ae6e39c8d20c08f464a`.
-3. Independently verify compiler/target separation, canonical source preservation and exact G0 closure.
-4. Verify that G2 and G3 genuinely execute predecessor-produced compiler artifacts, rather than relying on reports or labels.
-5. Audit all host-lowering paths, artifact resolvers, transitive calls, closures, caches and invalidation paths.
-6. Verify the complete corpus, ordinary error behavior and source-edit command, including continuity and absence of unintended activation.
-7. Check independent behavioral oracles, the mutation catalog, golden records, ordinary CI and diagnostics.
-8. Classify findings as verified defects, limitations, hypotheses or documentation drift.
+Verify source preservation, real SHEAR compilation, closed seed membership, authenticated transitive execution, dependency invalidation, complete corpus coverage, independent oracles, ordinary CI and diagnostics.
 
-Execute does not certify its own implementation.
+Classify verified defects, limitations, hypotheses and documentation drift separately. Execute cannot certify itself.
 
 ## Next action
 
-Begin **Execute Task 30 (#66)** in a fresh chat.
+Perform a short independent final Plan verification. If no blocking findings remain, start Execute Task 30 (#66) in a fresh chat.
 
-Read `CLAUDE.md`, `docs/roadmap.md`, `docs/hosted_pipeline.md`, all three Plan-owned acceptance-test modules, this handoff and the relevant D3/D4 specifications.
-
-Use the revised protected Plan head. Do not weaken tests or silently modify settled requirements.
-
-The owner works from mobile with read-only assistant GitHub access. Provide complete file replacements, clickable GitHub edit links and copyable `GH-66` commit messages, one commit at a time. Verify each commit before continuing.
+The owner operates from mobile without assistant GitHub write access. Provide complete replacement files, clickable GitHub links and copyable `GH-66` commit messages, one commit at a time. Verify each commit before proceeding.
