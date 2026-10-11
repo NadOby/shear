@@ -20,7 +20,7 @@ self-rewriting programs and re-exports the compiler's names.
 | `seed.py`, `manifest.json` | The generation-0 seed: the compiler nodes the host lowers, derived from the source and checked in. `SeedGate` is the only door to host lowering. |
 | `generations.py` | Builds generations 1 to 3, each by running `compile_node` on the machine over the previous generation's admitted artifacts. |
 | `descriptors.py` | Builds the argument of `compile_node` for a node and decodes the answer. Makes no lowering decision. |
-| `validation.py` | Structural admission checks on a chunk, against the node and its owner's links. No host re-lowering. |
+| `validation.py` | Structural admission checks on a chunk: known instructions and operand types, children and links of the node and its owner, and a single pass over the operand stack (no underflow, empty at a handover, nothing after a handover or raise, exactly one result). No host re-lowering. |
 | `artifacts.py` | Admitted artifacts, content-derived ids and the per-run chunk resolver. |
 | `target.py` | One target state: produce, admit, run. Opaque evidence handles bind an admission to one compiler run. |
 | `session.py`, `command.py` | The public boundary (`HostedSession`) and the documented command. |
@@ -42,7 +42,9 @@ with `AdmissionRejected`; nothing falls back to host lowering. The 20
 included corpus programs run on the admitted route; the deferred programs
 are outside this task's subset (hosted_pipeline.md section 2).
 
-`tests/test_hosted_bootstrap.py` compares the compiler's chunk with
+`tests/test_hosted_bootstrap.py` also runs `applyv` and `linksof`, which the
+corpus subset lacks, on admitted artifacts against ordinary execution, and
+compares the compiler's chunk with
 `bytecode.lower` for every supported node of every corpus program.
 
 ## 3. Provisional integration choices

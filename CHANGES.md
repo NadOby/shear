@@ -1781,4 +1781,9 @@ golden records or historical measurements changed.
   were re-reviewed by inspection (every classified site and its context
   are unchanged) and repinned. They were not re-run locally; the CI
   campaign confirms them.
+- Resolved independent Review findings: admission now checks the operand
+  stack of a chunk (underflow, handovers, unreachable instructions, a single
+  result) and operand types, and `applyv` and `linksof` have admitted-route
+  witnesses compared with ordinary execution. An unconditional test covers
+  the seed's refusal of undeclared compiler nodes.
 

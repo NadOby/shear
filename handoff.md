@@ -9,7 +9,7 @@ Verify this checkpoint against GitHub before relying on it.
 - Task: 30 – Hosted-bootstrap pipeline. Issue: #66.
 - Branch: `task/30-hosted-bootstrap`.
 - Protected Plan head: `fbbb32379c327c1e29f5646e89d30fd1bb8a8084`.
-- Role: Execute complete; ready for independent Review in a fresh context.
+- Role: Resolve of the first independent Review (2 P2 findings) done; ready for confirmation.
 - Execute commits: `504daa8` (compiler move and unification), `f678c00`
   (machine resolver), `1592f09` (pipeline and tests), `1b77784` (spike
   removal, mutation catalog, workflow, `CHANGES.md`).
@@ -83,6 +83,18 @@ not evidence.
 
 - Cross-activation reuse and live evolution: Task 31.
 - Peak-memory and timing figures are from a 2-vCPU container only.
+
+## Review findings resolved
+
+- P2 admission did not check stack effects or termination: `validation.py`
+  now simulates the operand stack in one pass and checks operand types;
+  negative tests in `AdmissionChecksTheStack` fail on the old code.
+- P2 no witnesses for `applyv` and `linksof`: `OperationWitnesses` runs both
+  on admitted artifacts, host lowering forbidden, against ordinary execution.
+- P3 conditional seed test: an unconditional Execute-owned test was added;
+  the protected test is unchanged.
+- Still open: run the `hosted_diagnostics` dispatch and retain its report
+  before Publish; the mutation campaign result is pending on CI.
 
 ## Nonblocking P3 observations for Review
 
