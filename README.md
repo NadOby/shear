@@ -56,7 +56,9 @@ per node version, and run on a VM with an explicit stack. The lowering pass
 and a bytecode interpreter are also written in SHEAR, and the compiler
 reaches a bootstrap fixpoint on its own source
 ([`bytecode.md`](docs/bytecode.md), [`self_hosting.md`](docs/self_hosting.md),
-[`vm_in_shear.md`](docs/vm_in_shear.md)). Constant folding is a graph
+[`vm_in_shear.md`](docs/vm_in_shear.md)). The hosted pipeline compiles
+and admits per-node artifacts with that compiler
+([`hosted_bootstrap.md`](docs/hosted_bootstrap.md)). Constant folding is a graph
 transformation that declares its merges
 ([`constant_folding.md`](docs/constant_folding.md)).
 
