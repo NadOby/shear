@@ -274,3 +274,45 @@ historical. Canaries 11 and 12 remain partial: the architecture is selected,
 but Task 29 did not demonstrate a complete replaceable runtime or
 source-preserving compiler rebuild on the admitted route. Those require
 Task 30 and, for live evolution, Task 31.
+
+
+### Application-level canaries
+
+**Provisional – future research, not committed roadmap work.**
+
+The architectural canaries above test individual mechanisms. Application-level canaries test whether those mechanisms work together to make useful software substantially easier to construct, modify or reason about.
+
+| Application | Minimal experiment | Primary discriminators |
+| --- | --- | --- |
+| Genetic programming | Evolve executable programs for symbolic regression through mutation, crossover, fitness evaluation and selection | Semantic identity, graph transformations, provenance, trials, activation |
+| Versioned workflow engine | Change process definitions while preserving and selectively migrating active instances | Continuity, retained versions, state migration |
+| Long-running simulation | Replace an algorithm or physical model without restarting the simulation | Live activation, old frames, retained state, external computation |
+| Adaptive agents | Generate, evaluate and activate alternative decision procedures | Program introspection, controlled self-modification, capabilities |
+| Semantic development tools | Implement structural editing, semantic diffs and refactoring independently of source-text positions | Persistent identity, transformations, source independence |
+| Embedded DSLs and knowledge systems | Define application semantics, relationships and transformations using ordinary libraries | Generality of relations, extensibility, application-defined transformations |
+
+**Evaluation protocol**
+
+For each experiment:
+
+1. Define a bounded workload, required capabilities and falsifiable predictions before implementation.
+2. Implement it using ordinary SHEAR facilities, documenting necessary host services and missing capabilities.
+3. Compare against a conventional implementation with equivalent behavior.
+4. Measure development complexity, correctness, performance, resource costs and the value of semantic identity and continuity.
+5. Classify the result using the existing design-canary outcomes.
+
+A working implementation alone does not demonstrate architectural superiority. A failed application does not automatically justify another language primitive.
+
+**Genetic programming and potential self-evolution**
+
+Genetic programming is the first proposed substantial research application (issue #99). Begin with constrained symbolic regression and structural evolution of canonical semantic graphs.
+
+If successful, investigate using the same mechanisms to optimize SHEAR's compiler or transformation passes. Semantic correctness and independent verification remain hard constraints; performance and implementation complexity may be optimization objectives.
+
+Evolution of language semantics requires separate specifications and explicit decisions. Genetic search is an application/library mechanism, not a privileged language feature.
+
+**Dependencies and timing**
+
+Task 31 establishes the initial live-evolution foundation. Program-directed entity creation, application-defined transformations, external resources and persistence may require further work.
+
+These experiments remain independent future research. None is a prerequisite for Task 31 or an automatic addition to the language roadmap.
