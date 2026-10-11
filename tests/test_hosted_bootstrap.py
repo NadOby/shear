@@ -15,6 +15,7 @@ from __future__ import annotations
 import json
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 from shear import EntityID, Runtime, bytecode, machine
@@ -31,6 +32,7 @@ from shear.hosted_bootstrap.descriptors import (
 from shear.hosted_bootstrap.errors import UnsupportedOperation
 from shear.hosted_bootstrap.validation import validate_chunk
 from shear.lang import NODE_KINDS, Function, _definition_of, define, links, load
+from shear.lang import run as reference_run
 from shear.relations import relation_of
 
 
@@ -281,6 +283,27 @@ class SeedIsExactlyTheDeclaredNodes(unittest.TestCase):
             with self.assertRaises(AdmissionRejected):
                 seed.load_manifest(path)
 
+    def test_every_undeclared_compiler_code_node_is_refused(self):
+        """Unconditional: the protected test skips this when no such node
+        exists, so assert that some do."""
+
+        session = HostedSession(small_runtime())
+        source = session.compiler_source_state
+        declared = {n.entity for n in session.seed_manifest.code_nodes}
+        undeclared = [
+            entity for entity, value in source.values.items()
+            if entity not in declared
+            and (r := relation_of(value)) is not None
+            and r.kind in NODE_KINDS
+        ]
+
+        self.assertTrue(undeclared)
+
+        for entity in undeclared:
+            with self.subTest(entity=entity.value):
+                with self.assertRaises(AdmissionRejected):
+                    session.attempt_seed_lower(entity)
+
     def test_only_declared_nodes_lower_on_the_host(self):
         session = HostedSession(small_runtime())
         declared = session.seed_manifest.code_nodes[0].entity
@@ -297,6 +320,198 @@ class SeedIsExactlyTheDeclaredNodes(unittest.TestCase):
         host = [e for e in session.trace() if e.kind == "host-lower"]
         self.assertTrue(host)
         self.assertTrue(all(e.route == "declared-seed" for e in host))
+
+
+class AdmissionChecksTheStack(unittest.TestCase):
+    """A chunk that is well formed instruction by instruction can still be
+    unsound as a whole (docs/hosted_pipeline.md section 6, item 4)."""
+
+    def setUp(self):
+        self.runtime = Runtime(load(program({
+            F: Function((), ("add", ("lit", 1), ("lit", 2))),
+            G: Function((), ("seq", ("lit", 1), ("lit", 2))),
+            H: Function(("n",), ("arg", "n")),
+        })))
+        self.state = self.runtime.active.state
+        session = HostedSession(self.runtime)
+        session.prepare(compiler_generation=1)
+        self.session = session
+
+    def chunk(self, function):
+        node = body(self.state, function)
+
+        return node, self.session.produce(node)[0]
+
+    def check(self, function, chunk):
+        node = body(self.state, function)
+
+        validate_chunk(self.state, node, function, chunk)
+
+    def rejects(self, function, chunk):
+        with self.assertRaises(AdmissionRejected):
+            self.check(function, chunk)
+
+    def test_the_compilers_own_chunks_are_sound(self):
+        for function in (F, G, H):
+            self.check(function, self.chunk(function)[1])
+
+    def test_stack_underflow(self):
+        self.rejects(F, (("ADD",), ("END",)))
+
+        _, add = self.chunk(F)
+        evals = [i for i in add if i[0] == "EVAL"]
+        self.rejects(F, (evals[0], ("ADD",), ("END",)))
+        self.rejects(F, (("POP",), ("END",)))
+
+    def test_a_chunk_must_end_with_exactly_one_value(self):
+        _, add = self.chunk(F)
+        evals = [i for i in add if i[0] == "EVAL"]
+
+        self.rejects(F, (("END",),))
+        self.rejects(F, (*evals, ("END",)))
+        self.rejects(F, (*evals, ("ADD",), ("POP",), ("END",)))
+
+    def test_end_must_be_last_and_nothing_follows_a_handover(self):
+        _, seq = self.chunk(G)
+        goto = next(i for i in seq if i[0] == "GOTO")
+        head = seq[:seq.index(goto)]
+
+        self.check(G, seq)
+        self.rejects(G, (*head, goto, ("LIT", 1), ("END",)))
+        self.rejects(G, (("END",), *seq))
+        self.rejects(G, (*head, ("END",), goto, ("END",)))
+
+    def test_a_handover_leaves_the_stack_empty(self):
+        _, seq = self.chunk(G)
+        goto = next(i for i in seq if i[0] == "GOTO")
+
+        self.rejects(G, (("LIT", 1), goto, ("END",)))
+        self.rejects(G, tuple(i for i in seq if i[0] != "POP"))
+
+    def test_nothing_follows_a_raise(self):
+        raised = (("RAISE", "invalid"), ("LIT", 1), ("END",))
+
+        self.rejects(F, raised)
+
+    def test_operands_must_have_their_type(self):
+        node, arg = self.chunk(H)
+
+        self.check(H, arg)
+        self.rejects(H, (("ARG", 5), ("END",)))
+        self.rejects(H, (("ARG",), ("END",)))
+        self.rejects(H, (("ARG", "n", "extra"), ("END",)))
+
+
+class OperationWitnesses(unittest.TestCase):
+    """``applyv`` and ``linksof`` are not in the protected corpus subset
+    (docs/hosted_pipeline.md section 2). Each runs here on admitted
+    artifacts with host lowering forbidden, and agrees with ordinary host
+    execution on an independent runtime."""
+
+    MAKE = EntityID("hb_make")
+    CALL_V = EntityID("hb_call_v")
+    VIA_REF = EntityID("hb_via_ref")
+    LINKS = EntityID("hb_links")
+
+    def entities(self):
+        return {
+            self.MAKE: Function(
+                ("n",),
+                (
+                    "closure",
+                    ("x",),
+                    ("n",),
+                    ("add", ("arg", "n"), ("arg", "x")),
+                ),
+            ),
+            self.CALL_V: Function(
+                ("f", "args"), ("applyv", ("arg", "f"), ("arg", "args")),
+            ),
+            self.VIA_REF: Function(
+                (),
+                (
+                    "applyv",
+                    ("ref", "target"),
+                    ("tuple", ("lit", 2), ("lit", 3)),
+                ),
+            ),
+            EntityID("hb_via_ref.links"): links(self.VIA_REF, target=G),
+            G: Function(
+                ("a", "b"), ("mul", ("arg", "a"), ("arg", "b")),
+            ),
+            self.LINKS: Function((), ("linksof", "callee")),
+            EntityID("hb_links.links"): links(self.LINKS, callee=F),
+            F: Function(("n",), ("call", "g", ("arg", "n"))),
+            EntityID("hb_f.links"): links(F, g=H),
+            H: Function(("n",), ("add", ("arg", "n"), ("lit", 1))),
+        }
+
+    def admitted(self, entry, *args):
+        state = load(program(self.entities()))
+        runtime = Runtime(state)
+        session = HostedSession(runtime)
+        session.prepare(compiler_generation=1)
+
+        def forbidden(*a, **k):
+            raise AssertionError("host lowering reached")
+
+        with (
+            mock.patch.object(bytecode, "chunk_of", side_effect=forbidden),
+            mock.patch.object(bytecode, "lower_value", side_effect=forbidden),
+        ):
+            result = session.run(entry, *args)
+
+        oracle = reference_run(Runtime(load(program(self.entities()))), entry, *args)
+
+        return state, session, result, oracle
+
+    def executed(self, session, state, function, kind):
+        nodes = {
+            e for e in state.owned_subtree(function)
+            if (r := relation_of(state.values[e])) is not None
+            and r.kind == kind
+        }
+        events = {
+            e.entity for e in session.trace()
+            if e.kind == "execute" and e.route == "admitted-host"
+        }
+
+        self.assertTrue(nodes)
+        self.assertTrue(nodes <= events, (kind, nodes - events))
+
+    def test_applyv_on_a_reference_to_a_linked_function(self):
+        state, session, result, oracle = self.admitted(self.VIA_REF)
+
+        self.assertEqual(result, 6)
+        self.assertEqual(result, oracle)
+        self.executed(session, state, self.VIA_REF, "applyv")
+
+    def test_applyv_on_a_closure_returned_by_an_admitted_run(self):
+        state = load(program(self.entities()))
+        runtime = Runtime(state)
+        session = HostedSession(runtime)
+        session.prepare(compiler_generation=1)
+        adder = session.run(self.MAKE, 4)
+        result = session.run(self.CALL_V, adder, (6,))
+        oracle_runtime = Runtime(load(program(self.entities())))
+        expected = reference_run(
+            oracle_runtime, self.CALL_V,
+            reference_run(oracle_runtime, self.MAKE, 4), (6,),
+        )
+
+        self.assertEqual(result, 10)
+        self.assertEqual(result, expected)
+        self.executed(session, state, self.CALL_V, "applyv")
+
+    def test_linksof_returns_the_link_table_of_a_linked_function(self):
+        state, session, result, oracle = self.admitted(self.LINKS)
+
+        self.assertEqual(result, oracle)
+        self.assertEqual(
+            tuple(sorted(result)), tuple(sorted(oracle)),
+        )
+        self.assertTrue(result)
+        self.executed(session, state, self.LINKS, "linksof")
 
 
 class MachineResolverHook(unittest.TestCase):
