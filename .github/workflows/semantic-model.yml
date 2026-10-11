@@ -28,8 +28,8 @@ on:
         required: false
         default: false
         type: boolean
-      execution_route_spike:
-        description: "Run task 29 execution-route measurements (diagnostic only)"
+      hosted_diagnostics:
+        description: "Run task 30 hosted-pipeline measurements (diagnostic only)"
         required: false
         default: false
         type: boolean
@@ -188,11 +188,11 @@ jobs:
           path: mutation-report-batch-${{ inputs.mutation_batch }}-shard-${{ matrix.shard }}.jsonl
           if-no-files-found: warn
 
-  execution-route-spike:
-    if: ${{ github.event_name == 'workflow_dispatch' && inputs.execution_route_spike == true }}
+  hosted-diagnostics:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.hosted_diagnostics == true }}
 
     runs-on: ubuntu-latest
-    name: task 29 execution-route diagnostics
+    name: task 30 hosted-pipeline diagnostics
 
     steps:
       - uses: actions/checkout@v7
@@ -201,16 +201,16 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Measure execution routes
+      - name: Measure the hosted pipeline
         shell: bash
         run: |
           set -o pipefail
-          python -m shear.execution_route_spike | tee execution-route.json
+          python -m shear.hosted_bootstrap.diagnostics | tee hosted-diagnostics.json
 
-      - name: Upload task 29 evidence
+      - name: Upload task 30 evidence
         if: ${{ always() }}
         uses: actions/upload-artifact@v7
         with:
-          name: execution-route-${{ github.sha }}
-          path: execution-route.json
+          name: hosted-diagnostics-${{ github.sha }}
+          path: hosted-diagnostics.json
           if-no-files-found: warn

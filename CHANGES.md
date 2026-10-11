@@ -1739,3 +1739,46 @@ the hybrid D3 execution architecture.
 
 Documentation-only decision record. No production semantics, tests,
 golden records or historical measurements changed.
+
+
+## 2026-10-11
+
+### Hosted bootstrap pipeline (#66)
+
+- Implemented the Task 30 hosted pipeline of `docs/hosted_pipeline.md`.
+  One SHEAR compiler (`shear/examples/compiler_source.py`) now has a single
+  lowering core with an expanded entry (`lower`) and a node-aware entry
+  (`compile_node`); `self_hosting.py` keeps the self-rewriting programs.
+- `shear/hosted_bootstrap/` builds compiler generations 1 to 3 from a
+  checked-in seed of 682 host-lowered nodes, each generation running its
+  predecessor's admitted artifacts. It produces and admits per-node artifacts
+  for a target, runs them on the host machine, and invalidates them
+  conservatively on any state change. `python3 -m shear.hosted_bootstrap`
+  is the documented command, including staged edits that are never
+  activated.
+- `machine.run` takes an optional per-run chunk resolver. This replaces the
+  Task 29 spike's process-global patching; without a resolver nothing changes.
+  A resolver failure is `AdmissionRejected`, which a program cannot catch.
+- Removed the Task 29 spike module, its tests and its workflow job. Its
+  measurements stay in `docs/spikes/execution_route.md` and the Task 29
+  entry. A `hosted_diagnostics` dispatch input runs the section 10
+  measurements (diagnostic only).
+- Plan-owned acceptance tests (22) pass, with the three declared golden
+  changes and no others. Execute adds `tests/test_hosted_bootstrap.py`,
+  which compares the compiler's chunk with `bytecode.lower` for every
+  supported node of the whole corpus.
+- Changes to existing tests, called out: `test_self_hosting.py`,
+  `test_bootstrap_boundary.py` and `test_vm.py` follow the compiler's move
+  and its new `catch`/`raise` coverage; `content_baseline_evidence.py` names
+  the compiler's new file. `vm.py` swaps the extra lowering functions and
+  derives its retained-source links from the compiler. `tests/lanes.py`
+  registers the new test module and drops the removed one.
+- Operations the SHEAR compiler does not lower (`activate`, `function`,
+  `quote`, `trial`, `unquote`) are recorded as rejected and fail closed at
+  run; nothing falls back to host lowering.
+- Mutation: the new modules are targets, with three justified omissions.
+  The survivor classifications of `self_hosting.py`, `vm.py` and `machine.py`
+  were re-reviewed by inspection (every classified site and its context
+  are unchanged) and repinned. They were not re-run locally; the CI
+  campaign confirms them.
+
