@@ -16,7 +16,7 @@ The four routes are:
 1. Host lowering: graph-form nodes lowered by `shear.bytecode.lower`.
 2. Host execution: those chunks executed by `shear.machine`.
 3. SHEAR lowering: input-form expressions compiled by the SHEAR
-   program `lower` in `shear/examples/self_hosting.py`.
+   program `lower` in `shear/examples/compiler_source.py`.
 4. SHEAR-VM execution: expanded chunks interpreted by the SHEAR
    program `vm` in `shear/examples/vm.py`.
 
@@ -78,8 +78,8 @@ Every row corresponds to exactly one operation in
 | `slice` | S | S | S | S |
 | `concat` | S | S | S | S |
 | `let` | S | S | S | S |
-| `catch` | S | S | D | D |
-| `raise` | S | S | D | D |
+| `catch` | S | S | S | D |
+| `raise` | S | S | S | D |
 | `ref` | S | S | S | S |
 | `code` | S | S | S | D |
 | `linksof` | S | S | S | D |
@@ -184,7 +184,7 @@ behavior, not approved bootstrap fallback.
 | Canonicalization | Normalize values and provide stable representations | `canonical.py`, `relations.py` | Allow | Yes | `test_canonical.py`, `test_relations.py` |
 | Ownership | Preserve graph ownership and owned-subtree integrity | `ownership.py`, `state.py` | Allow | Yes | `test_ownership.py`, `test_ownership_lifetime.py` |
 | Host lowering and chunk cache | Produce derived chunks from graph nodes | `bytecode.py` | Conditional; seed and oracle, not undeclared fallback | Yes, including wrappers | `test_bytecode.py`, `test_rebuild.py` |
-| SHEAR compiler | Produce expanded chunks as data | `examples/self_hosting.py`, `machine.py` | Required; execution through admission under D3 | Yes | `test_self_hosting.py`, `test_rebuild.py` |
+| SHEAR compiler | Produce expanded chunks as data | `examples/compiler_source.py`, `machine.py` | Required; execution through admission under D3 | Yes | `test_self_hosting.py`, `test_rebuild.py` |
 | SHEAR VM | Interpret its declared instruction subset | `examples/vm.py` | Reference/alternative under D3 | Yes | `test_vm.py`, `test_rebuild.py` |
 | Host machine | Run derived instructions and provide runtime execution | `machine.py` | Seed and fixed machinery; authenticated artifact admission under D3, integrated by task 30 | Yes | `test_bytecode.py`, `test_vm.py` |
 | Code reflection | Return code for a function in the selected state | `machine.py`, `lang.function_at` | Allow | Yes: 16 host-lowered `code` nodes; `function_at` also used | `test_self_hosting.py` |

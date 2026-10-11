@@ -59,6 +59,8 @@ def expand(state: State, entity: EntityID):
             out.append(("BRANCH", expand(state, instruction[1]), expand(state, instruction[2])))
         elif op == "LETBIND":
             out.append(("LETBIND", instruction[1], expand(state, instruction[2])))
+        elif op == "CATCH":
+            out.append(("CATCH", expand(state, instruction[1]), instruction[2]))
         elif op == "CALL":
             out.append(("CALL", name, instruction[2]))
         elif op in ("REF", "CODE", "LINKS"):
@@ -218,6 +220,8 @@ class CompilerAgreesWithTheHostTests(unittest.TestCase):
             ("read", "c"), ("write", "c", one), ("code", "f"),
             ("linksof", "f"), ("applyv", ("ref", "f"), ("tuple", x, one)),
             ("label", "k", ("add", x, one)),
+            ("catch", x), ("catch", x, ("a", "b")),
+            ("raise", ("lit", "k"), x),
         ]
 
         for expression in expressions:
@@ -256,7 +260,10 @@ class CompilerCompilesItselfTests(unittest.TestCase):
         state = self.state()
         runtime = Runtime(state)
 
-        for name in ("lower", "upper", "evals", "seq_code", "self_lower"):
+        for name in (
+            "lower", "upper", "evals", "seq_code", "self_lower",
+            "lower_op", "child", "named_tail", "compile_node",
+        ):
             entity = EntityID(name)
 
             with self.subTest(function=name):

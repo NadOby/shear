@@ -35,7 +35,6 @@ SPEC = ROOT / "docs" / "bootstrap.md"
 REJECTED = frozenset({"invalid"})
 LOWER_DEFERRED = frozenset({
     "quote", "unquote", "function", "activate", "trial",
-    "catch", "raise",
 })
 VM_DEFERRED = frozenset({
     "read", "write", "quote", "function", "activate", "trial",
@@ -169,6 +168,12 @@ def _expanded(state, entity):
                 "LETBIND",
                 instruction[1],
                 _expanded(state, instruction[2]),
+            ))
+        elif op == "CATCH":
+            result.append((
+                "CATCH",
+                _expanded(state, instruction[1]),
+                instruction[2],
             ))
         elif op == "CLOSURE":
             result.append((

@@ -2,8 +2,8 @@
 
 **Status: implemented** (roadmap.md task 8; extended by task 17).
 `shear/lang.py` and `shear/bytecode.py` implement `code`;
-`shear/examples/self_hosting.py` holds the compiler and the self-rewriting
-program; `tests/test_self_hosting.py` is the main acceptance suite, with
+`shear/examples/compiler_source.py` holds the compiler and
+`shear/examples/self_hosting.py` the self-rewriting program; `tests/test_self_hosting.py` is the main acceptance suite, with
 closure lowering additionally pinned by `tests/test_closure_self_hosting.py`.
 
 Two pieces: an operation with which a program reads the code of a function
@@ -53,7 +53,7 @@ continuity. It lowers to one instruction, `CODE f name`.
 
 The shape of the output and what is covered.
 
-`lower(e)`, in `shear/examples/self_hosting.py`, takes an expression in
+`lower(e)`, in `shear/examples/compiler_source.py`, takes an expression in
 input form and returns its chunk. The host's chunk names its children by
 `EntityID` (bytecode.md section 2); a program has no entities for the
 expression it is holding, so the chunk it produces holds each child's chunk

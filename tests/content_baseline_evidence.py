@@ -152,7 +152,7 @@ MECHANISMS = (
         "Host-side bytecode derivation, distinct from canonical storage.",
     ),
     (
-        "bootstrap_compiler", "shear/examples/self_hosting.py",
+        "bootstrap_compiler", "shear/examples/compiler_source.py",
         "compiler_entities", "Function",
         "Python-constructed compiler expressions",
         "loadable compiler Function records",
