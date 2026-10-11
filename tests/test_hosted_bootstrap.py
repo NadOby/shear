@@ -514,6 +514,52 @@ class OperationWitnesses(unittest.TestCase):
         self.executed(session, state, self.LINKS, "linksof")
 
 
+class MissingArtifactsFailClosed(unittest.TestCase):
+    """After preparation a missing artifact must fail the run; neither lazy
+    host lowering nor a cached host chunk may supply it (hosted_pipeline.md
+    sections 6 and 9)."""
+
+    def run_forbidding_host_lowering(self, session, entry, *args):
+        def forbidden(*a, **k):
+            raise AssertionError("host lowering reached")
+
+        with (
+            mock.patch.object(bytecode, "chunk_of", side_effect=forbidden),
+            mock.patch.object(bytecode, "lower_value", side_effect=forbidden),
+        ):
+            return session.run(entry, *args)
+
+    def test_a_withheld_callee_artifact(self):
+        runtime = small_runtime()
+        session = HostedSession(runtime)
+        session.prepare(compiler_generation=1)
+        callee = body(runtime.active.state, G)
+        version = runtime.active.state.values[callee].version_id
+        artifacts = session._target._artifacts
+
+        self.assertEqual(self.run_forbidding_host_lowering(session, F, 1), 2)
+
+        del artifacts._chunks[(callee, version)]
+        del artifacts._artifacts[(callee, version)]
+
+        with self.assertRaises(AdmissionRejected):
+            self.run_forbidding_host_lowering(session, F, 1)
+
+    def test_an_unsupported_node_is_recorded_and_never_lowered(self):
+        entry = EntityID("hb_quoted")
+        runtime = Runtime(load(program({
+            entry: Function((), ("quote", ("lit", 1))),
+        })))
+        session = HostedSession(runtime)
+        session.prepare(compiler_generation=1)
+        rejected = [e for e in session.trace() if e.kind == "reject"]
+
+        self.assertTrue(rejected)
+
+        with self.assertRaises(AdmissionRejected):
+            self.run_forbidding_host_lowering(session, entry)
+
+
 class MachineResolverHook(unittest.TestCase):
 
     def test_resolver_is_consulted_and_scoped_to_the_run(self):
