@@ -188,11 +188,12 @@ def validate_chunk(
 def _stack_effect(opcode: str, operands: tuple) -> tuple[int, int]:
     """``(taken, left)`` of one instruction."""
 
-    if opcode in _HANDOVER:
-        return _HANDOVER[opcode], 0
+    ends = _HANDOVER.get(opcode, _RAISING.get(opcode))
 
-    if opcode in _RAISING:
-        return _RAISING[opcode], 0
+    if ends is not None:
+        # Nothing is left: control leaves the chunk (a raise's own count is
+        # never read, as no instruction may follow it).
+        return ends, 0
 
     taken, left = _STACK[opcode]
 
