@@ -876,6 +876,18 @@ class ResolverChecksTheState(unittest.TestCase):
         with self.assertRaises(AdmissionRejected):
             self.resolve(other, self.node, G)
 
+        # A node the other state shares unchanged is still not resolvable:
+        # the artifacts belong to one state, not to a node's content.
+        unchanged = body(self.runtime.active.state, F)
+
+        self.assertEqual(
+            other.values[unchanged].version_id,
+            self.runtime.active.state.values[unchanged].version_id,
+        )
+
+        with self.assertRaisesRegex(AdmissionRejected, "stale"):
+            self.resolve(other, unchanged, F)
+
 
 class HostedRunGrantsNoActivation(unittest.TestCase):
 

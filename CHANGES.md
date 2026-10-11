@@ -1818,3 +1818,6 @@ golden records or historical measurements changed.
   `seed.derive` no longer tests a link target for absence (states reject
   dangling endpoints) and the command's `executed_artifacts` filters on the
   event kind only (`execute` events always have the admitted-host route).
+  Shards 7, 10 and 11 added one more gap, closed by a test: the resolver
+  refuses a state other than the pinned one even for a node whose content
+  is the same in both.
