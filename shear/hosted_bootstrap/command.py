@@ -109,7 +109,7 @@ def main(argv: list[str] | None = None) -> int:
     output["executed_artifacts"] = [
         event.as_json()
         for event in session.trace()
-        if event.kind == EXECUTE and event.route == ADMITTED_HOST
+        if event.kind == EXECUTE
     ]
     print(json.dumps(output, indent=1, sort_keys=True))
     return 0

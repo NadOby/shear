@@ -1809,3 +1809,12 @@ golden records or historical measurements changed.
   argument; one test was added. One more survivor (a raise's unobservable
   stack effect in `validation._stack_effect`) was removed by folding the
   raising and handover cases into one return.
+- Campaign at `3f15799`, shards 0, 5, 6, 9 and 15: eleven survivors in
+  `command.py`, `target.py`, `generations.py`, `seed.py` and `validation.py`
+  got tests (required options, output format, exit codes of program errors
+  and refusals, the target's own no-activation default, equal state objects,
+  seed generation in the trace, a link to a non-function, endpoint values).
+  Two conditions that no state can make observable were simplified:
+  `seed.derive` no longer tests a link target for absence (states reject
+  dangling endpoints) and the command's `executed_artifacts` filters on the
+  event kind only (`execute` events always have the admitted-host route).

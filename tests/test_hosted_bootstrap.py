@@ -228,7 +228,7 @@ class AdmissionRefusesBadEvidence(unittest.TestCase):
             G: Function(("n",), ("add", ("arg", "n"), ("lit", 7))),
         }))
 
-        with self.assertRaises(AdmissionRejected):
+        with self.assertRaisesRegex(AdmissionRejected, "active state changed"):
             session.run(G, 1)
 
         session.prepare(compiler_generation=1)
@@ -892,6 +892,28 @@ class HostedRunGrantsNoActivation(unittest.TestCase):
             [False, True],
         )
 
+    def test_the_target_itself_defaults_to_no_capability(self):
+        session = HostedSession(small_runtime())
+        session.prepare(compiler_generation=1)
+
+        with mock.patch.object(machine, "run", return_value=2) as run:
+            session._bound().run(F, 1)
+
+        self.assertIs(run.call_args.kwargs["may_activate"], False)
+
+    def test_an_equal_state_object_is_still_the_pinned_state(self):
+        runtime = small_runtime()
+        session = HostedSession(runtime)
+        session.prepare(compiler_generation=1)
+        target = session._bound()
+        twin = small_runtime().active.state
+
+        self.assertIsNot(twin, target.state)
+        self.assertEqual(twin.id, target.state.id)
+        target.state = twin
+
+        self.assertEqual(target.run(G, 1), 2)
+
 
 class SeedLoweringIsGenerationZero(unittest.TestCase):
 
@@ -902,6 +924,16 @@ class SeedLoweringIsGenerationZero(unittest.TestCase):
 
         self.assertTrue(lowered)
         self.assertEqual({e.generation for e in lowered}, {0})
+
+    def test_seed_artifacts_are_generation_zero_when_first_used(self):
+        session = HostedSession(small_runtime())
+        session.prepare(compiler_generation=1)
+        used = {
+            e.generation for e in session.trace()
+            if e.kind == "compiler-execute"
+        }
+
+        self.assertIn(0, used)
 
 
 class OperandTypesOfClosureAndCatch(unittest.TestCase):
@@ -1134,6 +1166,15 @@ class RefusalsAreReachable(unittest.TestCase):
             "cannot lower", seed.derive, load(program(entities)),
         )
 
+    def test_a_link_to_something_that_is_not_a_function_is_not_followed(self):
+        entities = compiler_entities(extra={"data": EntityID("hb_data")})
+        entities[EntityID("hb_data")] = 5
+        base = seed.derive(seed.compiler_source_state())
+        derived = seed.derive(load(program(entities)))
+
+        self.assertEqual(derived.functions, base.functions)
+        self.assertEqual(derived.code_nodes, base.code_nodes)
+
     def test_the_seed_command_reports_a_current_manifest(self):
         out = io.StringIO()
 
@@ -1178,6 +1219,21 @@ class ValueDecodingAndCounts(unittest.TestCase):
                     validate_chunk(state, node, F, forged)
 
 
+class EndpointsOfRoleValues(unittest.TestCase):
+
+    def test_only_identities_and_tuples_of_them_are_endpoints(self):
+        from shear.hosted_bootstrap.validation import _endpoints
+
+        e, f = EntityID("e"), EntityID("f")
+
+        self.assertEqual(_endpoints(e), (e,))
+        self.assertEqual(_endpoints((e, "x", 3, f)), (e, f))
+
+        for value in (None, "n", 3, ()):
+            with self.subTest(value=value):
+                self.assertEqual(_endpoints(value), ())
+
+
 class CommandRunsInProcess(unittest.TestCase):
     """The documented command, called directly (the protected tests run it
     in a subprocess, which coverage cannot follow)."""
@@ -1208,6 +1264,42 @@ class CommandRunsInProcess(unittest.TestCase):
         self.assertEqual(document["result"], 2)
         self.assertEqual(document["route"], "admitted-host")
         self.assertTrue(document["executed_artifacts"])
+        self.assertEqual(
+            {e["kind"] for e in document["executed_artifacts"]}, {"execute"},
+        )
+        # One stable document: sorted keys, one-space indent.
+        self.assertEqual(
+            out, json.dumps(document, indent=1, sort_keys=True) + "\n",
+        )
+
+    def test_both_the_source_and_the_entry_are_required(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source = str(self.source(directory))
+
+            for argv in (["--entry", "hb_g"], ["--source-file", source], []):
+                with self.subTest(argv=argv):
+                    with self.assertRaises(SystemExit) as raised:
+                        self.run_command(*argv)
+
+                    self.assertEqual(raised.exception.code, 2)
+
+    def test_a_program_error_and_a_refusal_both_exit_with_one(self):
+        for body, name in (
+            (("add", ("lit", 1), ("lit", "x")), "LanguageError"),
+            (("quote", ("lit", 1)), "AdmissionRejected"),
+        ):
+            with self.subTest(name=name):
+                runtime = Runtime(load(program({F: Function((), body)})))
+
+                with tempfile.TemporaryDirectory() as directory:
+                    path = Path(directory) / "p.shear"
+                    path.write_text(render_program(runtime.active.state))
+                    code, out, err = self.run_command(
+                        "--source-file", str(path), "--entry", "hb_f",
+                    )
+
+                self.assertEqual((code, out), (1, ""))
+                self.assertIn(name, err)
 
     def test_the_two_edit_options_go_together(self):
         with tempfile.TemporaryDirectory() as directory:

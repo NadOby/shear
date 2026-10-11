@@ -129,9 +129,9 @@ def derive(state: State) -> SeedManifest:
             )
 
             for target in targets:
-                linked = state.values.get(target)
+                linked = state.values[target]
 
-                if linked is not None and _definition_of(linked) is not None:
+                if _definition_of(linked) is not None:
                     pending.append(target)
 
     return SeedManifest(
