@@ -114,6 +114,10 @@ not evidence.
   expect the `timeout` argument. A mutant that times out counts as killed,
   so earlier campaigns may have hidden survivors; #95 covers reporting
   timeouts separately.
+- Shard 13 died (exit 143, no artifact) in two campaigns: a `matching.py`
+  mutant (`if (`) allocates ~65 MB/s and exhausts the runner within the 900 s
+  limit. The oracle now caps its address space at 3 GiB. Found by probing
+  the shard's mutants locally, not by CI.
 - A coverage pass over the hosted modules found unreached refusal branches;
   they now have tests. The command reports an unknown `--entry` as a refusal.
 

@@ -1821,3 +1821,10 @@ golden records or historical measurements changed.
   Shards 7, 10 and 11 added one more gap, closed by a test: the resolver
   refuses a state other than the pinned one even for a node whose content
   is the same in both.
+- Shard 13 was terminated from outside in two campaigns after the oracle
+  limit was raised to 900 s. Cause found by probing its mutants: a mutant in
+  `matching.py` (`if (`) allocates about 65 MB a second, so within 900 s it
+  exhausts the runner and the job is killed with exit code 143 and no
+  artifact. The oracle process now caps its own address space at 3 GiB
+  (`mutation_oracle.limit_memory`; the honest suite peaks near 110 MB), so
+  such a mutant fails its test run in about a minute. Engine unchanged.
