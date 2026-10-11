@@ -1798,3 +1798,14 @@ golden records or historical measurements changed.
   now reports a mistyped `--entry` as `unknown entry` with exit status 1
   instead of a traceback. A condition in `target._owner_of` that ownership
   validation makes unreachable (`owner == node`) was removed.
+- Full campaign at `1770c31`: seven shards produced no report because the
+  baseline run of the semantic oracle exceeded the engine's fixed 180 s
+  limit on CI. The campaign, the replay and the baseline now pass the
+  oracle's own limit, `mutation_oracle.TIMEOUT_SECONDS` (900 s), which is
+  generous because a mutant that times out counts as killed. `tests/mutation.py`
+  (the engine pin) is unchanged. Existing tests edited to match: three
+  `baseline.assert_called_once_with` assertions and one
+  `killed.assert_called_once_with` assertion now expect the `timeout`
+  argument; one test was added. One more survivor (a raise's unobservable
+  stack effect in `validation._stack_effect`) was removed by folding the
+  raising and handover cases into one return.

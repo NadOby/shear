@@ -107,6 +107,13 @@ not evidence.
   (probable baseline timeout: the oracle takes ~170 s locally against a fixed
   180 s limit in `tests/mutation.py`, whose hash is the engine pin). Re-run
   on the pushed head is still open.
+- Campaign at `1770c31`: 7 shards had no report (baseline over 180 s). The
+  limit is now `mutation_oracle.TIMEOUT_SECONDS`; the engine is unchanged.
+  Shard 4 had one survivor (`validation._stack_effect`), removed by a
+  refactor with killed mutants. Existing mutation tests edited: they now
+  expect the `timeout` argument. A mutant that times out counts as killed,
+  so earlier campaigns may have hidden survivors; #95 covers reporting
+  timeouts separately.
 - A coverage pass over the hosted modules found unreached refusal branches;
   they now have tests. The command reports an unknown `--entry` as a refusal.
 
