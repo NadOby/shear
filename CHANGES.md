@@ -1786,4 +1786,8 @@ golden records or historical measurements changed.
   result) and operand types, and `applyv` and `linksof` have admitted-route
   witnesses compared with ordinary execution. An unconditional test covers
   the seed's refusal of undeclared compiler nodes.
+- Second Review: a regression test now withholds a callee artifact and
+  prepares an unsupported node with host lowering forbidden (a planted
+  resolver fallback passed the protected tests); costs are recorded in
+  `docs/hosted_bootstrap.md` and are inside D4's aspirations.
 

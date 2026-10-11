@@ -64,6 +64,10 @@ TARGETS = (
     "shear/syntax/printer.py",
     "shear/transforms.py",
     "shear/values.py",
+    # The seed manifest pins this file's exact semantic source, so every
+    # mutant is killed by the manifest check before behaviour is exercised.
+    # A kill here is not evidence that a behavioural test caught the change;
+    # that evidence is tests/test_hosted_bootstrap.py's differential test.
     "shear/examples/compiler_source.py",
     "shear/examples/self_hosting.py",
     "shear/examples/vm.py",

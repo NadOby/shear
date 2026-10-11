@@ -32,16 +32,16 @@ not evidence.
 
 ## Verification performed
 
-- `python3 -m tests.lanes --all`: all 8 lanes ok locally (Python 3.13).
-  CI uses 3.12 and has not run yet.
+- `python3 -m tests.lanes --all`: all 8 lanes ok locally (Python 3.13);
+  CI on 3.12 passed for `1b77784` and `7c99964`.
 - Protected Plan tests pass unmodified. Golden changes are exactly the three
   declared (`programs/compiler`, `programs/bootstrap`, `programs/instrument`).
 - `tests/test_hosted_bootstrap.py` (Execute-owned) compares the SHEAR
   compiler's chunk with `bytecode.lower` for every supported node of every
   corpus program, and covers bad admission evidence, seed manifest, the
   resolver hook and trace deduplication.
-- Diagnostics smoke-run once (`--repeats 1`) on 2 vCPUs; no reportable
-  measurements yet. Run the `hosted_diagnostics` dispatch for medians.
+- Diagnostics: 5-repeat local run recorded in `docs/hosted_bootstrap.md`;
+  CI dispatch at `7c99964` and push run at `1b77784` succeeded.
 
 ## Edits to Plan-owned or existing files (call-outs)
 
@@ -82,7 +82,7 @@ not evidence.
 ## Known limitations
 
 - Cross-activation reuse and live evolution: Task 31.
-- Peak-memory and timing figures are from a 2-vCPU container only.
+- Local timing figures are from a 2-vCPU container; CI report not tabulated.
 
 ## Review findings resolved
 
@@ -93,8 +93,16 @@ not evidence.
   on admitted artifacts, host lowering forbidden, against ordinary execution.
 - P3 conditional seed test: an unconditional Execute-owned test was added;
   the protected test is unchanged.
-- Still open: run the `hosted_diagnostics` dispatch and retain its report
-  before Publish; the mutation campaign result is pending on CI.
+- Second Review, P2 no fail-closed regression test: `MissingArtifactsFailClosed`
+  withholds a callee artifact and prepares an unsupported node, with host
+  lowering forbidden. A planted resolver fallback passes the protected tests
+  and fails these.
+- Second Review, P2 costs not recorded: medians are in
+  `docs/hosted_bootstrap.md` section 4 (local run); the CI dispatch at
+  `7c99964` succeeded and its artifact holds the CI-runner report.
+- P3s: `compiler_source.py` mutation-target comment states the manifest
+  masking; descriptor deviation documented; `applyv`/`linksof` witnesses added.
+- Still open: the mutation campaign (`mutation_count` 10 or more) on CI.
 
 ## Nonblocking P3 observations for Review
 
