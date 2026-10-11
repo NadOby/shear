@@ -83,15 +83,39 @@ not evidence.
 
 - Cross-activation reuse and live evolution: Task 31.
 - Peak-memory and timing figures are from a 2-vCPU container only.
-- Four nonblocking P3 review observations were requested to be preserved,
-  but they are not recorded in #66, this file, the spec or `CHANGES.md`.
-  The owner must supply them for Review.
+
+## Nonblocking P3 observations for Review
+
+No further Plan revision is required for any of them.
+
+1. **vm.py survivor pins.** `vm.py` has six blob-pinned survivors and Execute
+   modified it. Execute checked by inspection that all six sites and their
+   contexts are unchanged and repinned; they were not re-run locally. Review
+   must re-review the classifications, as for `self_hosting.py` (two) and
+   `machine.py` (eleven).
+2. **Conditional seed negative test.** `test_hosted_pipeline.py` guards its
+   unrelated-compiler-node check with `if unrelated_code:`. An approximate
+   count by Execute found 4 such nodes in the compiler state, so the branch
+   should run; Review must verify actual negative coverage and record any
+   remaining limitation. Protected test not changed.
+3. **Generation ancestry coverage.** The `machine._open` instrumentation
+   verifies admitted compiler function-body chunks consumed during G2/G3
+   production. It does not establish child-node or closure-chunk ancestry.
+   Review must distinguish this from complete per-node provenance.
+4. **Trace completeness; issue text.** Trace assertions show each reported
+   execution has production and admission records, not that every executed
+   node emits an event (events are first use per artifact). Review should
+   audit execution coverage. Issue #66 still describes the pre-D4 workload;
+   Publish adds a clarification referencing D4 and
+   `docs/hosted_pipeline.md`.
 
 ## Follow-up (not created)
 
 Source files over the ~500-line threshold: `lang.py`, `machine.py`, `vm.py`,
 `transforms.py`, `continuity.py`. They are pinned mutation targets, so a
-split needs its own `follow-up` issue and re-review.
+split needs its own `follow-up` issue (a maintainability assessment with
+targeted candidates, not a mandatory split) and survivor re-review. Not part
+of Task 30.
 
 ## Next action
 
