@@ -1779,8 +1779,7 @@ golden records or historical measurements changed.
 - Mutation: the new modules are targets, with three justified omissions.
   The survivor classifications of `self_hosting.py`, `vm.py` and `machine.py`
   were re-reviewed by inspection (every classified site and its context
-  are unchanged) and repinned. They were not re-run locally; the CI
-  campaign confirms them.
+  are unchanged) and repinned; the green full campaign confirms them.
 - Independent Review resolved: admission checks the operand stack of a chunk
   (underflow, handovers, unreachable instructions, a single result) and
   operand types; `applyv` and `linksof` have admitted-route witnesses
