@@ -1818,3 +1818,9 @@ golden records or historical measurements changed.
   the manifest check, so their results are not behavioural evidence (the
   differential test is); a mutant that times out counts as killed (#95); the
   recorded timings predate the last fixes.
+
+### Application-level research canaries (GH-99)
+
+- Added six application-level canaries to `docs/corpus.md`, covering genetic programming, workflow evolution, simulations, adaptive agents, semantic tooling and DSLs.
+- Recorded comparison and falsification criteria, with genetic programming as the first proposed research experiment.
+- Kept these experiments Provisional and outside the committed roadmap.
