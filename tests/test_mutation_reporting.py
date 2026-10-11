@@ -14,6 +14,7 @@ from unittest.mock import patch
 
 from tests import mutation
 from tests import mutation_campaign
+from tests import mutation_oracle
 from tests import mutation_reporting
 
 
@@ -397,6 +398,33 @@ class MutationReportingTests(unittest.TestCase):
             errors[0]["error"],
         )
 
+    def test_a_mutant_run_may_take_as_long_as_the_oracle_limit(self) -> None:
+        """A mutant that hits the limit counts as killed, so the limit must
+        be the oracle's own (generous) one, not the engine's short default,
+        or a slow runner turns survivors into kills."""
+
+        selected = self.mutants()[0]
+
+        with patch.object(
+            mutation_reporting.mutation,
+            "killed",
+            return_value=(selected, True),
+        ) as killed:
+            mutation_reporting._execute_one(
+                self.root,
+                selected,
+                ["fixture-oracle"],
+            )
+
+        self.assertEqual(
+            killed.call_args.kwargs["timeout"],
+            mutation_oracle.TIMEOUT_SECONDS,
+        )
+        self.assertGreater(
+            mutation_oracle.TIMEOUT_SECONDS,
+            mutation.killed.__defaults__[0],
+        )
+
     def test_replay_failures_uses_only_unclassified_survivors(
         self,
     ) -> None:
@@ -501,6 +529,7 @@ class MutationReportingTests(unittest.TestCase):
         baseline.assert_called_once_with(
             self.root,
             command,
+            timeout=mutation_oracle.TIMEOUT_SECONDS,
         )
 
         replayed_keys = [
@@ -586,6 +615,7 @@ class MutationReportingTests(unittest.TestCase):
         baseline.assert_called_once_with(
             self.root,
             command,
+            timeout=mutation_oracle.TIMEOUT_SECONDS,
         )
         execute_exact.assert_not_called()
 

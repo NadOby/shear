@@ -15,6 +15,12 @@ from tests.lanes import LANES, validate_partition
 
 EXCLUDED_LANES = frozenset({"mutation"})
 
+# The whole semantic suite runs once per mutant that survives and once as the
+# baseline, on shared runners that vary in speed. The limit only has to stop
+# a mutant that never terminates; a mutant that hits it counts as killed, so
+# it must stay well above the slowest honest run.
+TIMEOUT_SECONDS = 900.0
+
 
 def modules() -> tuple[str, ...]:
     """Return the exact ordered module set used as the mutation oracle."""

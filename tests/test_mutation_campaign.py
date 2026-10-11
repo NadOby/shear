@@ -480,12 +480,14 @@ class MutationCampaignTests(unittest.TestCase):
         baseline.assert_called_once_with(
             self.root,
             command,
+            timeout=mutation_oracle.TIMEOUT_SECONDS,
         )
         killed.assert_called_once_with(
             self.root,
             mutant.target,
             mutant.index,
             command,
+            timeout=mutation_oracle.TIMEOUT_SECONDS,
         )
 
     def test_exact_replay_stops_when_baseline_fails(self) -> None:
