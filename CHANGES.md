@@ -1828,3 +1828,7 @@ golden records or historical measurements changed.
   artifact. The oracle process now caps its own address space at 3 GiB
   (`mutation_oracle.limit_memory`; the honest suite peaks near 110 MB), so
   such a mutant fails its test run in about a minute. Engine unchanged.
+- Campaign at `bf6e024`: eleven shards green; shards 4, 6 and 13 were
+  terminated from outside (runaway mutants, fixed by the memory cap); shards
+  1 and 8 had one survivor each in `command.py`, now covered (the compiler
+  generation of a plain run, and JSON arrays becoming tuples).

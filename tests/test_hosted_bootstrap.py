@@ -1284,6 +1284,36 @@ class CommandRunsInProcess(unittest.TestCase):
             out, json.dumps(document, indent=1, sort_keys=True) + "\n",
         )
 
+    def test_a_plain_run_uses_the_first_compiler_generation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            _, out, _ = self.run_command(
+                "--source-file", str(self.source(directory)),
+                "--entry", "hb_g", "--args-json", "[1]",
+            )
+
+        generations = {
+            e["compiler_generation"]
+            for e in json.loads(out)["executed_artifacts"]
+        }
+
+        self.assertEqual(generations, {1})
+
+    def test_json_arrays_in_the_arguments_are_tuples(self):
+        runtime = Runtime(load(program({
+            F: Function(("t",), ("len", ("arg", "t"))),
+        })))
+
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "p.shear"
+            path.write_text(render_program(runtime.active.state))
+            code, out, _ = self.run_command(
+                "--source-file", str(path), "--entry", "hb_f",
+                "--args-json", "[[1, 2, 3]]",
+            )
+
+        self.assertEqual(code, 0)
+        self.assertEqual(json.loads(out)["result"], 3)
+
     def test_both_the_source_and_the_entry_are_required(self):
         with tempfile.TemporaryDirectory() as directory:
             source = str(self.source(directory))
