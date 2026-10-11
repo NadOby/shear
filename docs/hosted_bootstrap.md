@@ -55,6 +55,9 @@ These were chosen to satisfy the contract and are open to Review.
 
 - The descriptor is `(operands, (state_id, node, version, owner))`. Children
   and call targets are entity ids; link names are replaced by their targets.
+  The specification has descriptors carry the permitted linked function and
+  cell identities; here admission checks them instead, on the host side in
+  `validation.py`, against the node's and its owner's links.
 - The operand of `LIT` stays in canonical form, as a node's payload does in
   host lowering. Other identities and tuples are decoded to plain values.
 - Any change of the active state makes every artifact stale. A caller must
@@ -76,6 +79,33 @@ execution, the phases of a small edit, peak memory (a separate traced pass)
 and artifact counts and sizes. Observations and medians are reported per
 workload and never combined into ratios. D4's targets are diagnostic only.
 Task 23 and Task 29 measurements are unchanged.
+
+Medians of 5 repeats at revision `df87eec`, on a 2-vCPU Intel Xeon 2.8 GHz
+container, Python 3.13, Linux 6.18 (indicative; the `hosted_diagnostics` CI
+dispatch records the same on a CI runner):
+
+| Measurement | Median | D4 target (aspiration) |
+|---|---|---|
+| Seed: derive and verify manifest (682 nodes) | 1.7 ms and 3.7 ms | |
+| Compiler generation 1 | 0.34 s | 10 s (1 s) |
+| Compiler generation 2 | 0.28 s | 10 s (1 s) |
+| Compiler generation 3 | 0.27 s | 10 s (1 s) |
+| Small edit: reconcile, prepare and admit, run, activate | 1.8, 4.1, 0.3 and 0.03 ms | 50 ms (10 ms) |
+| Peak memory, generations 1 to 3 and one run | 2.9 MB | |
+
+Each generation has 682 artifacts of 223,295 bytes in total. Per workload,
+production and admission of every supported node, then cold and warm
+execution, with ordinary host execution shown for reference only:
+
+| Workload | Nodes | Produce | Admit | Cold run | Warm run | Host run |
+|---|---|---|---|---|---|---|
+| factorial | 11 | 2.7 ms | 1.3 ms | 0.27 ms | 0.021 ms | 0.054 ms |
+| insertion_sort | 45 | 11.9 ms | 5.4 ms | 1.56 ms | 0.14 ms | 0.18 ms |
+| compiler | 686 | 220 ms | 101 ms | 2.3 ms | 0.13 ms | 0.23 ms |
+
+The workloads differ, so no ratios are formed. These are inside D4's
+aspirations; they do not reinterpret Task 29's falsified cold-cost
+prediction, whose workload was different.
 
 ## 5. Mutation decisions
 
