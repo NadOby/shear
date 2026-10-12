@@ -637,7 +637,8 @@ mutation targets are carried or dropped by the task 19 rule.
   value, so only references follow declared continuity at activation and
   plain entity ids stay data; a reference whose target disappears pins the
   old version, which needs the two-version bound to become a setting rather
-  than a rule.
+  than a rule. reference_model.md section 14 lists what this design decides
+  about the version in a reference.
 - Declared error kinds: program entities, like cells, naming a kind and
   constraining its detail (error_handling.md section 13).
 - Syntax and tooling notes (syntax_notes.md): graph and IR views next to
@@ -696,7 +697,7 @@ evidence. No refactor in this task.
 
 ### 22. Reference version audit (one session)
 
-**Planned.** Issue #59.
+**Implemented** (PR #114). The classification is in reference_model.md §14.
 
 `Reference(StateID, EntityID, VersionID)`: `State.resolve` and reference
 transfer check `StateID` first, so `StaleReference` is reachable only for a
