@@ -9,12 +9,13 @@ GitHub and the repository before relying on it.
 - Issue: #59 (`task`), roadmap task 22, reference version audit.
 - Branch: `task/22-reference-version`, from `main` at `1db6d5e`.
 - Role: Plan and Execute done, in separate chats; the owner chose D22
-  option 1. A check by the Plan's own chat found three P3 findings;
-  Resolve is done (below). Next: a fresh Review.
+  option 1. Two rounds of findings, both P3 and both resolved (below): the
+  first from a check by the Plan's own chat, the second from an independent
+  Review of `9f73957`. Next: a fresh Review of the final head.
 - Plan head: `b7123c3a0ff3adb951c60dc65e5dc155a354ce5c` ("Change handoff.md
   to record the owner's D22 choice"). Review diffs the Plan-owned files from
-  it. Execute head: `634bbbe`. Resolve head: the commit that records this
-  file.
+  it. Execute head: `634bbbe`. First Resolve head: `9f73957`. Second Resolve
+  head: the commit that records this file.
 
 ## Result of the audit (Plan)
 
@@ -102,9 +103,10 @@ repository before it was fixed.
    `test_a_produced_reference_is_never_stale` did not guard.** `transferred`
    was incremented after a mapping error too, so
    `assertGreater(transferred, 300)` passed with zero successful transfers.
-   Fixed: it counts only successful transfers (`else:` branch) and asserts
-   more than 100; the current count is 456. With every transfer planted to
-   raise `MissingEntityMapping` the test now fails (0 not greater than 100);
+   Fixed: it counts only successful transfers (`else:` branch). The first
+   Resolve also lowered the bound to 100 without a reason; round 2 restored
+   the Plan's 300 (the count is 456). With every transfer planted to raise
+   `MissingEntityMapping` the test now fails (0 not greater than 300);
    before, it passed.
 2. **P3, documentation drift: §14's cache-key bullet.** Bytecode chunks are
    stored on the `Value` (`value.__dict__["_chunk"]`, `bytecode.py`), not
@@ -117,16 +119,43 @@ repository before it was fixed.
    across states. Fixed: no caller does it today; with partially loaded
    states (premise 3) it would become a role.
 
-Resolve changed two Plan-owned files: `tests/test_reference_version.py` (the
-guard, finding 1) and `docs/reference_model.md` §14 (wording, findings 2 and
-3). The classification, the owner's D22 choice, the test's assertions about
-versions and everything under `shear/` are unchanged. Review must diff these
-two files from the Plan head and judge that the test change strengthens it.
+### Round 2: independent Review of `9f73957`
 
-Verification after Resolve, Python 3.13, on the final tree: all eight lanes
-ok (`python3 -m tests.lanes --all`), and `python3 -m tests.golden --against
-main` gives 55 unchanged, 0 new, 0 changed. No mutation campaign: nothing
-under `shear/` changes.
+It accepted the audit and its claims 1 to 4, reproduced the three planted
+bugs, and found one defect and three drifts, all P3. Each was checked
+against the repository before it was fixed.
+
+1. **Verified defect: the bound in `test_a_produced_reference_is_never_stale`
+   was lowered from 300 to 100 without a reason.** With 456 successes, a
+   transfer that fails for two entities in three (about 150 successes) would
+   pass at 100 and fail at 300. Fixed: restored to 300 (commit `6b665a3`). The
+   earlier suggestion of 100 rested on a count of 219; the measured count is
+   456.
+2. **Drift: §14 said `Runtime.keep` and the activation transfer "use the
+   state and the entity".** `keep` calls `State.resolve` and activation
+   calls `transfer_reference`, and both read the version. Fixed: they reach
+   it only through those two checks; `mapped_entities` uses the state and the
+   entity.
+3. **Drift: the test docstring said the module fails if resolution against
+   another state is allowed.** Planted in `State.resolve` (check removed),
+   `test_reference_version` still passed and `test_references` caught it.
+   Fixed: the docstring names only the premises the module pins.
+4. **Drift: an unwrapped 118-character line opening §14's Open part with a
+   sentence fragment**, from the Plan commit. Fixed: a full sentence,
+   wrapped.
+
+Resolve changed two Plan-owned files in total: `tests/test_reference_version.py`
+(round 1 finding 1: counting only successful transfers; round 2: the
+docstring) and `docs/reference_model.md` §14 (wording only). The
+classification, the owner's D22 choice, the test's assertions about versions
+and everything under `shear/` are unchanged. Review must diff these two files
+from the Plan head: against the Plan's test the net change is the `else:` on
+the transfer counter and the docstring.
+
+Verification after the second Resolve, Python 3.13, on the final tree: all
+eight lanes ok (`python3 -m tests.lanes --all`), and `python3 -m tests.golden
+--against main` gives 55 unchanged, 0 new, 0 changed. No mutation campaign:
+nothing under `shear/` changes.
 
 ## Claims Review must verify independently
 
@@ -146,6 +175,10 @@ under `shear/` changes.
 ## Limitations and notes
 
 - The argument assumes SHA-256 has no collisions, as state identity does.
+- The version oracle in the tests uses `version_id_for`, the function the
+  producers use, and `rebuilt()` shares the original `Value` objects, so the
+  "independently rebuilt" state does not re-derive any version. The tests pin
+  the dependence of the version on state and entity, not the hash function.
 - `tests/test_references.py::test_version_fast_path_for_exact_value`
   compares two states with equal content, so one `StateID`; it shows no
   cross-state use. Left unchanged (owner's test); rename only if the owner
