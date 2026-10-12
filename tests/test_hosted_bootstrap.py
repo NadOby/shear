@@ -1185,9 +1185,14 @@ class RefusalsAreReachable(unittest.TestCase):
         root = seed.ROOTS[0]
         entities[root] = Function((), ("quote", ("lit", 1)))
 
-        self.refused(
-            "cannot lower", seed.derive, load(program(entities)),
-        )
+        # Task 31 (GH-67): every kind is lowered now, so quote is taken out
+        # of the supported set to keep witnessing the refusal.
+        with mock.patch.object(
+            seed, "SUPPORTED_KINDS", SUPPORTED_KINDS - {"quote"},
+        ):
+            self.refused(
+                "cannot lower", seed.derive, load(program(entities)),
+            )
 
     def test_a_link_to_something_that_is_not_a_function_is_not_followed(self):
         entities = compiler_entities(extra={"data": EntityID("hb_data")})
@@ -1344,7 +1349,15 @@ class CommandRunsInProcess(unittest.TestCase):
             with self.subTest(name=name):
                 runtime = Runtime(load(program({F: Function((), body)})))
 
-                with tempfile.TemporaryDirectory() as directory:
+                # Task 31 (GH-67): every kind is lowered now, so quote is
+                # taken out of the supported set to keep a refusal.
+                with (
+                    tempfile.TemporaryDirectory() as directory,
+                    mock.patch.object(
+                        descriptors, "SUPPORTED_KINDS",
+                        SUPPORTED_KINDS - {"quote"},
+                    ),
+                ):
                     path = Path(directory) / "p.shear"
                     path.write_text(render_program(runtime.active.state))
                     code, out, err = self.run_command(

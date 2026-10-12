@@ -52,8 +52,8 @@ and it does not make wrappers part of the image's compiler.
 
 ### 2.2 The live image
 
-`tests/test_live_evolution.py` holds a program in text syntax version 0
-(`IMAGE`) and drives it as a persistent image. It:
+`tests/live_support.py` holds a program in text syntax version 0 (`IMAGE`),
+which the acceptance tests drive as a persistent image. It:
 
 - reads its own code with `code(handle)` and builds a candidate from it with
   `function` and `quote`/`unquote`/`literal`;
@@ -70,18 +70,31 @@ and it does not make wrappers part of the image's compiler.
   and with a body the activation removed;
 - meets the two-version bound: a second activation while the first one's
   previous version is held is rejected (`activation_rejected`);
-- moves nodes to another function with a program-driven activation (`move`).
+- moves nodes to another function with a program-driven activation (`move`);
+- trials a candidate identical to the active program (`same_trial`), whose
+  state is the active state itself (section 4.2).
 
 The trial-rejection kind `depth_limit` is covered by `safe_install`.
+`MALFORMED` adds the activation and trial forms whose link does not resolve
+or whose value is not a function: host lowering keeps the problem in the
+instruction, and each fails as a language error.
+
+Continuity in these activations is inferred by `define`
+(continuity_inference.md); the program does not declare it. The roadmap's
+"declared continuity" is met in that sense: the oracle compares the
+resulting `StateID`s with host execution step by step, so every identity
+decision must match.
 
 ### 2.3 Operation coverage
 
 The SHEAR compiler's node mode lowers every graph-form node kind:
-`descriptors.SUPPORTED_KINDS` equals `lang.NODE_KINDS`. The five kinds task
-30 left out are `quote`, `unquote`, `function`, `activate` and `trial`. Their
-host lowering in `bytecode.lower` is the specification of the chunk, and the
-existing differential test (`CompilerAgreesWithHostLowering`) covers them
-through the corpus.
+`descriptors.SUPPORTED_KINDS` equals `lang.NODE_KINDS` (which includes
+`invalid`). The five kinds task 30 left out are `quote`, `unquote`,
+`function`, `activate` and `trial`. Their host lowering in `bytecode.lower`
+is the specification of the chunk, including the forms that carry a problem
+string, an empty target tuple or no trial target. The existing differential
+test (`CompilerAgreesWithHostLowering`) covers the corpus, and
+`MalformedActivation` covers the problem forms.
 
 **Provisional:**
 
@@ -89,6 +102,13 @@ Expanded mode (`lower(e)`) keeps lowering the five to the `RAISE` it
 emits today. Expanded chunks feed only route A, whose VM cannot
 run these instructions (section 5.3). `docs/bootstrap.md`'s matrix keeps
 describing expanded mode and gains a note that node mode covers every kind.
+
+Node mode therefore needs its own set of lowered kinds.
+`compiler_source.LOWERED` stays the expanded-mode set, which
+`tests/test_bootstrap_boundary.py` pins; node mode gets a separate set in
+`compiler_source.py`, and `descriptors.SUPPORTED_KINDS` is derived from it.
+`descriptors`, `seed` and `diagnostics` keep reading their module-level
+`SUPPORTED_KINDS` when they run, which the fail-closed tests patch.
 
 ## 3. Candidates (D5)
 
@@ -123,10 +143,17 @@ A program's `catch` cannot see it, including a `catch` around the `activate`
 or `trial`. With every node kind supported, only a compiler fault, an
 invalidated compiler generation or tampering reaches this path.
 
-A candidate that is rejected by the language before compilation keeps its
-existing failure: a missing activation capability, a malformed definition,
-a constraint or a two-version-bound rejection is raised as today, and no
-compilation is attempted for it.
+The failure may come after some candidate nodes were already compiled or
+reused. Nothing of the attempt survives it: no candidate artifact set,
+admitted artifact record or retained state, and no hold. Only the trace
+records it.
+
+A candidate the language rejects keeps its existing failure: a missing
+activation capability, a malformed definition, a constraint or a
+two-version-bound rejection is raised as today. The first two are rejected
+in the machine before any compilation. Constraint and bound checks run
+inside `Runtime.activate`; if Execute compiles before them, the compiled set
+is discarded when they reject, under the rule above.
 
 ### 3.3 The compiler run
 
@@ -148,20 +175,30 @@ loaded version owns the admitted artifacts of its state. An artifact
 set lives as long as its version is loaded and is released when the version
 retires. The artifacts of a state that is not loaded cannot be used.
 
-At every step boundary, the states with an artifact set (`retained_states()`)
-are exactly the states of the runtime's loaded versions. During a run they
-include at least those. A released set leaves nothing in the session that
-keeps its artifact records alive; chunks shared through reuse stay alive as
-long as some retained artifact uses them. The trace is intentionally retained
-history and keeps identifiers only.
+An artifact set belongs to a version, or to a trial (section 4.2). It is
+not merely an entry under a `StateID`, because two owners can have the same
+state. `retained_states()` and `admitted(state_id)` speak about the loaded
+versions only. At every step boundary, `retained_states()` is exactly the
+states of the runtime's loaded versions; during a run it includes at least
+those.
+
+A released set leaves nothing in the session that keeps its artifact
+records alive; the tests count target `Artifact` objects in the heap. Chunks
+shared through reuse stay alive as long as some retained artifact uses them.
+The trace is intentionally retained history and keeps identifiers only.
 
 ### 4.2 Trials
 
 A trial's candidate gets its own artifact set, admitted before the trial runs
-and released when the trial returns or fails. It is never used for the
-parent runtime's states and never reused afterwards (**Provisional**: an
-activation of the same candidate compiles again relative to the active
-version).
+and released when the trial returns, fails inside, or cannot be admitted. It
+is never used for the parent runtime's states, and nothing is reused from it
+afterwards: an activation of the same candidate compiles again relative to
+the active version (**Provisional**).
+
+A trial whose candidate equals a loaded version's state (`same_trial`: the
+same `StateID`) still gets its own set. Its nodes all reuse the active
+version's artifacts (section 4.3). Releasing it leaves the loaded version's
+set as it was.
 
 ### 4.3 Reuse
 
@@ -176,15 +213,18 @@ the active state S when:
 Otherwise the node is compiled. Reuse creates a new admission bound to D
 (the artifact's identity includes the target `StateID`, task 30), recorded
 as a `reuse` event naming the source artifact, and the chunk object is
-shared, not copied.
+shared, not copied. The source is always an artifact of the active version
+S, for a trial's candidate and an activation's alike.
 
 Why this is dependency-safe: a chunk is a function of its node's content and
-the compiler alone. Children, call and apply targets, cells and closure
-bodies appear in it by `EntityID` and are resolved when they run, each to its
-own artifact in the frame's state (continuity_corpus.md, `extract_function`:
-"a chunk depends only on its node"). Admission additionally checks the
-node's and its owner's links, so rule 2 recompiles a moved node, and rule 4
-re-checks links in D. Nothing is inferred from a `VersionID` alone.
+the compiler alone (`bytecode.lower` takes only the node). Children, call and
+apply targets, cells and closure bodies appear in it by `EntityID`. They are
+resolved when they run, each to its own artifact in the frame's state; the
+note of the continuity case `extract_function` in `shear/continuity.py` says
+the same. Rule 2 is therefore not needed for the chunk. It is a conservative
+choice: admission binds an artifact to its owner and checks the owner's
+links, so a moved node is admitted afresh. Rule 4 re-checks links in D.
+Nothing is inferred from a `VersionID` alone.
 
 Reuse happens only for program-driven activations and trials. After a host
 API activation outside a run, `prepare` is still required and compiles the
@@ -217,20 +257,32 @@ change.
 
 **Provisional:**
 
-The owner's direction for this task. A new module
-`shear/instructions.py` holds `INSTRUCTIONS`, one entry per instruction
-that lowering emits (the host machine's dispatch less its internal
-`CATCH_OK` and `RETURN`), with at least the operand count `operands`.
-Execute decides the other facts it records (child operands, linked
-operand, stack effect).
+This follows the owner's direction for this task. A new module,
+`shear/instructions.py`, holds `INSTRUCTIONS`: a plain dict with one entry
+per instruction that lowering emits. That is the host machine's dispatch
+less its internal `CATCH_OK` and `RETURN`. Each entry records at least:
+
+| Field | Meaning |
+| --- | --- |
+| `operands` | the number of operands |
+| `children` | positions of operands that name a code child of the node |
+| `linked` | positions of operands that are link targets of the node and its owner: an entity, a tuple of entities, or none when the link did not resolve (`TRIAL`'s call target) |
+| `names` | positions of operands that must be strings |
+| `counted` | the role whose item count an operand gives (`CALL`, `APPLY`, `MKTUPLE`), if any |
+| stack effect | values taken and left. Taken is fixed, or given by operands: a count, or the length of a tuple operand. `QUOTE` takes its count; `ACTIVATE` takes one per entry; `TRIAL` takes one per entry plus its argument count. |
+| `handover`, `raises` | whether the instruction hands over control (`GOTO`, `BRANCH`, `LETBIND`), and whether it raises (`FAIL`, `RAISE`) |
+
+The test-pinned names are `operands`, `children` and `linked`. Execute
+names the rest.
 
 - `hosted_bootstrap/validation.py` reads its instruction facts from the
-  table instead of keeping its own.
+  table when it validates, instead of keeping its own. A test deletes an
+  entry and expects a well-formed chunk to be refused.
 - `shear/examples/vm.py` reads operand positions from it where its generator
-  already encodes them, and only there.
-- Tests check the table against the machine's dispatch, against every chunk
-  `bytecode.lower` produces for the corpus, and against the VM's instruction
-  set.
+  already encodes them, and only there. Review checks this by inspection.
+- Tests check the table against the machine's dispatch, against the entity
+  operands of every chunk `bytecode.lower` produces for the corpus and the
+  operation witnesses, and against the VM's instruction set.
 
 The table is metadata. Execution semantics stay separate per route, so the
 VM remains an independent oracle (D3). `shear/instructions.py` is not one of
@@ -252,16 +304,19 @@ the Plan-owned tests use:
 
 - `run(entry, *args, may_activate=False)` handles program-driven `activate`
   and `trial` as section 3 says.
-- `retained_states()` returns the frozenset of `StateID`s that currently own
-  an artifact set.
+- `retained_states()` returns the frozenset of `StateID`s of the loaded
+  versions that own an artifact set.
 - `admitted(state_id)` returns a read-only mapping from `(EntityID,
-  VersionID)` to the `Artifact` admitted for that state, and raises
-  `AdmissionRejected` for a state that is not retained.
-- `TraceEvent` gains `source_artifact_id`. Event kinds added: `reuse` (route
-  `host-admission`; `artifact_id` is the new admission, `source_artifact_id`
-  the reused one, `target_state_id` the state it is admitted for) and
-  `release` (`target_state_id` the released state). `produce` and `admit`
-  events of a candidate name the candidate's state.
+  VersionID)` to the `Artifact` admitted for that loaded version's state, and
+  raises `AdmissionRejected` for a state that is not retained.
+- `TraceEvent` gains `source_artifact_id`. Event kinds added:
+  - `reuse` (route `host-admission`): `artifact_id` is the new admission,
+    `source_artifact_id` the reused one, and `target_state_id` the state it
+    is admitted for;
+  - `release`: `target_state_id` is the released set's state, and `detail`
+    is `"trial"` for a trial's set or `"retired"` for a version's set.
+
+  `produce` and `admit` events of a candidate name the candidate's state.
 
 `prepare`, `rebuild_through`, `compiler_artifacts`,
 `invalidate_compiler_generation`, `produce`, `admit` and `stage_edit` keep
@@ -284,20 +339,42 @@ ratios between dissimilar workloads; D4's targets diagnostic only.
 - **Scaling**: one small edit at three program sizes (for example 10, 100 and
   1000 functions).
 
-Task 23, 29 and 30 measurements stay unchanged.
+Task 23, 29 and 30 measurements stay unchanged. No acceptance test checks
+the numbers. Execute adds a smoke test that runs the live measurements once
+with one repeat, and Review checks the recorded numbers against a rerun.
 
 ## 8. Plan-owned files
 
 - This document and the D5 section and task-31 entry of `roadmap.md`.
-- `tests/test_live_evolution.py`, new, lane `cross-boundary`.
-- `tests/test_hosted_bootstrap.py`, two task-30 tests that encode the old
-  coverage, renamed to what they now check:
+- New test modules:
+  - `tests/live_support.py`: the program, step tables and oracles (not a
+    test module);
+  - `tests/test_live_evolution.py` (corpus, live image, problem forms; lane
+    `cross-boundary`);
+  - `tests/test_live_artifacts.py` (candidate admission, reuse, lifetime;
+    lane `cross-boundary`);
+  - `tests/test_instruction_table.py` (lane `language-runtime`, beside
+    `test_bytecode`).
+
+  `live_support.py` is about 530 lines: one program and the oracles that
+  read it, kept together.
+  `cross-boundary` is already the slowest lane. Execute records its time
+  with the new modules. Splitting the lane would change
+  verification_hardening.md section 12 (Decided), so it is a separate change
+  if needed.
+- `tests/test_hosted_bootstrap.py`: four task-30 tests encode the old
+  coverage, because they use `quote` as the unsupported kind. Two are
+  renamed to what they now check; the other two keep accurate names. All
+  four now remove `quote` from `SUPPORTED_KINDS` (`descriptors` or `seed`)
+  for the test, so each fail-closed path is still witnessed. Each says so in
+  a comment.
   - `test_unsupported_operations_are_named_not_lowered` becomes
     `test_every_node_kind_is_lowered`.
   - `test_an_unsupported_node_is_recorded_and_never_lowered` becomes
     `test_a_kind_outside_the_supported_set_is_recorded_and_never_lowered`.
-    It removes `quote` from `SUPPORTED_KINDS` for the test, so the
-    fail-closed path is still witnessed.
+  - `test_a_program_error_and_a_refusal_both_exit_with_one` keeps its name.
+  - `test_a_seed_needs_the_compiler_functions_and_only_lowerable_ops` keeps
+    its name.
 - `tests/golden_changes/GH-67.txt`: `programs/compiler`,
   `programs/bootstrap` and `programs/instrument`, which embed the compiler
   source. The checker requires each to change; a mismatch goes back to Plan.
@@ -314,18 +391,24 @@ becomes a target or gets a justified omission.
 
 ## 9. Claims Review must verify independently
 
-1. Every executed program-code artifact, including those of candidates,
-   trials, old frames and closures, has an authentic chain of production and
-   admission, directly or through reuse, and no host lowering happens during
-   any run.
-2. A candidate is fully admitted before it becomes active or runs in a trial;
-   a compilation failure leaves the runtime unchanged and is not catchable.
-3. The reuse rule is applied exactly: the produced and reused node sets of
-   each activation follow section 4.3 from the two states, a moved node is
-   compiled again, and a reused chunk equals a fresh compilation.
-4. Artifact sets follow version lifetime: retained states equal loaded
-   versions at step boundaries, trial sets are released, and released
-   artifact records are reclaimed.
+1. Every chunk the machine opens for a target, including those of
+   candidates, trials, old frames and closures, equals host lowering's chunk
+   of its node. Where its state is loaded, it is the admitted object.
+   Separately, the trace gives every executed artifact an authentic chain of
+   production and admission, directly or through reuse. No host lowering
+   happens during any run.
+2. A candidate is fully admitted before it becomes active or runs in a trial.
+   A compilation failure, also one partway through a candidate, leaves the
+   runtime unchanged, leaves no artifacts or holds behind, and is not
+   catchable.
+3. The reuse rule is applied exactly. The produced and reused node sets of
+   each activation follow section 4.3 from the two states, every reuse source
+   is an artifact of the active version, a moved node is compiled again, and
+   a reused chunk equals a fresh compilation.
+4. Artifact sets follow version lifetime. Retained states equal loaded
+   versions at step boundaries; trial sets are released on every path,
+   including a trial of the active state itself; and released artifact
+   records are reclaimed from the heap.
 5. Observable behaviour (results, failures, cells, active `StateID`s and loaded
    versions) equals ordinary host execution step by step, for the corpus and
    the live image.
