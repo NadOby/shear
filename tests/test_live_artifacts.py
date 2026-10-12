@@ -329,7 +329,7 @@ class SameState(unittest.TestCase):
             session.admitted(trial)
 
         # Drop the test's own references before counting the heap.
-        del records, mine, trial, trials
+        del records, mine, trial, trials, artifact, chunk
         assert_no_orphans(self, session)
         self.assertEqual(admitted_run(session, H("handle"), 1), 2)
 
@@ -373,7 +373,7 @@ class SameState(unittest.TestCase):
         )
 
         # Drop the test's own references before counting the heap.
-        del old_set, new_set, during, loaded, retained, old
+        del old_set, new_set, during, loaded, retained, old, artifact
         assert_no_orphans(self, session)
 
 
