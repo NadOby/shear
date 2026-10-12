@@ -13,10 +13,12 @@ pin the observations the audit classifies:
   ``transfer_reference``; only a reference built by hand with another
   version is stale.
 
-If a later change breaks the premise (a ``StateID`` that does not cover
-every entity's version, a reference without a ``StateID``, or resolution
-against another state), these tests fail and the classification must be
-revisited.
+If a later change gives a ``StateID`` that does not cover every entity's
+version, or makes a producer derive the version from anything but the named
+state, these tests fail and the classification must be revisited. They do not
+pin the other premises in section 14: ``tests/test_references.py`` rejects a
+reference resolved against another state, and a reference without a
+``StateID`` would not be a ``Reference`` at all.
 """
 
 import random
