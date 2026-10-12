@@ -9,7 +9,8 @@ this checkpoint against GitHub and the repository before relying on it.
 - Task: #58, task 21: endpoint arity audit.
 - Branch: `task/21-endpoint-arity`, from `main` at `a852714`.
 - Plan head: `41cd145`.
-- Role: Execute done; waiting for an independent Review in a fresh chat.
+- Role: Execute done; PR #112 is open. Waiting for an independent Review
+  in a fresh chat.
 - Plan and Execute ran in one chat, with the owner's permission. The
   evidence below therefore comes from one context and is a claim, not a
   certification. Review must re-derive it.
@@ -77,4 +78,5 @@ constraint test.
 
 ## Next action
 
-Review task 21, in a fresh chat.
+Review task 21 on PR #112, in a fresh chat. The roadmap entry already says
+Implemented (PR #112); Review rejects that if it does not accept the PR.
