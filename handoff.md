@@ -8,9 +8,11 @@ GitHub and the repository before relying on it.
 
 - Issue: #59 (`task`), roadmap task 22, reference version audit.
 - Branch: `task/22-reference-version`, from `main` at `1db6d5e`.
-- Role: Plan done; the owner chose D22 option 1. Next: Execute.
-- Plan head: the commit that records D22 in this file. Execute records its SHA here
-  first; Review diffs the Plan-owned files from it.
+- Role: Plan and Execute done, in separate chats; the owner chose D22
+  option 1. Next: Review.
+- Plan head: `b7123c3a0ff3adb951c60dc65e5dc155a354ce5c` ("Change handoff.md
+  to record the owner's D22 choice"). Review diffs the Plan-owned files from
+  it. Execute head: the commit that records this file.
 
 ## Result of the audit (Plan)
 
@@ -64,33 +66,28 @@ evidence. No refactor either way.
 - Golden: none declared. Measured against `main`: 55 unchanged, 0 new,
   0 changed.
 
-## Execute
+## Execute (done)
 
-1. Record the Plan head SHA above.
-2. Leave §14 as written: it states the owner's D22 choice.
-3. Append to `CHANGES.md`:
+- Implemented exactly the Plan's steps: the Plan head is recorded above, §14
+  is untouched, and the `CHANGES.md` entry is appended as the Plan wrote it.
+  Nothing under `shear/`, no Plan-owned file and no test expectation changed;
+  the only files Execute touched are `CHANGES.md` and this one. No
+  provisional choices were made, no mutation campaign was run (nothing under
+  `shear/` changes), and no survivor decisions arise.
+- Verification, on the Plan head plus these two files, Python 3.13:
+  - `python3 -m tests.lanes --all`: all eight lanes ok (the longest,
+    `cross-boundary`, 64 s), run on the final tree.
+  - `python3 -m tests.golden --against main` (`main` at `1db6d5e`): 55
+    unchanged, 0 new, 0 changed.
+  - The three planted bugs, in a scratch copy, each make
+    `tests.test_reference_version` fail, and the unplanted copy passes:
+    transfer keeping the source version (76 failures, 75 errors); a `StateID`
+    that ignores versions (9, 9); `make_reference` deriving a wrong version
+    (33, 312).
+- Not checked: issue #59 itself (GitHub issue reads were refused in this
+  session); the contract was taken from this file and the roadmap entry.
 
-   ```
-   ### Reference version audit (task 22, GH-59)
-
-   - Audit only, no change under `shear/`. `docs/reference_model.md` §14
-     classifies the version in a state-pinned reference as redundant,
-     because `StateID` fixes every entity's version; it stays until the
-     planned `ref` values choose the reference form (Provisional). §14 also
-     lists the premises under which the version would carry information and
-     a constraint for references held in semantic content.
-   - `tests/test_reference_version.py` (lane `cross-boundary`) pins that the
-     state and entity determine the version and that only a hand-built
-     reference is stale. Three planted bugs are each caught. No golden
-     change.
-   ```
-
-4. Verify: `python3 -m tests.lanes --all`, `python3 -m tests.golden
-   --against main` (expect 0 new, 0 changed), and the three planted bugs.
-   No mutation campaign is needed: nothing under `shear/` changes.
-
-Execute must not change `shear/`, the classification or the test
-expectations. If the audit's argument is wrong, return to Plan.
+Execute does not certify the audit. If its argument is wrong, return to Plan.
 
 ## Claims Review must verify independently
 
@@ -123,4 +120,4 @@ expectations. If the audit's argument is wrong, return to Plan.
 
 ## Next action
 
-Execute task 22.
+Review task 22, in a fresh chat.
