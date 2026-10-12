@@ -204,6 +204,18 @@ At every step boundary, the versions that own a set (`retained_versions()`)
 are exactly the runtime's loaded versions. During a run they include at
 least those.
 
+**Provisional:**
+
+An exception the owner accepted on 2026-10-12 after the first implementation
+review. A version can also retire outside a run, when the host releases a
+hold that kept it. The runtime reports nothing to the session then, so the
+session releases that version's set at its next run or query
+(`retained_versions()`, `admitted()`), not at the retirement itself. Nothing
+can execute those artifacts in between, so only memory is held for that
+time. A retirement during a run, which covers every program-driven
+activation, releases at once. Eager release, through a listener the runtime
+holds itself, is for when a real host-held workload needs it.
+
 A released set leaves nothing in the session that keeps its artifact
 records alive; the tests count target `Artifact` objects in the heap. Chunks
 shared through reuse stay alive as long as some retained artifact uses them.
