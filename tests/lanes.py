@@ -97,6 +97,7 @@ LANES: dict[str, tuple[str, ...]] = {
         "test_content_baseline",
         "test_corpus",
         "test_docs",
+        "test_endpoint_arity",
         "test_golden",
         "test_hosted_bootstrap",
         "test_hosted_corpus",

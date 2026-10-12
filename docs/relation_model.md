@@ -12,6 +12,7 @@ Status markers used in this document are:
 
 - **Given**: already stated by other documents;
 - **Decided**: agreed direction; later changes should be deliberate;
+- **Provisional**: current direction, not fully settled;
 - **Open**: options are listed; no direction is chosen.
 
 ## 1. Relations are entities
@@ -66,6 +67,85 @@ that a relation relates something, since a role may hold an empty tuple.
 Relation records are canonical like other records, so equal records have equal
 identity. The kind is not interpreted by the core model; meaning comes from
 the tools, constraints, and metaprograms that use it.
+
+### Endpoint arity
+
+From the endpoint arity audit (roadmap task 21). Canonical encoding keeps one
+endpoint and a one-element tuple apart, so `{r: a}` and `{r: (a,)}` are
+different records with different `VersionID`s. Whether the difference matters
+depends on the family of relation.
+
+**Provisional:**
+
+Language relations (code nodes, `definition`, `links`): redundant as
+information, retained deliberately as representation. Every role's arity
+follows from its kind: `operations.py` for code roles, `lang` for link-target
+roles (`target` and `cell` one endpoint, `targets` a tuple), one endpoint for
+every `definition` and `links` role. An ordered role holds zero or more
+endpoints, so it needs the tuple form anyway. One shape per role keeps every
+reader free of a normalizing step, and normalizing would change the identity
+of every relation that holds a one-element tuple. `tests/test_endpoint_arity.py`
+checks the declared arity across both corpora and the states their runs
+produce.
+
+**Decided:**
+
+Kinds the core does not interpret (constraint relations, a metaprogram's own
+relations): semantically required. Kinds have no meaning in the core (section
+9), so no schema says which roles are sequences and the record is the only
+carrier. A constraint observes it (section 7): `Role("r", c)` checks `c`
+against the endpoint's content for `{r: a}` and against a one-element tuple
+for `{r: (a,)}`.
+
+**Open:**
+
+A tuple where the language expects one entity: a link target, or a `links`
+relation's `function`. It has no meaning, only the Python API builds it, and
+consumers disagree about it (below). Issue #110 chooses one rule.
+
+Evidence: every reader in `shear/` of relation roles or of the link table
+derived from them, found by searching for `.roles`, `.endpoints`,
+`with_endpoints`, `Endpoint`, `role_subject`, `_decode_endpoint`, a
+definition's `.links` and the builder's `scope`.
+
+- Keep the forms apart: `Relation.__post_init__` (`_normalize_endpoint`),
+  `Relation.canonical_node` through `canonical.canonicalize`, which encodes an
+  `EntityID` and a tuple under different tags, and `relation_of`
+  (`_decode_endpoint`).
+- Flatten a role, or keep its shape without looking at it:
+  - `Relation.endpoints` and `with_endpoints`, `check_relation_endpoints`,
+    `relation_index`, the runtime's constraint lookup;
+  - transformations (`_follow_relation_endpoints`,
+    `_validate_relation_rewrites`, `rebase`);
+  - `matching` (`shapes`, `match`), `continuity._operands`, `fold`
+    (`children`), `lang._subtree` and `define`;
+  - `hosted_bootstrap` (`seed`, `validation._endpoints`).
+
+  `matching.shapes` gives `args: x` and `args: (x,)` the same shape, so
+  continuity inference is sound only while arity follows from the kind.
+- Assume the declared arity: `bytecode.lower`, `lang._collapse` and
+  `_read_definition`, `continuity._node_at`, `fold`'s role reads,
+  `hosted_bootstrap.descriptors` and `validation` (the `len` of a counted
+  role). The descriptors splice ordered roles, so the self-hosted compiler
+  never sees a role.
+- Pass link tables through unchanged: `load`, `_edits_of`, `_Definition`,
+  `reconcile` (`_graph_links`, `_link_targets`), `examples/vm.py`
+  (`_source_links`).
+- Branch on the form: `role_subject` (the Decided case above), and, for a
+  tuple where one entity is expected:
+  - code that names a tuple link becomes an `invalid` node that raises
+    `LanguageError` when it runs (`_Builder.resolve`);
+  - `linksof` omits the link (the machine's `LINKS` instruction in
+    `machine.py`; vm_in_shear.md §1), and `render_program` omits it
+    silently, so a text round trip drops it;
+  - `load` finds a links relation through the flattened index and accepts
+    `function: (f,)`, while `define` and `reconcile` reject it and the
+    parser's `_merge` ignores it.
+
+Within one kind and role of a language relation, no reader branches on the
+form. Across both corpora (106 distinct states, 3,865 relation versions,
+every operation kind except `invalid`), every language relation has its
+declared arity. The predictions recorded before the audit held.
 
 ## 3. Referential integrity
 

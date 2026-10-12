@@ -1,111 +1,107 @@
 # Handoff
 
-Read `CLAUDE.md`, the Workflow section of `docs/roadmap.md`, issue #95 and
-`docs/verification_hardening.md` sections 10 and 15. Verify this checkpoint
-against GitHub and the repository before relying on it.
+Read `CLAUDE.md`, the Workflow section and task 21 of `docs/roadmap.md`,
+issue #58, and `docs/relation_model.md` §2 ("Endpoint arity") and §7. Verify
+this checkpoint against GitHub and the repository before relying on it.
 
 ## Current state
 
-- Task: #95 – mutation testing reliability and performance. Execute, without
-  a separate Plan (the owner allowed it).
-- Branch: `workflow/mutation-reliability`, on `main` at `0994e70`.
-- Role: Execute done; waiting for an independent Review. This session does
-  not certify its own work.
+- Task: #58, task 21: endpoint arity audit.
+- Branch: `task/21-endpoint-arity`, from `main` at `a852714`.
+- Plan head: `41cd145`.
+- Role: Publish done. Two Reviews of PR #112 ran in a separate context:
+  - the first found three P3 findings, all fixed (below);
+  - the second, at `bbf119f`, accepted the implementation, with one P3
+    drift in this file, fixed at Publish.
+- Waiting for the owner to merge.
+- Plan and Execute ran in one chat, with the owner's permission. The
+  evidence below therefore comes from one context and is a claim, not a
+  certification. Review must re-derive it.
 
-## What was built
+## Review findings and fixes
 
-- `tests/mutation_verdict.py` (new): the status-file protocol and `classify`.
-  Outcomes `killed`, `timeout`, `resource_kill`, `abnormal_exit`, `survived`;
-  only a failing test is a kill.
-- `tests/mutation_oracle.py`: `--status`, `--limit` (watchdog, also while
-  test modules import), `--first` (module order); a module that fails to
-  import with any exception is a failed test; no-argument `main()`/`suite()`
-  still work.
-- `tests/mutation_reporting.py`, `tests/mutation_campaign.py`: run the oracle
-  with the protocol, limit `max(180, 3 x baseline)`, untimed baseline, report
-  new outcomes and counts, skip reviewed survivors (`rerun_classified`),
-  replay prints the outcome. The legacy 3-argument `_execute_one` path is kept
-  for the existing tests.
-- `tests/mutation_coverage.py` (new): coverage map (`sys.monitoring`, one
-  traced process per oracle module, opaque-module detection, tree
-  fingerprint), ordering, and a non-gating report.
-- `tests/mutation_performance.py` (new): campaign summary from reports.
-- `.github/workflows/semantic-model.yml`: plan job builds the map (failure
-  only costs speed), shards download it, per-shard and campaign summaries,
-  inputs `mutation_revalidate`, `coverage_diagnostics`, `coverage_targets`.
-- Tests: `test_mutation_verdict`, `test_mutation_outcomes` (real subprocesses
-  over a fixture oracle), `test_mutation_coverage`,
-  `test_mutation_performance`; all in the `mutation` lane.
-- Docs: `docs/verification_hardening.md` section 10 (outcomes, ordering,
-  revalidation, accepted and rejected optimizations, numbers) and 15;
-  `CHANGES.md`.
+1. **P3, PR description held a session link.** Verified: the environment
+   appended a footer with the session URL. Fixed: the description was
+   rewritten without it.
+2. **P3, inventory omits `machine.py` (`LINKS`) and
+   `canonical.canonicalize`.** Verified. Fixed: relation_model.md §2 names
+   both, in their categories.
+3. **P3, the relation_model.md legend lacks Provisional.** Verified. Fixed:
+   added "current direction, not fully settled", the wording of
+   activation_model.md.
 
-## Pins and revalidation
+4. **P3, this file's "Changes against the Plan head" left out the legend
+   change** (second Review). Fixed at Publish.
 
-- The engine `tests/mutation.py` and every target source are unchanged, so
-  the engine blob pin (`cf45fbb`) and all 156 classifications stay valid; no
-  repin, no revalidation was needed. Any later engine edit needs
-  `SHEAR_MUTATE_REVALIDATE=1` for one campaign.
+No finding is unresolved.
+
+## What Execute did
+
+- **Inventory:** re-derived with the Plan's method (search `shear/` for
+  `.roles`, `.endpoints`, `with_endpoints`, `Endpoint`, `role_subject`,
+  `_decode_endpoint`, a definition's `.links` and the builder's `scope`).
+  Each reader is placed in one category in relation_model.md §2.
+- **Spec:** replaced the Open predictions in relation_model.md §2 "Endpoint
+  arity" with the result:
+  - language relations: redundant but retained (**Provisional**);
+  - kinds the core does not interpret: semantically required
+    (**Decided**, following from §7 and §9);
+  - a tuple where one entity is expected: **Open**, #110.
+- **Log:** added the `CHANGES.md` entry.
+- **Issues:** filed `follow-up` issues #110 (tuple link targets and
+  `function` roles fail closed) and #111 (a code literal holding a
+  constraint makes its node a constraint relation; not about arity).
+
+## Changes against the Plan head
+
+- `docs/relation_model.md`:
+  - Execute replaced the Open block the contract named; Resolve then named
+    two more readers inside that section.
+  - Resolve also added Provisional to the status legend near the top,
+    outside that block, because the classification uses Provisional and the
+    legend lacked it (first Review, finding 3).
+- `docs/roadmap.md`: task 21 marked Implemented (PR #112).
+- `CHANGES.md`, `handoff.md`.
+- `tests/test_endpoint_arity.py` and `tests/lanes.py` are unchanged.
+- Nothing under `shear/` changed.
 
 ## Evidence
 
-- Local 76-mutant sample (`SHEAR_MUTATE=2`, seed 1), before on `main` vs
-  after: wall 2156 s to 655 s, CPU 4103 s to 1024 s (+149 s once for the
-  map), mean kill 31.7 s to 6.7 s (4.7 times; the 5 times aim was narrowly
-  missed). Outcomes identical for 75 of 76; the hanging `reconcile.py` mutant
-  was "killed" after 900 s and is now `timeout` after 440 s.
-- Regression tests were checked against planted bugs (timeout counted as a
-  kill, status file ignored, baseline timed, pinned survivors re-run, `--first`
-  ignored, uncertain modules dropped, opaque detection off, stale map
-  accepted, watchdog off, import errors uncaught): each is caught.
-- De-duplicating mutants by compiled code: 223 of 4056 sites (5.5 %).
-- CI, 150 per target, seed 1, 16 shards: `main` (run 38184400290) vs this
-  branch (run 38192089614): slowest shard 65.2 to 13.3 min, total 724 to 151
-  shard-minutes; 2533 kills in both branch runs, 97 reviewed survivors not
-  run, 16 timeouts. The first branch run failed in shards 6 and 9 on two
-  `abnormal_exit` mutants (MemoryError escaping the runner): fixed with a
-  regression test. 12 hung mutants were ~79 % of campaign time, hence the
-  per-test budget.
-- Python 3.14: exhaustive campaign (4056 mutants, `mutation_revalidate`, run
-  38193089999) succeeded: the survivor catalog holds under 3.14. CI not moved.
-- De-duplicating mutants by compiled code: 223 of 4056 sites (5.5 %).
+Measured on Python 3.13.
 
-## Edits to existing tests (call-outs)
+- **Inventory:** the method found all of the Plan's readers, plus:
+  - `continuity._node_at`, which assumes `body` is one endpoint;
+  - the readers that pass link tables through: `load`, `_edits_of`,
+    `_Definition`, `reconcile`, `examples/vm.py`. `define` passes tuple link
+    targets through and checks only the `function` role.
 
-- `tests/test_mutation_campaign.py`: `test_exact_replay_runs_resolved_mutant`
-  became `..._and_reports_its_outcome` (replay returns an outcome, not a bool).
-- `tests/test_mutation.py`: uses the timed baseline, the mutant limit, the
-  optional map and revalidation, and asserts there are no abnormal exits.
-- `tests/lanes.py`: registers the four new test modules.
+  `RelationRewrite` reads its own rewrite pairs, not a relation's roles, so
+  it is not a reader.
+- **Corpus:** 106 distinct states, 3,865 relation versions, every operation
+  kind except `invalid`. No language relation has a role of the wrong arity.
+- **Probe for #111:** a function returning `("lit", IsKind("int"))` makes
+  `Runtime(load(program))` raise `RelationConstraintRejected` for its node.
+- **Checks:** `cross-boundary` lane, `test_docs` and `test_lanes` pass;
+  the golden check against `main` shows 55 unchanged, 0 new, 0 changed.
 
-## Provisional choices for Review
+## Claims Review must verify independently
 
-- Per-test budget `max(30 s, 10 x baseline)`: a test over it is reported as a
-  non-failing `timeout` (owner accepted this as Provisional after Review; the
-  question stays open in #103). A mutant that slows one test tenfold but would
-  still pass is no longer an unclassified survivor. Replay has no such budget.
-  Say if an unexplained timeout should fail a campaign instead.
-- Cost-aware sharding (#51) dropped: imbalance is unchanged and comes from
-  hangs. Suggest closing #51 as not planned.
-- Workflow input `python_version` (default 3.12) exists so an exhaustive
-  campaign can be run on 3.14 (#53); CI is not moved.
-- An `abnormal_exit` fails a campaign; a `timeout` and a `resource_kill` are
-  reported but do not (owner decision wanted if this is too lax).
-- Reviewed survivors are not re-run by default.
-- Coverage map: "uncertain" modules (those that start processes or fail) run
-  right after the covering ones; nothing is ever skipped.
+1. `git diff main -- shear/` is empty.
+2. The inventory is complete under the stated method.
+3. Within one kind and role of a language relation, no reader branches on
+   the form.
+4. The acceptance tests are not vacuous: re-plant one of the bugs listed in
+   `CHANGES.md` and see it fail.
+5. Each family's status marker follows from the evidence.
+6. Plan-owned files differ from `41cd145` only in the Open block of
+   relation_model.md §2.
 
-## Known limitations
+## Owner decision (non-blocking)
 
-- A hang is still bounded only by 3 x baseline (about 8 minutes on CI).
-- The map needs Python 3.12+ and costs one traced run of every oracle module.
-- Engine-level ideas (fork per mutant, de-duplication) are not done.
-
-## Follow-ups
-
-- #101 CI replay (filed). #51: suggest closing as not planned (comment
-  posted). #53: evidence posted, owner decides moving CI. #49 untouched.
+Keep `test_endpoint_arity` permanently (recommended), or keep only the
+constraint test.
 
 ## Next action
 
-Independent Review of the PR for #95.
+The owner merges PR #112, which closes #58. Follow-ups #110 and #111 stay
+open.

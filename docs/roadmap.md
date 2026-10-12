@@ -683,7 +683,7 @@ Task 21 is independent of it; tasks 23 and 24 should start only after task
 
 ### 21. Endpoint arity audit (one session)
 
-**Planned.** Independent. Issue #58.
+**Implemented** (PR #112). The classification is in relation_model.md §2.
 
 `Relation` distinguishes a single endpoint from a one-element tuple. For
 code relations `shear/operations.py` already determines which roles hold
