@@ -10,9 +10,10 @@ decision: no instruction, operand order or opcode is chosen here.
 
 ``decode_chunk`` reads the answer back. The machine canonicalizes what it is
 given, so identities and tuples come back as canonical nodes; they are turned
-into the plain values ``bytecode.lower`` holds. The one exception is the
-operand of ``LIT``: a literal keeps its canonical form, as the node's payload
-does in host lowering. Nothing is synthesized or repaired.
+into the plain values ``bytecode.lower`` holds. The exceptions are the
+operand of ``LIT`` and the template of ``QUOTE``: each keeps its canonical
+form, as the node's payload does in host lowering. Nothing is synthesized
+or repaired.
 """
 
 from __future__ import annotations
@@ -21,7 +22,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from ..canonical import CanonicalNode
-from ..examples.compiler_source import LOWERED
+from ..examples.compiler_source import NODE_LOWERED
 from ..identity import EntityID, StateID, VersionID
 from ..lang import INVALID_KIND, NODE_KINDS, _decode
 from ..operations import OPERATIONS, Shape
@@ -29,9 +30,9 @@ from ..relations import Relation, relation_of
 from ..state import State
 from .errors import AdmissionRejected, UnsupportedOperation
 
-# What the SHEAR compiler lowers as node mode: its input-form operations
-# (``label`` is input-form only) and the host's ``invalid`` node.
-SUPPORTED_KINDS = (LOWERED - {"label"}) | {INVALID_KIND}
+# What the SHEAR compiler lowers as node mode: every graph-form kind, which
+# is its node-mode operations and the host's ``invalid`` node.
+SUPPORTED_KINDS = NODE_LOWERED | {INVALID_KIND}
 
 
 @dataclass(frozen=True)
@@ -101,6 +102,30 @@ def _operands(node: Relation) -> tuple:
     if kind == "catch":
         body = roles["body"]
         return (kind, body) if payload is None else (kind, body, payload)
+
+    if kind == "quote":
+        # The template keeps its canonical form, as a literal does.
+        return (kind, node.payload, *roles["holes"])
+
+    if kind == "activate":
+        return (
+            kind,
+            tuple(payload["links"]),
+            roles["targets"],
+            roles["values"],
+        )
+
+    if kind == "trial":
+        # ``target`` is absent when the call's link did not resolve.
+        return (
+            kind,
+            tuple(payload["links"]),
+            roles["targets"],
+            payload["call"][1],
+            roles.get("target"),
+            roles["args"],
+            roles["values"],
+        )
 
     return (kind, *_positional(OPERATIONS[kind], roles))
 
@@ -177,5 +202,9 @@ def _instruction(raw: Any) -> tuple:
 
     if opcode == "LIT":
         return (opcode, *operands)
+
+    if opcode == "QUOTE":
+        # The template keeps its canonical form, as a literal's value does.
+        return (opcode, operands[0], *(_plain(item) for item in operands[1:]))
 
     return (opcode, *(_plain(operand) for operand in operands))

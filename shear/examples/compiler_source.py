@@ -16,9 +16,15 @@ entry points differ only in how they refer to children and link targets:
   replaced by their resolved targets. It gives the node's chunk exactly as
   ``shear.bytecode.lower`` does, children and targets by ``EntityID``.
 
-The core covers every operation but ``quote``, ``unquote``, ``function``,
-``activate`` and ``trial``, which lower to a ``RAISE``. Node mode also lowers
-an ``invalid`` node to the ``RAISE`` of its problem.
+Expanded mode covers every operation but ``quote``, ``unquote``, ``function``,
+``activate`` and ``trial``, which lower to the ``RAISE`` of an unknown
+operation. Node mode lowers those five too (``NODE_LOWERED``; the task-31
+hosted route, docs/live_evolution.md section 2.3) and an ``invalid`` node to
+the ``RAISE`` of its problem. Their operands are the descriptor's:
+``quote`` takes its template, then its holes; ``function`` its parameters and
+body; ``activate`` its ``(link, problem)`` entries, its resolved targets and
+its values as a tuple; ``trial`` its entries, targets, call problem and call
+target, then its arguments and values as two tuples.
 ``tests/test_self_hosting.py`` and ``tests/test_hosted_pipeline.py`` check
 both entry points against ``shear.bytecode``.
 
@@ -76,6 +82,21 @@ LOWERED = frozenset({
     "catch",
     "raise",
 })
+
+# What only node mode lowers. Expanded mode gives these the RAISE of an
+# unknown operation, as it always has.
+NODE_ONLY = frozenset({
+    "quote",
+    "unquote",
+    "function",
+    "activate",
+    "trial",
+})
+
+# The operations node mode lowers: its input-form operations (``label`` is
+# input-form only) and the five above. The host's ``invalid`` node is lowered
+# as well; ``hosted_bootstrap.descriptors`` adds it.
+NODE_LOWERED = (LOWERED - {"label"}) | NODE_ONLY
 
 
 def _lit(value: Any) -> tuple:
@@ -148,6 +169,43 @@ def _evals_from(index: int, trailer: tuple) -> tuple:
             ("tuple", trailer),
         ),
         _END_CHUNK,
+    )
+
+
+def _evals_of(children: tuple) -> tuple:
+    """The ``EVAL`` instructions of every child in the tuple ``children``."""
+
+    return (
+        "call",
+        "evals",
+        children,
+        _lit(0),
+        _lit(()),
+        _arg("mode"),
+    )
+
+
+def _evals_chunk(groups: list[tuple], trailer: tuple) -> tuple:
+    """The ``EVAL`` instructions of each tuple of children in ``groups``, then
+    ``trailer`` (one instruction), then END."""
+
+    code = _evals_of(groups[0])
+
+    for group in groups[1:]:
+        code = ("concat", code, _evals_of(group))
+
+    return ("concat", ("concat", code, ("tuple", trailer)), _END_CHUNK)
+
+
+def _node_only(chunk: tuple) -> tuple:
+    """``chunk`` in node mode; in expanded mode the ``RAISE`` of an unknown
+    operation."""
+
+    return (
+        "if",
+        ("eq", _arg("mode"), _lit(NODE)),
+        chunk,
+        _chunk(_op("RAISE", _lit("unknown operation"))),
     )
 
 
@@ -330,6 +388,55 @@ def _lower_op_cases() -> list[tuple[str, tuple]]:
         (
             "label",
             ("call", "lower_op", _sub_expr(2), _arg("mode")),
+        ),
+        (
+            "quote",
+            _node_only(
+                _evals_from(2, _op("QUOTE", _sub_expr(1), _length_minus(2)))
+            ),
+        ),
+        ("unquote", _node_only(_chunk(_op("GOTO", _ref(_sub_expr(1)))))),
+        (
+            "function",
+            _node_only(_chunk(_child(1), _child(2), _op("FUNCTION"))),
+        ),
+        (
+            # (entries, targets, values): host lowering raises, with no
+            # instruction before it, when the entries and values disagree.
+            "activate",
+            _node_only((
+                "if",
+                ("eq", ("len", _sub_expr(1)), ("len", _sub_expr(3))),
+                _evals_chunk(
+                    [_sub_expr(3)],
+                    _op("ACTIVATE", _sub_expr(1), _sub_expr(2)),
+                ),
+                _chunk(_op("RAISE", _lit("activate needs link/value pairs"))),
+            )),
+        ),
+        (
+            # (entries, targets, problem, target, args, values): on a
+            # disagreement the arguments are still evaluated first.
+            "trial",
+            _node_only((
+                "if",
+                ("eq", ("len", _sub_expr(1)), ("len", _sub_expr(6))),
+                _evals_chunk(
+                    [_sub_expr(5), _sub_expr(6)],
+                    _op(
+                        "TRIAL",
+                        _sub_expr(1),
+                        _sub_expr(2),
+                        _sub_expr(3),
+                        _sub_expr(4),
+                        ("len", _sub_expr(5)),
+                    ),
+                ),
+                _evals_chunk(
+                    [_sub_expr(5)],
+                    _op("RAISE", _lit("trial needs link/value pairs")),
+                ),
+            )),
         ),
         (
             # Only the host's node descriptors say "invalid"; as input form
