@@ -15,6 +15,7 @@ from tests import mutation
 from tests import mutation_campaign
 from tests import mutation_oracle
 from tests import mutation_reporting
+from tests import mutation_verdict
 from tests.lanes import LANES
 
 
@@ -497,7 +498,13 @@ class MutationCampaignTests(unittest.TestCase):
                 self.engine_blob,
             )
 
-    def test_exact_replay_runs_resolved_mutant(self) -> None:
+    def test_exact_replay_runs_resolved_mutant_and_reports_its_outcome(
+        self,
+    ) -> None:
+        # Replaces test_exact_replay_runs_resolved_mutant, which asserted a
+        # bare killed/survived bool and the exact arguments of the engine
+        # call. Replay now asks the oracle for a verdict, so the call carries
+        # the status and limit arguments and the result says how the run ended.
         mutant = self.first_arithmetic_mutant()
         command = [
             "python",
@@ -521,7 +528,7 @@ class MutationCampaignTests(unittest.TestCase):
                 return_value=(mutant, False),
             ) as killed,
         ):
-            replayed, dead = mutation_campaign.replay_exact(
+            replayed, execution = mutation_campaign.replay_exact(
                 self.root,
                 mutant.key,
                 self.source_blob("first.py"),
@@ -533,18 +540,31 @@ class MutationCampaignTests(unittest.TestCase):
             replayed,
             mutant,
         )
-        self.assertFalse(dead)
+        self.assertEqual(
+            execution.outcome,
+            mutation_verdict.SURVIVED,
+        )
         baseline.assert_called_once_with(
             self.root,
             command,
             timeout=mutation_oracle.TIMEOUT_SECONDS,
         )
-        killed.assert_called_once_with(
+        killed.assert_called_once()
+
+        arguments = killed.call_args.args
+
+        self.assertEqual(arguments[:4], (
             self.root,
             mutant.target,
             mutant.index,
-            command,
-            timeout=mutation_oracle.TIMEOUT_SECONDS,
+            arguments[3],
+        ))
+        self.assertEqual(arguments[3][:len(command)], command)
+        self.assertIn("--status", arguments[3])
+        self.assertEqual(
+            killed.call_args.kwargs["timeout"],
+            mutation_oracle.TIMEOUT_SECONDS
+            + mutation_verdict.BACKSTOP_GRACE_SECONDS,
         )
 
     def test_exact_replay_stops_when_baseline_fails(self) -> None:

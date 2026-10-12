@@ -4,8 +4,11 @@ from __future__ import annotations
 
 import json
 import os
+import resource
 import shlex
+import subprocess
 import sys
+import tempfile
 import time
 from collections import defaultdict
 from concurrent.futures import (
@@ -17,7 +20,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TextIO
 
-from tests import mutation, mutation_oracle
+from tests import mutation, mutation_oracle, mutation_verdict
+from tests.mutation_coverage import CoverageMap
 
 
 @dataclass(frozen=True)
@@ -26,6 +30,56 @@ class CampaignResult:
     classified_survivors: tuple[mutation.Mutant, ...]
     unclassified_survivors: tuple[mutation.Mutant, ...]
     elapsed_seconds: float
+    # Runs that ended without a failing test. They are not kills; see
+    # tests/mutation_verdict.py.
+    timeouts: tuple[mutation.Mutant, ...] = ()
+    resource_kills: tuple[mutation.Mutant, ...] = ()
+    abnormal_exits: tuple[mutation.Mutant, ...] = ()
+
+
+@dataclass(frozen=True)
+class RunOptions:
+    """How a campaign runs each mutant.
+
+    Without options a campaign runs every selected mutant to the oracle's
+    fixed limit and counts a bare pass or fail. With them it also asks the
+    oracle for a verdict, so a timeout is told apart from a kill.
+    """
+
+    limit: float
+    coverage: CoverageMap | None = None
+    # Run a mutant whose key is a reviewed survivor? Not needed to decide the
+    # campaign (a reviewed survivor never fails it) and the pins guarantee the
+    # review is current, but it is how a repin is revalidated.
+    rerun_classified: bool = True
+
+
+@dataclass(frozen=True)
+class Execution:
+    """One mutant run as the verdict protocol reports it."""
+
+    outcome: str
+    cpu_seconds: float | None = None
+    killed_by: str | None = None
+    stage: str | None = None
+    coverage: str | None = None
+
+
+def run_baseline(
+    root: Path,
+    command: list[str],
+) -> tuple[subprocess.CompletedProcess[bytes], float]:
+    """Run the oracle on the unmodified tree, without a time limit.
+
+    The baseline has to finish to mean anything, and the limit of every mutant
+    is derived from how long it took, so a slow runner cannot end a shard
+    before it reports.
+    """
+
+    started = time.perf_counter()
+    done = mutation.baseline(root, command, timeout=None)
+
+    return done, time.perf_counter() - started
 
 
 def _engine_blob(root: Path) -> str:
@@ -58,11 +112,91 @@ def _source_blobs(
     }
 
 
+def execute(
+    root: Path,
+    selected: mutation.Mutant,
+    command: list[str],
+    options: RunOptions,
+) -> tuple[mutation.Mutant, Execution, float]:
+    """Run one mutant and read the oracle's verdict.
+
+    The oracle stops itself at ``options.limit`` and says where; the engine's
+    own timeout, a little later, is only the fallback. When a coverage map is
+    given, the modules that execute the mutant's line run first.
+    """
+
+    coverage = options.coverage
+    first = (
+        coverage.first(selected.target, selected.line)
+        if coverage is not None
+        else ()
+    )
+
+    with tempfile.TemporaryDirectory() as scratch:
+        status_path = Path(scratch) / "status.json"
+        arguments = [
+            "--status",
+            str(status_path),
+            "--limit",
+            repr(options.limit),
+        ]
+
+        if first:
+            arguments += ["--first", ",".join(first)]
+
+        started = time.perf_counter()
+        executed, dead = mutation.killed(
+            root,
+            selected.target,
+            selected.index,
+            command + arguments,
+            timeout=(
+                options.limit
+                + mutation_verdict.BACKSTOP_GRACE_SECONDS
+            ),
+        )
+        elapsed = time.perf_counter() - started
+        status = mutation_verdict.read_status(status_path)
+
+    if executed.key != selected.key:
+        raise RuntimeError(
+            "selected mutation key changed during execution"
+        )
+
+    outcome = mutation_verdict.classify(
+        dead,
+        elapsed,
+        options.limit,
+        status,
+    )
+    module = status.module if status is not None else None
+
+    return executed, Execution(
+        outcome=outcome,
+        cpu_seconds=status.cpu_seconds if status is not None else None,
+        killed_by=status.test if status is not None else None,
+        stage=(
+            ("covering" if module in first else "rest")
+            if outcome == mutation_verdict.KILLED and first
+            else None
+        ),
+        coverage=(
+            coverage.status(selected.target, selected.line)
+            if coverage is not None
+            else None
+        ),
+    ), elapsed
+
+
 def _execute_one(
     root: Path,
     selected: mutation.Mutant,
     command: list[str],
-) -> tuple[mutation.Mutant, bool, float]:
+    options: RunOptions | None = None,
+) -> tuple[mutation.Mutant, bool | Execution, float]:
+    if options is not None:
+        return execute(root, selected, command, options)
+
     started = time.perf_counter()
 
     executed, dead = mutation.killed(
@@ -81,6 +215,19 @@ def _execute_one(
         )
 
     return executed, dead, elapsed
+
+
+def _execution(verdict: bool | Execution) -> Execution:
+    """Normalize what an executor returns: ``True`` means killed."""
+
+    if isinstance(verdict, Execution):
+        return verdict
+
+    return Execution(
+        mutation_verdict.KILLED
+        if verdict
+        else mutation_verdict.SURVIVED
+    )
 
 
 class EventReporter:
@@ -155,11 +302,26 @@ class EventReporter:
                 )
             )
 
+            options = event.get("run_options")
+            options_text = (
+                ""
+                if options is None
+                else (
+                    "run options: "
+                    + ", ".join(
+                        f"{name}={value}"
+                        for name, value in sorted(options.items())
+                    )
+                    + "\n"
+                )
+            )
+
             return (
                 "mutation campaign start: "
                 f"selected {event['selected_count']} mutants\n"
                 f"engine: {event['engine_blob']}\n"
                 f"inputs: {input_text}\n"
+                f"{options_text}"
                 "target sources:\n"
                 f"{source_text}"
             )
@@ -179,6 +341,20 @@ class EventReporter:
                     f"{event['reason']}"
                 )
 
+                if event.get("executed") is False:
+                    classification += " (pinned, not run)"
+
+            label = (
+                "NOT KILLED "
+                if outcome in mutation_verdict.NOT_A_KILL
+                else "SURVIVOR "
+            )
+
+            if outcome in mutation_verdict.NOT_A_KILL and event.get(
+                "killed_by"
+            ):
+                classification += f" while running {event['killed_by']}"
+
             key_json = json.dumps(
                 event["key"]
             )
@@ -196,7 +372,7 @@ class EventReporter:
             ])
 
             return (
-                "SURVIVOR "
+                f"{label}"
                 f"{outcome}: "
                 f"{event['target']}:"
                 f"site-{event['index']}:"
@@ -257,6 +433,14 @@ class EventReporter:
                 for timing in timings
             )
 
+            others = (
+                f" timeouts={event.get('timeouts', 0)} "
+                f"resource-kills={event.get('resource_kills', 0)} "
+                f"abnormal-exits={event.get('abnormal_exits', 0)} "
+                f"not-run={event.get('not_run', 0)} "
+                f"cpu={event.get('cpu_seconds', 0.0):.1f}s"
+            )
+
             return (
                 "mutation campaign complete: "
                 f"{event['completed']}/{event['total']} "
@@ -265,7 +449,8 @@ class EventReporter:
                 f"{event['classified_survivors']} "
                 "unclassified-survivors="
                 f"{event['unclassified_survivors']} "
-                f"elapsed={event['elapsed_seconds']:.1f}s\n"
+                f"elapsed={event['elapsed_seconds']:.1f}s"
+                f"{others}\n"
                 "outcomes by target and mutation kind:\n"
                 f"{group_text}\n"
                 "per-target timings:\n"
@@ -302,6 +487,10 @@ def _group_summary(
             "unclassified_survivors": (
                 values["unclassified_survivors"]
             ),
+            **{
+                name: values[name]
+                for name in sorted(mutation_verdict.NOT_A_KILL)
+            },
         })
 
     return result
@@ -344,6 +533,7 @@ def run_campaign(
     progress_every: int = 25,
     progress_interval_seconds: float = 30.0,
     stream: TextIO | None = None,
+    options: RunOptions | None = None,
 ) -> CampaignResult:
     """Run one already-selected shard and emit one evidence event stream."""
 
@@ -386,6 +576,9 @@ def run_campaign(
     killed = 0
     classified: list[mutation.Mutant] = []
     unclassified: list[mutation.Mutant] = []
+    not_kills: dict[str, list[mutation.Mutant]] = {
+        name: [] for name in mutation_verdict.NOT_A_KILL
+    }
     timings: dict[str, list[float]] = defaultdict(list)
     groups: dict[
         tuple[str, str],
@@ -395,8 +588,25 @@ def run_campaign(
             "killed": 0,
             "classified_survivors": 0,
             "unclassified_survivors": 0,
+            **{name: 0 for name in mutation_verdict.NOT_A_KILL},
         }
     )
+    pinned = (
+        [
+            mutant
+            for mutant in work
+            if mutant.key in classifications
+        ]
+        if options is not None and not options.rerun_classified
+        else []
+    )
+    pinned_keys = {mutant.key for mutant in pinned}
+    to_run = [
+        mutant
+        for mutant in work
+        if mutant.key not in pinned_keys
+    ]
+    cpu_started = resource.getrusage(resource.RUSAGE_CHILDREN)
 
     started = time.perf_counter()
     last_progress = started
@@ -431,21 +641,62 @@ def run_campaign(
             "selected_count": len(work),
             "selected_keys": selected_keys,
             "oracle_command": list(command),
+            **(
+                {}
+                if options is None
+                else {
+                    "run_options": {
+                        "limit_seconds": options.limit,
+                        "coverage_map": (
+                            None
+                            if options.coverage is None
+                            else options.coverage.fingerprint
+                        ),
+                        "rerun_classified": options.rerun_classified,
+                    }
+                }
+            ),
         })
 
         completed = 0
 
+        for mutant in pinned:
+            classification = classifications[mutant.key]
+            group = groups[(mutant.target, mutant.kind)]
+            classified.append(mutant)
+            group["classified_survivors"] += 1
+            completed += 1
+            reporter.emit({
+                "event": "mutant_outcome",
+                "key": list(mutant.key),
+                "target": mutant.target,
+                "index": mutant.index,
+                "line": mutant.line,
+                "mutation_kind": mutant.kind,
+                "source": mutant.text,
+                "occurrence": mutant.occurrence,
+                "outcome": "classified_survivor",
+                "executed": False,
+                "elapsed_seconds": 0.0,
+                "source_blob": source_blobs[mutant.target],
+                "engine_blob": engine_blob,
+                "classification": classification[0],
+                "reason": classification[1],
+            })
+
         with ThreadPoolExecutor(
             max_workers=workers
         ) as pool:
+            extra = () if options is None else (options,)
             pending = {
                 pool.submit(
                     _execute_one,
                     root,
                     mutant,
                     command,
+                    *extra,
                 ): mutant
-                for mutant in work
+                for mutant in to_run
             }
 
             def current_target() -> str:
@@ -512,7 +763,7 @@ def run_campaign(
                     last_selected = selected
 
                     try:
-                        mutant, dead, elapsed = (
+                        mutant, verdict, elapsed = (
                             future.result()
                         )
                     except BaseException as exc:
@@ -535,12 +786,17 @@ def run_campaign(
                         )
                     ]
 
+                    execution = _execution(verdict)
                     classification = None
 
-                    if dead:
+                    if execution.outcome == mutation_verdict.KILLED:
                         outcome = "killed"
                         killed += 1
                         group["killed"] += 1
+                    elif execution.outcome in mutation_verdict.NOT_A_KILL:
+                        outcome = execution.outcome
+                        not_kills[outcome].append(mutant)
+                        group[outcome] += 1
                     else:
                         classification = (
                             classifications.get(
@@ -595,6 +851,15 @@ def run_campaign(
                             classification[1]
                         )
 
+                    for name, value in (
+                        ("cpu_seconds", execution.cpu_seconds),
+                        ("killed_by", execution.killed_by),
+                        ("stage", execution.stage),
+                        ("coverage", execution.coverage),
+                    ):
+                        if value is not None:
+                            event[name] = value
+
                     reporter.emit(event)
 
                     if (
@@ -632,6 +897,14 @@ def run_campaign(
             - started
         )
 
+        cpu_finished = resource.getrusage(resource.RUSAGE_CHILDREN)
+        cpu_seconds = (
+            cpu_finished.ru_utime
+            - cpu_started.ru_utime
+            + cpu_finished.ru_stime
+            - cpu_started.ru_stime
+        )
+
         reporter.emit({
             "event": "campaign_complete",
             "completed": len(work),
@@ -643,6 +916,15 @@ def run_campaign(
             "unclassified_survivors": len(
                 unclassified
             ),
+            "timeouts": len(not_kills[mutation_verdict.TIMEOUT]),
+            "resource_kills": len(
+                not_kills[mutation_verdict.RESOURCE_KILL]
+            ),
+            "abnormal_exits": len(
+                not_kills[mutation_verdict.ABNORMAL_EXIT]
+            ),
+            "not_run": len(pinned),
+            "cpu_seconds": cpu_seconds,
             "elapsed_seconds": elapsed_total,
             "groups": _group_summary(groups),
             "target_timings": _timing_summary(
@@ -659,6 +941,15 @@ def run_campaign(
                 unclassified
             ),
             elapsed_seconds=elapsed_total,
+            timeouts=tuple(
+                not_kills[mutation_verdict.TIMEOUT]
+            ),
+            resource_kills=tuple(
+                not_kills[mutation_verdict.RESOURCE_KILL]
+            ),
+            abnormal_exits=tuple(
+                not_kills[mutation_verdict.ABNORMAL_EXIT]
+            ),
         )
 
     except BaseException as exc:

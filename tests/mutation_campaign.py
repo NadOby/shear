@@ -13,6 +13,8 @@ from pathlib import Path
 
 from tests import mutation
 from tests import mutation_oracle
+from tests import mutation_reporting
+from tests import mutation_verdict
 
 
 @dataclass(frozen=True)
@@ -243,23 +245,27 @@ def _execute_exact(
     root: Path,
     selected: mutation.Mutant,
     oracle: list[str],
-) -> tuple[mutation.Mutant, bool]:
-    """Execute one already-resolved exact mutant."""
+) -> tuple[mutation.Mutant, mutation_reporting.Execution]:
+    """Execute one already-resolved exact mutant.
 
-    executed, dead = mutation.killed(
-        root,
-        selected.target,
-        selected.index,
-        oracle,
-        timeout=mutation_oracle.TIMEOUT_SECONDS,
-    )
+    The result says how the run ended, so a timeout is not mistaken for a kill.
+    """
 
-    if executed.key != selected.key:
+    try:
+        executed, execution, _ = mutation_reporting.execute(
+            root,
+            selected,
+            oracle,
+            mutation_reporting.RunOptions(
+                limit=mutation_oracle.TIMEOUT_SECONDS,
+            ),
+        )
+    except RuntimeError as exc:
         raise RuntimeError(
             "resolved mutation key changed during replay"
-        )
+        ) from exc
 
-    return executed, dead
+    return executed, execution
 
 
 def replay_exact(
@@ -268,7 +274,7 @@ def replay_exact(
     source_blob: str,
     engine_blob: str,
     command: list[str] | None = None,
-) -> tuple[mutation.Mutant, bool]:
+) -> tuple[mutation.Mutant, mutation_reporting.Execution]:
     """Run one exact pinned mutation after a clean semantic baseline."""
 
     selected = resolve_exact_key(
@@ -558,7 +564,7 @@ def replay_failures(
     report_paths: tuple[Path, ...],
     command: list[str] | None = None,
 ) -> tuple[
-    tuple[mutation.Mutant, bool],
+    tuple[mutation.Mutant, mutation_reporting.Execution],
     ...,
 ]:
     """Replay only unclassified survivors recorded by completed campaigns."""
@@ -677,12 +683,13 @@ def _parser() -> argparse.ArgumentParser:
 
 def _print_result(
     mutant: mutation.Mutant,
-    dead: bool,
+    verdict: bool | mutation_reporting.Execution,
 ) -> None:
+    execution = mutation_reporting._execution(verdict)
     outcome = (
-        "killed"
-        if dead
-        else "survived"
+        "survived"
+        if execution.outcome == mutation_verdict.SURVIVED
+        else execution.outcome
     )
 
     print(
@@ -731,7 +738,7 @@ def main(argv: list[str] | None = None) -> int:
             key = _parse_key(
                 args.key_json
             )
-            mutant, dead = replay_exact(
+            mutant, verdict = replay_exact(
                 Path(args.root),
                 key,
                 args.source_blob,
@@ -749,7 +756,7 @@ def main(argv: list[str] | None = None) -> int:
 
         _print_result(
             mutant,
-            dead,
+            verdict,
         )
         return 0
 
@@ -782,13 +789,16 @@ def main(argv: list[str] | None = None) -> int:
 
         surviving = 0
 
-        for mutant, dead in results:
+        for mutant, verdict in results:
             _print_result(
                 mutant,
-                dead,
+                verdict,
             )
 
-            if not dead:
+            if (
+                mutation_reporting._execution(verdict).outcome
+                != mutation_verdict.KILLED
+            ):
                 surviving += 1
 
         print(
