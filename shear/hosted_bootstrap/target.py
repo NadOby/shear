@@ -408,12 +408,19 @@ class HostedTarget:
             RELEASE, HOST_ADMISSION, target_state_id=state_id, detail=why,
         )
 
-    def retained_versions(self) -> frozenset[Version]:
-        """The versions that own an artifact set. A version that retired
-        outside a run, through a host-API hold, is released first."""
+    def _sweep(self) -> None:
+        """Release the set of every version that retired outside a run,
+        through the release of a host-API hold: the runtime does not tell the
+        target then, so the target looks whenever it is asked about sets or
+        starts a run."""
 
         for version in [v for v in self._sets if v.retired]:
             self._release(version, "retired")
+
+    def retained_versions(self) -> frozenset[Version]:
+        """The versions that own an artifact set."""
+
+        self._sweep()
 
         return frozenset(self._sets)
 
@@ -423,6 +430,7 @@ class HostedTarget:
         """A read-only view of the artifacts the set that ``version`` owns
         holds, keyed by node and version."""
 
+        self._sweep()
         found = self._sets.get(version)
 
         if found is None:
@@ -439,6 +447,8 @@ class HostedTarget:
         may_activate: bool = False,
     ) -> Any:
         """Run ``entry`` on the host machine over admitted artifacts only."""
+
+        self._sweep()
 
         if self.runtime.active not in self._sets:
             raise AdmissionRejected(
