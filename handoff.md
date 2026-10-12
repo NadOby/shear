@@ -9,10 +9,12 @@ GitHub and the repository before relying on it.
 - Issue: #59 (`task`), roadmap task 22, reference version audit.
 - Branch: `task/22-reference-version`, from `main` at `1db6d5e`.
 - Role: Plan and Execute done, in separate chats; the owner chose D22
-  option 1. Next: Review.
+  option 1. A check by the Plan's own chat found three P3 findings;
+  Resolve is done (below). Next: a fresh Review.
 - Plan head: `b7123c3a0ff3adb951c60dc65e5dc155a354ce5c` ("Change handoff.md
   to record the owner's D22 choice"). Review diffs the Plan-owned files from
-  it. Execute head: the commit that records this file.
+  it. Execute head: `634bbbe`. Resolve head: the commit that records this
+  file.
 
 ## Result of the audit (Plan)
 
@@ -89,6 +91,43 @@ evidence. No refactor either way.
 
 Execute does not certify the audit. If its argument is wrong, return to Plan.
 
+## Findings and Resolve
+
+The findings came from a check by the chat that wrote the Plan, not from an
+independent Review: it had no blocking finding, and it checked claims 1 to 4
+below. A fresh Review is still required. Each finding was checked against the
+repository before it was fixed.
+
+1. **P3, verified defect: the exercise guard in
+   `test_a_produced_reference_is_never_stale` did not guard.** `transferred`
+   was incremented after a mapping error too, so
+   `assertGreater(transferred, 300)` passed with zero successful transfers.
+   Fixed: it counts only successful transfers (`else:` branch) and asserts
+   more than 100; the current count is 456. With every transfer planted to
+   raise `MissingEntityMapping` the test now fails (0 not greater than 100);
+   before, it passed.
+2. **P3, documentation drift: §14's cache-key bullet.** Bytecode chunks are
+   stored on the `Value` (`value.__dict__["_chunk"]`, `bytecode.py`), not
+   keyed by `VersionID`; native code keyed by `VersionID` is Open
+   (activation_model.md §10); hosted artifacts key on `(entity, version)`.
+   Fixed: the bullet says caches are tied to a value or to its version, never
+   to a reference. The conclusion is unchanged.
+3. **P3, documentation drift: §14's offline-validation bullet.** It cited §3,
+   but checking one value against `(EntityID, VersionID)` is not resolution
+   across states. Fixed: no caller does it today; with partially loaded
+   states (premise 3) it would become a role.
+
+Resolve changed two Plan-owned files: `tests/test_reference_version.py` (the
+guard, finding 1) and `docs/reference_model.md` §14 (wording, findings 2 and
+3). The classification, the owner's D22 choice, the test's assertions about
+versions and everything under `shear/` are unchanged. Review must diff these
+two files from the Plan head and judge that the test change strengthens it.
+
+Verification after Resolve, Python 3.13, on the final tree: all eight lanes
+ok (`python3 -m tests.lanes --all`), and `python3 -m tests.golden --against
+main` gives 55 unchanged, 0 new, 0 changed. No mutation campaign: nothing
+under `shear/` changes.
+
 ## Claims Review must verify independently
 
 1. `StateID` covers every entity's `VersionID`: `_state_content` takes all
@@ -120,4 +159,4 @@ Execute does not certify the audit. If its argument is wrong, return to Plan.
 
 ## Next action
 
-Review task 22, in a fresh chat.
+Review task 22, in a fresh chat, over the Resolve head.
