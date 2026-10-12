@@ -9,9 +9,11 @@ this checkpoint against GitHub and the repository before relying on it.
 - Task: #58, task 21: endpoint arity audit.
 - Branch: `task/21-endpoint-arity`, from `main` at `a852714`.
 - Plan head: `41cd145`.
-- Role: Resolve done after the first Review of PR #112. That Review, in a
-  separate context, found no blocking defect and three P3 findings, all
-  fixed (below).
+- Role: Publish done. Two Reviews of PR #112 ran in a separate context:
+  - the first found three P3 findings, all fixed (below);
+  - the second, at `bbf119f`, accepted the implementation, with one P3
+    drift in this file, fixed at Publish.
+- Waiting for the owner to merge.
 - Plan and Execute ran in one chat, with the owner's permission. The
   evidence below therefore comes from one context and is a claim, not a
   certification. Review must re-derive it.
@@ -27,6 +29,9 @@ this checkpoint against GitHub and the repository before relying on it.
 3. **P3, the relation_model.md legend lacks Provisional.** Verified. Fixed:
    added "current direction, not fully settled", the wording of
    activation_model.md.
+
+4. **P3, this file's "Changes against the Plan head" left out the legend
+   change** (second Review). Fixed at Publish.
 
 No finding is unresolved.
 
@@ -49,8 +54,13 @@ No finding is unresolved.
 
 ## Changes against the Plan head
 
-- `docs/relation_model.md`: only the Open block the contract named was
-  replaced.
+- `docs/relation_model.md`:
+  - Execute replaced the Open block the contract named; Resolve then named
+    two more readers inside that section.
+  - Resolve also added Provisional to the status legend near the top,
+    outside that block, because the classification uses Provisional and the
+    legend lacked it (first Review, finding 3).
+- `docs/roadmap.md`: task 21 marked Implemented (PR #112).
 - `CHANGES.md`, `handoff.md`.
 - `tests/test_endpoint_arity.py` and `tests/lanes.py` are unchanged.
 - Nothing under `shear/` changed.
@@ -93,5 +103,5 @@ constraint test.
 
 ## Next action
 
-A fresh Review pass on the fixes, or the owner merges PR #112. The roadmap
-entry already says Implemented (PR #112).
+The owner merges PR #112, which closes #58. Follow-ups #110 and #111 stay
+open.
