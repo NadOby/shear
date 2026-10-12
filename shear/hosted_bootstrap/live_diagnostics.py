@@ -9,9 +9,14 @@ dissimilar workloads, D4's targets diagnostic only.
 The workload is a small live image: a cell, ``handle``, ``plus`` (which builds
 a changed ``handle`` from ``code(handle)``) and ``update``, which activates
 it, plus ``extra`` unrelated one-line functions. One valid update changes
-``handle`` only. A rejected update runs the same program while admission
-refuses the ``ADD`` instruction, so the failure can only be found after the
-compiler produced a chunk. Phases are timed by wrapping the functions that
+``handle`` only. Two kinds of update fail. A *trial-rejected* update is the
+image's own: the program tries a candidate whose answer is wrong and does not
+activate it; the candidate is compiled and admitted, run in the trial and
+released. A *refused* update is an injected failure: the same update as the
+valid one runs while admission refuses the ``ADD`` instruction, so the
+program's activation ends with ``AdmissionRejected`` after the compiler
+produced a chunk, and no unchanged node is reused (every reused chunk with
+``ADD`` is refused too). Phases are timed by wrapping the functions that
 perform them, which adds a call of overhead to each.
 """
 
@@ -35,6 +40,7 @@ from .trace import PRODUCE, REUSE
 
 HANDLE = EntityID("handle")
 UPDATE = EntityID("update")
+TRIAL_REJECTED = EntityID("rejected")
 SIZES = (10, 100, 1000)
 PHASES = (
     "construction",
@@ -59,6 +65,15 @@ fn plus(k):
 fn update(k):
     activate(handle = plus(k))
     k
+
+fn verdict(r, expected):
+    if item(r, 0) == "ok":
+        "passed" if item(r, 1) == expected else "wrong"
+    else:
+        item(item(r, 1), 1)
+
+fn rejected(k):
+    verdict(catch(trial(handle(2), handle = plus(k))), 0)
 '''
 
 
@@ -113,10 +128,12 @@ def _wrapped(
 @contextlib.contextmanager
 def _instrumented(clock: _Clock) -> Iterator[None]:
     """Wrap the phase functions for the duration. Staging runs from the start
-    of ``Runtime.activate`` to the start of the target's ``candidate``; the
-    switch runs from the end of ``candidate`` to the end of ``activate``."""
+    of ``Runtime.activate`` (or ``Runtime.trial``) to the start of the
+    target's ``candidate``; the switch runs from the end of ``candidate`` to
+    the end of ``activate``. A trial has no switch."""
 
     activate = Runtime.activate
+    trial = Runtime.trial
     candidate = HostedTarget.candidate
     define = machine._define_for_operation
     produce = HostedTarget._produce
@@ -135,6 +152,14 @@ def _instrumented(clock: _Clock) -> Iterator[None]:
                     time.perf_counter() - clock.marks.pop("candidate_end"),
                 )
 
+    def timed_trial(self: Runtime, *args: Any, **kwargs: Any) -> Any:
+        clock.marks["activate"] = time.perf_counter()
+
+        try:
+            return trial(self, *args, **kwargs)
+        finally:
+            clock.marks.pop("candidate_end", None)
+
     def timed_candidate(self: HostedTarget, *args: Any, **kwargs: Any) -> Any:
         entered = time.perf_counter()
         clock.add("staging", entered - clock.marks.pop("activate", entered))
@@ -145,6 +170,7 @@ def _instrumented(clock: _Clock) -> Iterator[None]:
         return answer
 
     Runtime.activate = timed_activate  # type: ignore[method-assign]
+    Runtime.trial = timed_trial  # type: ignore[method-assign]
     HostedTarget.candidate = timed_candidate  # type: ignore[method-assign]
     machine._define_for_operation = _wrapped(  # type: ignore[assignment]
         clock, define, "construction",
@@ -163,6 +189,7 @@ def _instrumented(clock: _Clock) -> Iterator[None]:
         yield
     finally:
         Runtime.activate = activate  # type: ignore[method-assign]
+        Runtime.trial = trial  # type: ignore[method-assign]
         HostedTarget.candidate = candidate  # type: ignore[method-assign]
         machine._define_for_operation = define  # type: ignore[assignment]
         HostedTarget._produce = produce  # type: ignore[method-assign]
@@ -206,16 +233,24 @@ def _update(
     session: HostedSession,
     clock: _Clock,
     k: int,
-    valid: bool,
+    kind: str,
 ) -> dict[str, Any]:
-    """One update of ``handle`` by ``k``: its phases, the produced and reused
-    counts, and the first call of the changed function."""
+    """One update of ``handle`` by ``k`` (``kind`` is ``"valid"``,
+    ``"refused"`` or ``"trial_rejected"``): its phases, the produced and
+    reused counts, and for a valid one the first call of the changed
+    function."""
 
+    valid = kind == "valid"
     clock.reset()
     since = len(session.trace())
     started = time.perf_counter()
 
-    if valid:
+    if kind == "trial_rejected":
+        answer = session.run(TRIAL_REJECTED, k, may_activate=True)
+
+        if answer != "wrong":
+            raise AssertionError(f"the trial was not rejected: {answer!r}")
+    elif valid:
         session.run(UPDATE, k, may_activate=True)
     else:
         try:
@@ -267,31 +302,39 @@ def _phase_summary(records: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 def updates(count: int, extra: int = 10) -> dict[str, Any]:
-    """``count`` valid updates in sequence, then ``count`` rejected ones, on
-    one live image. Retention is read after every update."""
+    """``count`` valid updates in sequence, then ``count`` trial-rejected and
+    ``count`` refused ones, on one live image. Retention is read after every
+    update."""
 
     runtime, session = _fresh(extra)
     clock = _Clock()
-    valid: list[dict[str, Any]] = []
-    rejected: list[dict[str, Any]] = []
+    records: dict[str, list[dict[str, Any]]] = {
+        "valid": [], "trial_rejected": [], "refused": [],
+    }
 
     with _instrumented(clock):
         for k in range(1, count + 1):
-            valid.append(_update(runtime, session, clock, k, True))
+            records["valid"].append(_update(runtime, session, clock, k, "valid"))
 
         state = runtime.active.state.id
 
+        for k in range(1, count + 1):
+            records["trial_rejected"].append(
+                _update(runtime, session, clock, k, "trial_rejected")
+            )
+
         with _admission_refuses("ADD"):
             for k in range(1, count + 1):
-                rejected.append(_update(runtime, session, clock, k, False))
+                records["refused"].append(
+                    _update(runtime, session, clock, k, "refused")
+                )
 
         if runtime.active.state.id != state:
             raise AssertionError("a rejected update changed the active state")
 
     return {
-        "functions": 4 + extra,
-        "valid": _phase_summary(valid),
-        "rejected": _phase_summary(rejected),
+        "functions": 6 + extra,
+        **{kind: _phase_summary(found) for kind, found in records.items()},
     }
 
 
@@ -342,14 +385,14 @@ def scaling(sizes: tuple[int, ...], repeats: int) -> dict[str, Any]:
             clock = _Clock()
 
             with _instrumented(clock):
-                records.append(_update(runtime, session, clock, 1, True))
+                records.append(_update(runtime, session, clock, 1, "valid"))
 
         summary = _phase_summary(records)
         summary["preparation_s"] = {
             "observations": [round(value, 6) for value in preparation],
             "median": round(median(preparation), 6),
         }
-        result[str(4 + extra)] = summary
+        result[str(6 + extra)] = summary
 
     return result
 

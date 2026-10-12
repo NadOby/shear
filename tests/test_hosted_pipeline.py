@@ -692,28 +692,83 @@ class LiveDiagnosticsTests(unittest.TestCase):
             ),
         )
 
-        valid = result["updates"]["valid"]
-        rejected = result["updates"]["rejected"]
+        updates = result["updates"]
+        valid = updates["valid"]
+        trial = updates["trial_rejected"]
+        refused = updates["refused"]
 
-        for phase in live_diagnostics.PHASES:
-            self.assertEqual(len(valid[phase]["observations"]), 1)
-            self.assertEqual(len(rejected[phase]["observations"]), 1)
+        for record in (valid, trial, refused):
+            for phase in live_diagnostics.PHASES:
+                self.assertEqual(len(record[phase]["observations"]), 1)
 
         self.assertEqual(len(valid["first_call_s"]["observations"]), 1)
-        self.assertNotIn("first_call_s", rejected)
+        self.assertNotIn("first_call_s", trial)
+        self.assertNotIn("first_call_s", refused)
 
         # Only the changed nodes are compiled; every other node is reused.
-        self.assertGreater(valid["produced"][0], 0)
-        self.assertGreater(valid["reused"][0], 0)
-        self.assertEqual(rejected["reused"], [0])
+        for record in (valid, trial):
+            self.assertGreater(record["produced"][0], 0)
+            self.assertGreater(record["reused"][0], 0)
 
-        # One loaded version and one retained set after either kind.
-        for record in (valid, rejected):
+        # The injected failure refuses every reused chunk that has ADD too.
+        self.assertEqual(refused["reused"], [0])
+
+        # One loaded version and one retained set after every kind, and a
+        # rejected trial adds no artifacts to the set that is retained.
+        for record in (valid, trial, refused):
             self.assertEqual(record["loaded_versions"], [1])
             self.assertEqual(record["retained_sets"], [1])
 
+        self.assertEqual(trial["artifacts"], valid["artifacts"])
         self.assertEqual(result["peak_memory"]["retained_sets"], 1)
-        self.assertEqual(list(result["scaling_functions"]), ["6"])
+        self.assertEqual(list(result["scaling_functions"]), ["8"])
+
+
+class LateRetirementTests(unittest.TestCase):
+    """A version can retire outside a run, when the host releases the hold
+    that kept it (live_evolution.md section 4.1): the target releases its
+    artifact set the next time it is asked about sets or starts a run."""
+
+    def setUp(self):
+        from tests.live_support import H, image_state
+
+        self.entry = H
+        self.runtime = Runtime(image_state())
+        self.session = HostedSession(self.runtime)
+        self.session.prepare(compiler_generation=1)
+        self.old = self.runtime.active
+        held = self.runtime.enter(H("part"))
+        self.assertIsNone(
+            self.session.run(H("move"), may_activate=True)
+        )
+        self.assertEqual(len(self.runtime.versions), 2)
+        self.assertEqual(len(self.session.retained_versions()), 2)
+        held.release()
+        self.assertEqual(len(self.runtime.versions), 1)
+
+    def released(self):
+        return [
+            event.target_state_id for event in self.session.trace()
+            if event.kind == "release" and event.detail == "retired"
+        ]
+
+    def test_a_run_releases_the_set_of_a_version_that_retired(self):
+        self.assertEqual(self.session.run(self.entry("whole"), 5), 11)
+
+        # Seen in the trace, before anything asks about the sets.
+        self.assertEqual(self.released(), [self.old.state.id])
+        self.assertEqual(
+            self.session.retained_versions(), frozenset(self.runtime.versions),
+        )
+
+    def test_asking_for_the_artifacts_of_a_retired_version_releases_them(self):
+        with self.assertRaises(AdmissionRejected):
+            self.session.admitted(self.old)
+
+        self.assertEqual(
+            self.session.retained_versions(), frozenset(self.runtime.versions),
+        )
+        self.assertEqual(self.released(), [self.old.state.id])
 
 
 if __name__ == "__main__":
