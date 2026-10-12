@@ -61,8 +61,13 @@ against GitHub and the repository before relying on it.
 - Python 3.14 (#53): about 15 % faster locally and passes the oracle; not
   adopted (needs an exhaustive campaign for the survivor catalog).
 - De-duplicating mutants by compiled code: 223 of 4056 sites (5.5 %).
-- CI evidence for the branch: see the PR and workflow runs (not yet attached
-  when this was written).
+- CI (150 per target, seed 1, 16 shards, run 38188546294 vs baseline run
+  38184400290 on `main`): slowest shard 65.2 to 17.6 min, total 724 to 191
+  shard-minutes. That run failed in shards 6 and 9 on two `abnormal_exit`
+  mutants (`matching.py`, MemoryError escaping the runner): fixed, with a
+  regression test. 12 timeouts were ~79 % of campaign time, hence the
+  per-test budget below. A re-run on the final commit is the CI evidence to
+  attach.
 
 ## Edits to existing tests (call-outs)
 
@@ -74,6 +79,14 @@ against GitHub and the repository before relying on it.
 
 ## Provisional choices for Review
 
+- Per-test budget `max(30 s, 10 x baseline)`: a test over it is reported as a
+  non-failing `timeout`. A mutant that slows one test tenfold but would
+  still pass is no longer an unclassified survivor. Replay has no such budget.
+  Say if an unexplained timeout should fail a campaign instead.
+- Cost-aware sharding (#51) dropped: imbalance is unchanged and comes from
+  hangs. Suggest closing #51 as not planned.
+- Workflow input `python_version` (default 3.12) exists so an exhaustive
+  campaign can be run on 3.14 (#53); CI is not moved.
 - An `abnormal_exit` fails a campaign; a `timeout` and a `resource_kill` are
   reported but do not (owner decision wanted if this is too lax).
 - Reviewed survivors are not re-run by default.

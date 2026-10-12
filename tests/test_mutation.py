@@ -807,7 +807,11 @@ class SuiteMutationTests(unittest.TestCase):
 
         oracle = mutation_oracle.command()
 
-        baseline, baseline_seconds = mutation_reporting.run_baseline(
+        (
+            baseline,
+            baseline_seconds,
+            test_times,
+        ) = mutation_reporting.run_baseline(
             mutation.ROOT,
             oracle,
         )
@@ -884,6 +888,10 @@ class SuiteMutationTests(unittest.TestCase):
                     full_work
                 ),
                 "baseline_seconds": baseline_seconds,
+                "slowest_baseline_tests": sorted(
+                    test_times.items(),
+                    key=lambda item: -item[1],
+                )[:5],
             },
             options=mutation_reporting.RunOptions(
                 limit=mutation_oracle.mutant_limit(
@@ -891,6 +899,7 @@ class SuiteMutationTests(unittest.TestCase):
                 ),
                 coverage=coverage,
                 rerun_classified=revalidate,
+                test_times=test_times,
             ),
         )
 

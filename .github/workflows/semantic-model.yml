@@ -23,6 +23,10 @@ on:
         description: "Mutation campaign shards, 1 to 16; empty sizes it from the selected mutants (one shard per 150, at most 16)"
         required: false
         default: ""
+      python_version:
+        description: "Python for the mutation plan and campaign shards (evidence for moving CI to a newer Python)"
+        required: false
+        default: "3.12"
       mutation_revalidate:
         description: "Also re-run reviewed survivors (use after repinning the engine or a target)"
         required: false
@@ -149,7 +153,7 @@ jobs:
 
       - uses: actions/setup-python@v7
         with:
-          python-version: "3.12"
+          python-version: ${{ inputs.python_version || '3.12' }}
 
       - name: Size the shard matrix from the selected mutants
         id: plan
@@ -204,7 +208,7 @@ jobs:
 
       - uses: actions/setup-python@v7
         with:
-          python-version: "3.12"
+          python-version: ${{ inputs.python_version || '3.12' }}
 
       - name: Download the coverage map
         continue-on-error: true

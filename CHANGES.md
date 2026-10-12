@@ -1834,7 +1834,10 @@ golden records or historical measurements changed.
   fails the campaign; a timeout or resource kill is reported, not counted. A
   mutant that breaks a test module's import is a failed test.
 - The mutant limit is `max(180 s, 3 x baseline)` instead of a fixed 900 s; the
-  baseline has no limit.
+  baseline has no limit. Provisional: a test running longer than
+  `max(30 s, 10 x its baseline time)` is reported as a `timeout` at once
+  (hung mutants were 79 % of the CI campaign time). Memory exhaustion that
+  escapes the test runner is a `resource_kill`.
 - Optional coverage map (`tests/mutation_coverage.py`): modules that execute a
   mutant's line run first, so only the order of a fail-fast run changes. Also
   a non-gating report of executable lines no module executes.
@@ -1845,6 +1848,9 @@ golden records or historical measurements changed.
   `mutation_revalidate`, `coverage_diagnostics`, `coverage_targets`.
 - The engine `tests/mutation.py` is unchanged, so its pin and all survivor
   classifications stay valid and nothing needed revalidation.
+- CI campaign (150 per target, 16 shards): slowest shard 65 to 18 min, total
+  724 to 191 shard-minutes. Cost-aware sharding (#51) not built; see
+  `docs/verification_hardening.md`.
 - Measured on a 76-mutant sample: wall 2156 s to 655 s, CPU 4103 s to 1024 s,
   mean kill time 31.7 s to 6.7 s (4.7 times, short of the 5 times aimed for).
   Rejected or deferred, with reasons, in `docs/verification_hardening.md`

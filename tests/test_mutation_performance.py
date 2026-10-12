@@ -75,6 +75,21 @@ class SummaryTests(unittest.TestCase):
         self.assertIsNone(result["mutant_cpu_seconds"])
         self.assertIn("unknown", performance.render(result))
 
+    def test_runs_without_a_verdict_do_not_hide_the_cpu_of_the_rest(
+        self,
+    ) -> None:
+        result = performance.summarize({
+            "a": [
+                outcome("killed", 2.0, cpu_seconds=3.0),
+                outcome("abnormal_exit", 1.0),
+                done(3.0),
+            ],
+        })
+
+        self.assertEqual(result["mutant_cpu_seconds"], 3.0)
+        self.assertEqual(result["runs_without_cpu"], 1)
+        self.assertIn("omits 1 runs", performance.render(result))
+
     def test_a_report_without_completion_is_flagged(self) -> None:
         result = performance.summarize({"a": [outcome("killed", 1.0)]})
 

@@ -46,7 +46,8 @@ def summarize(
     every: list[tuple[float, str, str]] = []
     shards = []
     cpu_total = 0.0
-    cpu_known = True
+    with_cpu = 0
+    without_cpu = 0
     not_run = 0
     incomplete = []
 
@@ -77,8 +78,10 @@ def summarize(
 
             if "cpu_seconds" in event:
                 shard_cpu += float(event["cpu_seconds"])  # type: ignore[arg-type]
+                with_cpu += 1
             else:
-                cpu_known = False
+                # An old report, or a run that ended without a verdict.
+                without_cpu += 1
 
             if outcome == "killed":
                 kill_times.append(seconds)
@@ -98,7 +101,8 @@ def summarize(
         "incomplete_reports": incomplete,
         "campaign_wall_seconds": max(walls) if walls else None,
         "sum_of_shard_wall_seconds": sum(walls) if walls else None,
-        "mutant_cpu_seconds": cpu_total if cpu_known else None,
+        "mutant_cpu_seconds": cpu_total if with_cpu else None,
+        "runs_without_cpu": without_cpu,
         "outcomes": dict(sorted(outcomes.items())),
         "not_run_pinned": not_run,
         "slowest": [
@@ -135,6 +139,12 @@ def render(result: dict[str, object]) -> str:
         "outcomes: "
         + ", ".join(f"{k}={v}" for k, v in result["outcomes"].items()),  # type: ignore[attr-defined]
     ]
+
+    if result["mutant_cpu_seconds"] is not None and result["runs_without_cpu"]:
+        out.append(
+            f"mutant CPU omits {result['runs_without_cpu']} runs that "
+            "reported none"
+        )
 
     if result["not_run_pinned"]:
         out.append(

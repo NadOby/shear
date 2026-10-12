@@ -52,6 +52,9 @@ class RunOptions:
     # campaign (a reviewed survivor never fails it) and the pins guarantee the
     # review is current, but it is how a repin is revalidated.
     rerun_classified: bool = True
+    # Seconds each test takes on the unmodified tree. A mutant run reports a
+    # timeout when one test takes far longer than that.
+    test_times: dict[str, float] | None = None
 
 
 @dataclass(frozen=True)
@@ -68,18 +71,26 @@ class Execution:
 def run_baseline(
     root: Path,
     command: list[str],
-) -> tuple[subprocess.CompletedProcess[bytes], float]:
+) -> tuple[subprocess.CompletedProcess[bytes], float, dict[str, float]]:
     """Run the oracle on the unmodified tree, without a time limit.
 
-    The baseline has to finish to mean anything, and the limit of every mutant
-    is derived from how long it took, so a slow runner cannot end a shard
-    before it reports.
+    The baseline has to finish to mean anything, and the limits of every mutant
+    are derived from how long it took, so a slow runner cannot end a shard
+    before it reports. Also returns how long each test took.
     """
 
-    started = time.perf_counter()
-    done = mutation.baseline(root, command, timeout=None)
+    with tempfile.TemporaryDirectory() as scratch:
+        status_path = Path(scratch) / "baseline-status.json"
+        started = time.perf_counter()
+        done = mutation.baseline(
+            root,
+            command + ["--status", str(status_path)],
+            timeout=None,
+        )
+        seconds = time.perf_counter() - started
+        status = mutation_verdict.read_status(status_path)
 
-    return done, time.perf_counter() - started
+    return done, seconds, status.tests if status is not None else {}
 
 
 def _engine_blob(root: Path) -> str:
@@ -143,6 +154,14 @@ def execute(
 
         if first:
             arguments += ["--first", ",".join(first)]
+
+        if options.test_times:
+            times_path = Path(scratch) / "times.json"
+            times_path.write_text(
+                json.dumps(options.test_times),
+                encoding="utf-8",
+            )
+            arguments += ["--times", str(times_path)]
 
         started = time.perf_counter()
         executed, dead = mutation.killed(

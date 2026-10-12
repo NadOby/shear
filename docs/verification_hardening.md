@@ -434,7 +434,20 @@ the baseline run itself has no limit. The engine's own timeout is a backstop
 30 s longer, for a run that cannot report.
 
 A mutant that makes a test module fail to import (with any exception, not only
-`ImportError`) is a failing test, not a crash.
+`ImportError`) is a failing test, not a crash. Memory exhaustion that escapes
+the test runner is a `resource_kill`, not an abnormal exit.
+
+**Provisional:** the baseline records how long each test takes, and a mutant
+run reports `timeout` as soon as one test runs longer than
+`max(30 s, 10 x its baseline time)` (`--times`), instead of waiting for the run
+limit. On CI the 12 hung mutants of a 2646-mutant campaign were about 79 % of
+the campaign time at the 3 x baseline limit. The cost is a narrow gap: a mutant
+that makes one test at least ten times slower but would still finish and pass
+is reported as a non-failing `timeout` where it used to be an unclassified
+survivor. Every timeout is printed with the test it stopped in and a `replay`
+command, and replay does not apply the per-test budget. The baseline's slowest
+tests are recorded in the report's `campaign_start` event, so a test that
+becomes slow is visible there.
 
 ### Coverage-ordered runs and the coverage diagnostic
 
@@ -490,6 +503,16 @@ children's user plus system time.
 | median kill time | 4.5 s | 0.8 s |
 | hanging mutant | 900 s, "killed" | 440 s, `timeout` |
 | outcomes | 69 killed, 7 reviewed survivors | the same, except the hanging mutant is `timeout` |
+
+The same change on CI (`mutation_count` 150, seed 1, 16 shards, 2646
+mutants; before = `main`, after = this branch before the per-test budget):
+slowest shard 65.2 min to 17.6 min, median shard 48.3 min to 12.7 min, all
+shards 724 to 191 shard-minutes; 2533 kills, 97 reviewed survivors not run,
+12 timeouts, 2 resource kills. Shard balance did not change (slowest over
+median 1.35 before, 1.38 after), so cost-aware sharding (#51) was not built:
+the imbalance comes from the hung mutants, and a better assignment would save at
+most a few minutes while needing per-mutant cost history that a fresh run does
+not have and breaking the plain round-robin that replay relies on.
 
 The mean kill time fell 4.7 times; the aim was 5 times, so the target was
 narrowly missed and the change is kept because it also removes the survivor

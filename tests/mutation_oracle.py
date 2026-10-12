@@ -8,6 +8,8 @@ mandatory in ordinary CI but are not mutation-kill oracles.
 from __future__ import annotations
 
 import argparse
+import gc
+import json
 import os
 import resource
 import sys
@@ -27,6 +29,8 @@ EXCLUDED_LANES = frozenset({"mutation"})
 # limit is reported as a timeout, never as a kill. The limit therefore scales
 # with the baseline measured on the same runner: ``mutant_limit``. This fixed
 # value is only the limit of a run that has no measured baseline.
+TEST_BUDGET_FACTOR = 10.0
+TEST_BUDGET_FLOOR_SECONDS = 30.0
 TIMEOUT_SECONDS = 900.0
 
 # A mutant may take this many times the baseline, but at least the floor. An
@@ -151,16 +155,45 @@ def command() -> list[str]:
 
 
 _current_test: str | None = None
+_test_started = 0.0
+_durations: dict[str, float] = {}
 
 
 class _Result(unittest.TextTestResult):
-    """Remembers which test is running, for a run that must be cut short."""
+    """Remembers which test is running and how long each one takes.
+
+    The running test is what a run that must be cut short reports, and the
+    durations of a passing run set the per-test budgets of mutant runs.
+    """
 
     def startTest(self, test: unittest.TestCase) -> None:
-        global _current_test
+        global _current_test, _test_started
 
         _current_test = test.id()
+        _test_started = time.perf_counter()
         super().startTest(test)
+
+    def stopTest(self, test: unittest.TestCase) -> None:
+        global _current_test
+
+        _durations[test.id()] = time.perf_counter() - _test_started
+        _current_test = None
+        super().stopTest(test)
+
+
+def test_budget(
+    baseline_seconds: float,
+) -> float:
+    """How long a mutant run may spend in one test, given its honest time.
+
+    A test that takes ten times as long as it does on the unmodified tree
+    (and at least 30 s) is stuck for the purpose of a mutation campaign.
+    """
+
+    return max(
+        TEST_BUDGET_FLOOR_SECONDS,
+        TEST_BUDGET_FACTOR * baseline_seconds,
+    )
 
 
 def _cpu_seconds() -> float:
@@ -216,6 +249,14 @@ def _parser() -> argparse.ArgumentParser:
         type=float,
         help="stop and report a timeout after this many seconds",
     )
+    parser.add_argument(
+        "--times",
+        type=Path,
+        help=(
+            "JSON of each test's seconds on the unmodified tree; a test "
+            "running far longer than that is reported as a timeout"
+        ),
+    )
 
     return parser
 
@@ -234,7 +275,21 @@ def main(argv: list[str] | None = None) -> int:
 
     started = time.perf_counter()
 
-    def report(result: str, test: str | None) -> None:
+    try:
+        times = (
+            json.loads(args.times.read_text(encoding="utf-8"))
+            if args.times is not None
+            else None
+        )
+    except (OSError, ValueError) as exc:
+        print(f"mutation oracle: bad --times: {exc}", file=sys.stderr)
+        return mutation_verdict.EXIT_USAGE
+
+    def report(
+        result: str,
+        test: str | None,
+        durations: dict[str, float] | None = None,
+    ) -> None:
         if args.status is not None:
             mutation_verdict.write_status(
                 args.status,
@@ -242,11 +297,12 @@ def main(argv: list[str] | None = None) -> int:
                 test,
                 time.perf_counter() - started,
                 _cpu_seconds(),
+                durations,
             )
 
-    def expire() -> None:
+    def expire(reason: str) -> None:
         print(
-            f"mutation oracle: time limit of {args.limit}s reached "
+            f"mutation oracle: {reason} "
             f"while running {_current_test or 'test loading'}",
             file=sys.stderr,
             flush=True,
@@ -254,25 +310,64 @@ def main(argv: list[str] | None = None) -> int:
         report("timeout", _current_test)
         os._exit(mutation_verdict.EXIT_TIMEOUT)
 
+    def watch_tests() -> None:
+        # A hang is cut off after its test's own budget instead of waiting
+        # for the whole run's limit.
+        while True:
+            time.sleep(1.0)
+            test = _current_test
+
+            if test is None:
+                continue
+
+            budget = test_budget(times.get(test, 0.0))
+
+            if time.perf_counter() - _test_started > budget:
+                expire(f"test budget of {budget:.0f}s reached")
+
     limit_memory()
 
     # Started before the tests are loaded: a mutant can hang while a test
     # module is being imported.
     if args.limit is not None:
-        watchdog = threading.Timer(args.limit, expire)
+        watchdog = threading.Timer(
+            args.limit,
+            expire,
+            [f"time limit of {args.limit}s reached"],
+        )
         watchdog.daemon = True
         watchdog.start()
 
+    if times is not None:
+        threading.Thread(target=watch_tests, daemon=True).start()
+
     tests = suite(first) if first else suite()
 
-    result = unittest.TextTestRunner(
-        verbosity=0,
-        failfast=True,
-        resultclass=_Result,
-    ).run(tests)
-    outcome, test = _verdict(result)
+    exhausted = False
 
-    report(outcome, test)
+    try:
+        result = unittest.TextTestRunner(
+            verbosity=0,
+            failfast=True,
+            resultclass=_Result,
+        ).run(tests)
+    except MemoryError:
+        # The address-space cap can be hit outside a test, where unittest
+        # does not catch it. Report it after the frames that hold the memory
+        # are gone, so the report itself has room to be written.
+        exhausted = True
+
+    if exhausted:
+        gc.collect()
+        outcome, test = "resource", _current_test
+    else:
+        outcome, test = _verdict(result)
+
+    report(
+        outcome,
+        test,
+        dict(_durations) if outcome == "passed" else None,
+    )
 
     return (
         mutation_verdict.EXIT_PASSED

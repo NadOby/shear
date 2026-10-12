@@ -23,7 +23,7 @@ from __future__ import annotations
 
 import json
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 
@@ -59,6 +59,8 @@ class Status:
     test: str | None
     seconds: float
     cpu_seconds: float
+    # Seconds each test took; only a passing run (the baseline) records them.
+    tests: dict[str, float] = field(default_factory=dict)
 
     @property
     def module(self) -> str | None:
@@ -85,6 +87,7 @@ def write_status(
     test: str | None,
     seconds: float,
     cpu_seconds: float,
+    tests: dict[str, float] | None = None,
 ) -> None:
     """Write a status file atomically, so a reader never sees half of one."""
 
@@ -99,6 +102,7 @@ def write_status(
             "test": test,
             "seconds": seconds,
             "cpu_seconds": cpu_seconds,
+            **({"tests": tests} if tests else {}),
         }),
         encoding="utf-8",
     )
@@ -132,11 +136,22 @@ def read_status(path: Path) -> Status | None:
     if test is not None and not isinstance(test, str):
         return None
 
+    tests = value.get("tests", {})
+
+    if not isinstance(tests, dict) or not all(
+        isinstance(name, str)
+        and isinstance(seconds, (int, float))
+        and not isinstance(seconds, bool)
+        for name, seconds in tests.items()
+    ):
+        return None
+
     return Status(
         result=value["result"],
         test=test,
         seconds=float(value["seconds"]),
         cpu_seconds=float(value["cpu_seconds"]),
+        tests={name: float(seconds) for name, seconds in tests.items()},
     )
 
 

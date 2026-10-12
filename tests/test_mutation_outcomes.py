@@ -14,6 +14,7 @@ import os
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -78,6 +79,7 @@ class FixtureTests(unittest.TestCase):
 oracle.suite = lambda *a: unittest.defaultTestLoader.loadTestsFromTestCase(
     FixtureTests
 )
+oracle.TEST_BUDGET_FLOOR_SECONDS = float(os.environ.get("FLOOR", "30"))
 raise SystemExit(oracle.main(sys.argv[1:]))
 """
 
@@ -108,6 +110,27 @@ def load(name, *args):
 
 unittest.defaultTestLoader.loadTestsFromName = load
 oracle.modules = lambda: tuple(os.environ["MODULES"].split(","))
+raise SystemExit(oracle.main(sys.argv[1:]))
+"""
+
+
+# The address-space cap can be hit where unittest does not catch it: the
+# runner itself raises MemoryError.
+ESCAPING_RUNNER = """\
+import sys
+import unittest
+
+sys.path.insert(0, {root!r})
+
+from tests import mutation_oracle as oracle
+
+
+def run(self, test):
+    raise MemoryError()
+
+
+unittest.TextTestRunner.run = run
+oracle.suite = lambda *a: unittest.TestSuite()
 raise SystemExit(oracle.main(sys.argv[1:]))
 """
 
@@ -175,6 +198,57 @@ class OracleProtocolTests(FixtureCase):
             mutation_verdict.read_status(status).result,
             "passed",
         )
+
+    def test_a_passing_run_records_how_long_each_test_took(self) -> None:
+        status = self.scratch / "status.json"
+        self.run_runner("--status", str(status))
+
+        tests = mutation_verdict.read_status(status).tests
+
+        self.assertEqual(len(tests), 4)
+        self.assertTrue(any(name.endswith("test_add") for name in tests))
+        self.assertTrue(all(seconds >= 0 for seconds in tests.values()))
+
+    def test_a_test_far_over_its_budget_is_a_timeout_at_once(self) -> None:
+        # The whole-run limit is a minute; the hung test is cut off after
+        # its own budget (the floor, one second here).
+        mutated, _ = mutation.mutate(
+            CALC,
+            "calc.py",
+            self.hanging_site.index,
+        )
+        (self.root / "calc.py").write_text(mutated)
+        times = self.scratch / "times.json"
+        times.write_text(json.dumps({}))
+        status = self.scratch / "status.json"
+
+        started = time.perf_counter()
+        done = subprocess.run(
+            self.command
+            + ["--status", str(status), "--limit", "60", "--times", str(times)],
+            cwd=self.root,
+            env={**os.environ, "FLOOR": "1"},
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        elapsed = time.perf_counter() - started
+        verdict = mutation_verdict.read_status(status)
+
+        self.assertEqual(done.returncode, mutation_verdict.EXIT_TIMEOUT)
+        self.assertEqual(verdict.result, "timeout")
+        self.assertTrue(verdict.test.endswith("test_count_down"), verdict.test)
+        self.assertLess(elapsed, 30)
+        self.assertIn("test budget", done.stderr)
+
+    def test_a_budget_follows_the_tests_own_honest_time(self) -> None:
+        self.assertEqual(mutation_oracle.test_budget(0.1), 30.0)
+        self.assertEqual(mutation_oracle.test_budget(20.0), 200.0)
+
+    def test_an_unreadable_times_file_is_a_usage_error(self) -> None:
+        done = self.run_runner("--times", str(self.scratch / "missing.json"))
+
+        self.assertEqual(done.returncode, mutation_verdict.EXIT_USAGE)
 
     def test_a_failing_test_reports_failed_and_names_the_test(self) -> None:
         mutated, _ = mutation.mutate(
@@ -678,18 +752,19 @@ class CampaignOutcomeTests(FixtureCase):
             "baseline",
             return_value=completed,
         ) as baseline:
-            done, seconds = mutation_reporting.run_baseline(
+            done, seconds, times = mutation_reporting.run_baseline(
                 self.root,
                 ["fixture-oracle"],
             )
 
         self.assertIs(done, completed)
         self.assertGreaterEqual(seconds, 0.0)
-        baseline.assert_called_once_with(
-            self.root,
-            ["fixture-oracle"],
-            timeout=None,
-        )
+        self.assertEqual(times, {})
+        (root, command), options = baseline.call_args
+        self.assertEqual(root, self.root)
+        self.assertEqual(command[:1], ["fixture-oracle"])
+        self.assertEqual(command[1], "--status")
+        self.assertIsNone(options["timeout"])
 
 
 class ImportFailureTests(FixtureCase):
@@ -739,6 +814,27 @@ class ImportFailureTests(FixtureCase):
         self.assertEqual(done.returncode, mutation_verdict.EXIT_TIMEOUT)
         self.assertIsNotNone(status, done.stderr)
         self.assertEqual(status.result, "timeout")
+
+
+    def test_memory_exhaustion_outside_a_test_is_a_resource_kill(
+        self,
+    ) -> None:
+        # It used to escape with no verdict and show up as an abnormal exit.
+        runner = self.scratch / "escaping_runner.py"
+        runner.write_text(ESCAPING_RUNNER.format(root=str(mutation.ROOT)))
+        status = self.scratch / "status.json"
+        done = subprocess.run(
+            [sys.executable, str(runner), "--status", str(status)],
+            cwd=self.root,
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+
+        self.assertEqual(done.returncode, mutation_verdict.EXIT_FAILED)
+        verdict = mutation_verdict.read_status(status)
+        self.assertIsNotNone(verdict, done.stderr)
+        self.assertEqual(verdict.result, "resource")
 
 
 if __name__ == "__main__":
