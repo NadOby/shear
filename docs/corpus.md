@@ -307,9 +307,9 @@ A working implementation alone does not demonstrate architectural superiority. A
 
 Stage A: a minimal server built on the existing compiler, graph, runtime and VM through ordinary APIs, with host-language transport. It should navigate from source to semantic entities and their relations, trace an operation through the compilation stages, show the code metaprogramming produces through an explicit isolated evaluation, show continuity mappings when a function is edited, and report which compiler artifacts an edit invalidated, reused or regenerated.
 
-Stage B: the analysis and queries written in SHEAR itself. It depends on long-running services and external communication, which the roadmap defers until after hosted bootstrap.
+Stage B: the analysis and queries written in SHEAR itself. Host-language transport and process hosting remain acceptable; a fully SHEAR-native server is not required at first, and long-running services and external communication in SHEAR are deferred by the roadmap until after hosted bootstrap.
 
-Compare with a conventional server (AST, stable node ids, symbol tables, dependency indexes, compiler source maps). Fix the predictions first, as the protocol above requires. A working server proves nothing: the canary succeeds only if SHEAR shows less duplicated machinery or better semantic capability. It is not a Task 31 requirement.
+Compare with a conventional server (AST, stable node ids, symbol tables, dependency indexes, compiler source maps) on correctness, duplicated machinery, memory, and incremental latency and responsiveness after an edit. Fix the predictions first, as the protocol above requires. A working server proves nothing: the canary succeeds only if SHEAR shows less duplicated machinery or better semantic capability. It is not a Task 31 requirement.
 
 **Genetic programming and potential self-evolution**
 

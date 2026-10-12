@@ -503,7 +503,7 @@ Changes produce a new semantic version.
 
 # Long-Term Goal
 
-A function, relation, data structure, transformation, module, or entire program can be viewed as human source, semantic graph or executable IR, and edited as source or through semantic transformations, without changing its identity.
+A function, relation, data structure, transformation, module, or entire program can be viewed as human source, semantic graph or executable IR, and edited as source or through semantic transformations. Identity survives an edit only where continuity is established (docs/continuity_inference.md); a view does not guarantee it.
 
 The semantic graph is primary.
 
