@@ -12,6 +12,7 @@ Status markers used in this document are:
 
 - **Given**: already stated by other documents;
 - **Decided**: agreed direction; later changes should be deliberate;
+- **Provisional**: current direction, not fully settled;
 - **Open**: options are listed; no direction is chosen.
 
 ## 1. Relations are entities
@@ -108,7 +109,9 @@ derived from them, found by searching for `.roles`, `.endpoints`,
 definition's `.links` and the builder's `scope`.
 
 - Keep the forms apart: `Relation.__post_init__` (`_normalize_endpoint`),
-  `Relation.canonical_node`, `relation_of` (`_decode_endpoint`).
+  `Relation.canonical_node` through `canonical.canonicalize`, which encodes an
+  `EntityID` and a tuple under different tags, and `relation_of`
+  (`_decode_endpoint`).
 - Flatten a role, or keep its shape without looking at it:
   - `Relation.endpoints` and `with_endpoints`, `check_relation_endpoints`,
     `relation_index`, the runtime's constraint lookup;
@@ -132,8 +135,9 @@ definition's `.links` and the builder's `scope`.
   tuple where one entity is expected:
   - code that names a tuple link becomes an `invalid` node that raises
     `LanguageError` when it runs (`_Builder.resolve`);
-  - `linksof` omits the link (vm_in_shear.md §1), and `render_program` omits
-    it silently, so a text round trip drops it;
+  - `linksof` omits the link (the machine's `LINKS` instruction in
+    `machine.py`; vm_in_shear.md §1), and `render_program` omits it
+    silently, so a text round trip drops it;
   - `load` finds a links relation through the flattened index and accepts
     `function: (f,)`, while `define` and `reconcile` reject it and the
     parser's `_merge` ignores it.
