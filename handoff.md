@@ -11,9 +11,9 @@ against GitHub and the repository before relying on it.
 - Branch: `task/31-live-evolution`, from `main` at `4ed6e14`.
 - Role: Plan done, revised three times after Plan reviews (below); the
   combined review of `51c9612` approved it after one test fix. Execute has
-  implemented the task in the working tree (not committed, pushed or run in
-  CI when this was written). Next: the owner dispatches the mutation
-  campaign, then Review.
+  implemented the task on the branch; Resolve fixed the first review's
+  findings 1 to 3 (below). Next: the owner dispatches the mutation campaign,
+  then a fresh Review.
 - Plan head: recorded under "Plan head" below. Review diffs the Plan-owned
   files from it.
 
@@ -275,6 +275,14 @@ Also required:
   an omission; survivors of `machine.py`, `runtime.py` and `examples/vm.py`
   were re-reviewed (unchanged sites) and repinned. The campaign for the
   changed targets still has to run in CI by workflow dispatch.
+- Resolve (first review, `45c4446`): finding 1 fixed (the target releases the
+  sets of versions that retired outside a run whenever it is asked about
+  sets or starts a run; `LateRetirementTests`, failing on the old code);
+  finding 2: the measurements in hosted_bootstrap.md 4.1 are rerun at a clean
+  tree, revision `7f39921`; finding 3: trial-rejected updates added next to
+  the injected, renamed "refused" ones. Finding 4 (reuse rule 4 has no
+  witness, so removing it passes every test) stays a hypothesis; finding 5
+  needs a `follow-up` issue (reuse cost, text in the Resolve reply).
 - Provisional choices are listed in hosted_bootstrap.md section 6.
 - Follow-up candidate (not opened): reuse of unchanged nodes dominates
   update latency and is linear in program size (hosted_bootstrap.md 4.1).

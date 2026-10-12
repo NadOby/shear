@@ -131,40 +131,54 @@ also prints `live` (`live_diagnostics.py`, live_evolution.md section 7), by
 task 23's method: untraced observations with medians, peak memory in a
 separate traced pass, no ratios between workloads, D4's targets diagnostic
 only. The workload is a small live image (a cell, `handle`, `plus`, which
-builds a changed `handle` from `code(handle)`, and `update`, which activates
-it) plus unrelated one-line functions. Each valid update changes `handle`
-only. A rejected update runs the same program while admission refuses `ADD`,
-so the failure is found after the compiler produced a chunk. Phases are
-timed by wrapping the functions that perform them. The task 23, 29 and 30
-workloads are unchanged. The smoke test is
+builds a changed `handle` from `code(handle)`, `update`, which activates it,
+`rejected`, which tries a wrong candidate, and unrelated one-line functions).
+Three kinds of update run on it:
+
+- **valid**: `update` changes `handle` only;
+- **trial-rejected**: the image's own rejection. `rejected` tries a candidate
+  whose answer is wrong and does not activate it; the candidate is compiled
+  and admitted, run in the trial and released;
+- **refused**: an injected failure. The valid update runs while admission
+  refuses `ADD`, so the activation ends with `AdmissionRejected` after the
+  compiler produced a chunk. Every reused chunk with `ADD` is refused too,
+  which is why it reuses nothing. It measures the cost of failing late, not
+  of a program's rejection.
+
+Phases are timed by wrapping the functions that perform them. The task 23,
+29 and 30 workloads are unchanged. The smoke test is
 `LiveDiagnosticsTests` in `tests/test_hosted_pipeline.py`.
 
-Medians at the working tree on top of revision `a4f26c4` (uncommitted when
-measured; Review reruns at the recorded revision), on a 2-vCPU Intel Xeon
-2.8 GHz container, Python 3.13.16, Linux 6.18 (indicative, one run). Twenty
-valid and twenty rejected updates on one 14-function image, in milliseconds:
+Medians at revision `7f39921` (clean tree), on a 2-vCPU Intel Xeon 2.8 GHz
+container, Python 3.13.16, Linux 6.18 (indicative, one run). Twenty updates
+of each kind, in sequence, on one 16-function image, in milliseconds. The
+trial has no switch, and the valid update's first call is the next run of
+`handle`:
 
-| Update | Construct | Stage | Compile | Reuse | Admit | Switch | First call | Whole run of `update` |
+| Update | Construct | Stage | Compile | Reuse | Admit | Switch | First call | Whole run |
 |---|---|---|---|---|---|---|---|---|
-| valid | 3.6 | 0.34 | 0.83 | 13.6 | 0.29 | 0.005 | 2.2 | 21.5 |
-| rejected | 4.8 | 0.40 | 0.49 | 0.12 | 0.11 | n/a | n/a | 6.4 |
+| valid | 4.2 | 0.38 | 0.79 | 18.1 | 0.27 | 0.006 | 1.9 | 26.0 |
+| trial-rejected | 5.1 | 0.41 | 0.78 | 21.8 | 0.28 | n/a | n/a | 32.8 |
+| refused | 5.1 | 0.39 | 0.48 | 0.12 | 0.10 | n/a | n/a | 6.6 |
 
-Every valid update produced 2 artifacts and reused 56 to 94 (the changed
-function grows by two nodes per update); every rejected update produced 1 and
-reused none, and left the active state unchanged. After each of the 40
-updates there was 1 loaded version and 1 retained set; the set held 58 to 96
-artifacts and 96 after the rejected ones. Peak memory over prepare and 20
-valid updates and calls was 4.2 MB (2.8 MB held after prepare, 4.1 MB after
-the updates; one retained set at the end).
+Every valid and trial-rejected update produced 2 artifacts and reused the
+rest (82 to 120 for the valid ones, which grow `handle` by two nodes each;
+122 for the trial-rejected ones, whose candidate is released); every refused
+update produced 1 and reused none. After each of the 60 updates there was 1
+loaded version and 1 retained set. The set held 84 to 122 artifacts after
+the valid updates and 122 after the other two kinds: a rejected trial or a
+refused activation adds nothing to what is retained. Peak memory over
+prepare and 20 valid updates and calls was 4.1 MB (2.5 MB held after
+prepare, 4.0 MB after the updates; one retained set at the end).
 
 One small edit at three sizes (fresh image per repeat, 5 repeats), in
 milliseconds:
 
-| Functions | Nodes reused | Prepare | Construct | Stage | Compile | Reuse | Admit | Switch | First call | Whole run of `update` |
+| Functions | Nodes reused | Prepare | Construct | Stage | Compile | Reuse | Admit | Switch | First call | Whole run |
 |---|---|---|---|---|---|---|---|---|---|---|
-| 14 | 56 | 515 | 2.2 | 0.23 | 0.88 | 9.9 | 0.31 | 0.008 | 0.71 | 15.2 |
-| 104 | 326 | 716 | 9.1 | 1.0 | 0.94 | 61 | 0.34 | 0.006 | 1.7 | 76 |
-| 1004 | 3026 | 3374 | 83 | 10.7 | 1.4 | 1108 | 0.92 | 0.008 | 4.9 | 1228 |
+| 16 | 82 | 560 | 2.7 | 0.32 | 0.77 | 14.3 | 0.26 | 0.008 | 0.93 | 20.2 |
+| 106 | 352 | 647 | 9.2 | 1.2 | 0.85 | 61.6 | 0.34 | 0.007 | 1.2 | 76.2 |
+| 1006 | 3052 | 3355 | 93 | 10.7 | 1.5 | 1169 | 0.92 | 0.009 | 4.8 | 1309 |
 
 The sizes are different workloads and no ratios are formed. What the numbers
 show: compilation and admission cost depend on the changed nodes only; the
@@ -176,10 +190,10 @@ and more. A cheaper reuse check is a possible follow-up, not part of this
 task.
 
 The same run measured the older workloads again at this revision (medians of
-5): seed 907 nodes (derive 1.8 ms, verify 4.0 ms), generations 1 to 3 in
-0.48, 0.38 and 0.47 s with 907 artifacts each, the compiler workload 911
-nodes (produce 341 ms, admit 144 ms), the small edit in 1.6, 4.5, 0.28 and
-0.03 ms, and peak memory of 3.9 MB. The seed grew from 682 to 907 nodes
+5): seed 907 nodes (derive 1.9 ms, verify 6.9 ms), generations 1 to 3 in
+0.49, 0.35 and 0.39 s with 907 artifacts each, the compiler workload 911
+nodes (produce 410 ms, admit 147 ms), the small edit in 1.7, 4.5, 0.33 and
+0.05 ms, and peak memory of 3.9 MB. The seed grew from 682 to 907 nodes
 because node mode now lowers every kind. The table in section 4 is the
 task 30 record at its own revision and is not replaced.
 
@@ -218,8 +232,10 @@ itself is not changed.
   have separate sets. The chunk boundaries `_open`, `_open_closure` and
   `_child_chunk` stay as they were. A set is released, invalidated and traced
   with `release` when its version retires (`"retired"`) or its trial ends
-  (`"trial"`); `retained_versions()` also sweeps a version that retired
-  outside a run.
+  (`"trial"`). A version can also retire outside a run, when the host
+  releases the hold that kept it; the runtime does not tell the target then,
+  so the target releases the set of every retired version whenever it is
+  asked about sets (`retained_versions()`, `admitted()`) or starts a run.
 - **Compilation.** `candidate()` builds the new set locally: for each code
   node it reuses the active version's artifact if the rule holds (same
   entity and version, same owner, produced by this session's compiler
