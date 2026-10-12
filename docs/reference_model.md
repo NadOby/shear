@@ -34,7 +34,9 @@ Failure of the state condition is a cross-state reference.
 
 Failure of the entity condition means the entity is absent.
 
-Failure of the version condition means the reference is stale.
+Failure of the version condition means the reference is stale. For a
+reference made from the state it names, the version condition cannot fail
+once the state condition holds (section 14).
 
 ## 3. State locality
 
@@ -90,6 +92,9 @@ The three cases have distinct meanings:
 
     wrong VersionID
         -> StaleReference
+
+The third case arises only for a reference not made from that state
+(section 14).
 
 Only after these checks is the transformation mapping consulted.
 
@@ -229,3 +234,85 @@ It is a capability to resolve one exact value in one exact semantic state.
 
 Continuity across states must therefore be explicitly declared and explicitly
 followed.
+
+## 14. The version in a reference
+
+From the reference version audit (roadmap task 22).
+
+**Provisional:**
+
+For a state-pinned reference, `VersionID` is redundant: it distinguishes
+nothing that `(StateID, EntityID)` does not. It is not removed; the planned
+`ref` values decide whether it goes or takes over from `StateID` (below).
+
+Evidence:
+
+- `StateID` hashes every entity's `VersionID` together with ownership
+  (state_model.md section 4). A state therefore fixes the version of each
+  entity it holds, up to SHA-256 collisions, which state identity already
+  assumes away.
+- Every producer derives the version from the named state: `State.reference`,
+  `transfer_reference` (destination version, section 7) and
+  `rebind_reference`. Two references that agree on state and entity agree on
+  the version.
+- `State.resolve` and `transfer_reference` check `StateID` first. Once it
+  matches, the version check cannot fail for a produced reference.
+  `StaleReference` needs a `Reference` built directly, or `make_reference`
+  given a value the named state does not hold.
+- Production code reads `Reference.version` only in those two checks.
+  `Runtime.keep`, the transfer of kept references at activation and
+  `TransformResult.mapped_entities` use the state and the entity. The
+  language never makes or observes a `Reference`, a `VersionID` or a
+  `StateID`; its function references are `EntityID`s (language_data.md
+  section 3).
+- `tests/test_reference_version.py` pins the first three points over
+  generated states and transformations and over the continuity corpus. Three
+  planted bugs are each caught: transfer keeping the source version, a
+  `StateID` that ignores versions, and a reference made with a version its
+  state does not hold.
+
+Roles checked and not found:
+
+- Integrity witness: the version catches a triple whose parts disagree, not
+  a forged reference, since anyone can compute it from public content.
+- Cache key: caches key on a value's own `VersionID` (bytecode chunks,
+  native code in activation_model.md section 10, hosted artifacts by entity
+  and version), never on a reference.
+- Offline validation: checking a value against a reference without its
+  state, or comparing versions across states, would resolve across states,
+  which section 3 forbids. No caller does either.
+
+**Open:**
+
+For the `ref` values under the roadmap's Later. The owner's direction is a distinct `ref` value that is transferred at
+activation along declared continuity and pins the old version when its
+target disappears. With a `StateID` in the reference, pinning is a hold on
+the runtime version of that state (activation_model.md sections 6 and 7),
+which `Runtime.keep` already does for model references, and transfer derives
+the new version from the destination. The version stays redundant in that
+design.
+
+It carries information only if one of these premises changes, and each is a
+decision for the `ref` design:
+
+1. A reference without a `StateID`, `(EntityID, VersionID)`, valid wherever
+   the entity still has that version. It would survive activations that
+   leave its target unchanged without being transferred; the version then
+   does the pinning. It pins only the entity's own content: the `EntityID`s
+   inside it (children, link targets) still need a state, which is why the
+   hosted pipeline binds an artifact keyed by entity and version to its state
+   and never infers compatibility from the version alone
+   (hosted_pipeline.md section 7).
+2. Resolution against a state other than the named one, relaxing section 3.
+   In effect the same as 1.
+3. A `StateID` that does not cover every entity's version, for example with
+   partial states or structural sharing (state_model.md section 12).
+
+A constraint for `ref` values held in semantic content, such as a code
+literal, quoted code or a cell's declared initial content: a value cannot
+contain the `StateID` of the state that holds it, because that identity
+hashes the value. Likewise a value cannot contain its own entity's
+`VersionID`, and such references cannot form a cycle. Only `EntityID`
+references can be cyclic, as relation endpoints and today's function
+references are. A reference in a cell's current content is outside
+`StateID` (state_model.md section 4) and is not affected.
