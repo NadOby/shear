@@ -11,7 +11,8 @@ repository before relying on it.
 - Branch: `fix/111-constraint-payload`, from `main` at `1de2510`.
 - Role: Plan and Execute done in one chat, with the owner's permission. An
   independent Review accepted the fix, with three findings; Resolve is done
-  (below). Waiting for the mutation campaign, then the PR.
+  (below). The full campaign passed and PR #113 is open; waiting for the
+  owner to merge.
 
 ## Decision (owner)
 
@@ -25,10 +26,10 @@ only if its payload is a constraint and it has at least one endpoint
 
 ## Review findings and fixes
 
-1. **P2, no campaign confirmed the `relations.py` repin.** A campaign is
-   dispatched on this branch with a small `mutation_count`. The plan job
-   turns revalidation on itself, because the survivor catalog differs from
-   `main`.
+1. **P2, no campaign confirmed the `relations.py` repin.** Fixed: a full
+   campaign with revalidation ran on this branch (run 38204935969, all 4,056
+   mutants, `mutation_count` 600). All 16 shards and the summary passed. A
+   smaller sample would have missed `relations.py`'s two survivors.
 2. **P3, the decision comment on #111 said "option 1"**, which is a
    different rule in the issue body. Fixed: the comment now says "the
    endpoint rule" and names the difference.
@@ -96,4 +97,4 @@ Measured with Python 3.13.
 
 ## Next action
 
-When the campaign is green, open the PR closing #111.
+The owner merges PR #113, which closes #111.
