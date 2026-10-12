@@ -195,7 +195,7 @@ class VersionIsDeterminedTests(unittest.TestCase):
                             transferred += 1
 
         self.assertGreater(resolved, 1000)
-        self.assertGreater(transferred, 100)
+        self.assertGreater(transferred, 300)
 
     def test_only_a_hand_built_reference_is_stale(self) -> None:
         source = load(parse(continuity.CASES[0].source))
