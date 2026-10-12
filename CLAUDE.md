@@ -171,8 +171,8 @@ holds one spec per concept; `CHANGES.md` is the architectural log.
   unique unchanged subtrees keep their identity, largest first, then the
   edited position by kind (docs/continuity_inference.md).
 - `relations.py`: `Relation(kind, roles, payload)` entities; endpoints must
-  exist; a constraint payload makes a constraint relation. Kinds have no
-  core meaning.
+  exist; a constraint payload makes a relation with an endpoint a constraint
+  relation. Kinds have no core meaning.
 - `constraints.py`: three-valued semantic constraints (strong Kleene),
   `Evaluator` behind `External(name)`, step budgets.
 - `operations.py`: the one table of operation shapes (arity, code roles,
