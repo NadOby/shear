@@ -1875,3 +1875,9 @@ golden records or historical measurements changed.
 - Timings recorded before this entry (tasks 23, 29 and 30) were measured on
   Python 3.12 or 3.13; compare later costs with them knowing the interpreter
   changed.
+
+### Language-server research canary (GH-108)
+
+- Documentation only. `docs/syntax_notes.md` gains a short Provisional note that a language server is a client of the compiler and VM, and its view-editing statements now say IR and machine-code views are read-only without a defined reverse transformation.
+- `docs/corpus.md`: the "Semantic development tools" canary gets a two-stage language-server experiment (powered by SHEAR, then written in SHEAR) with a falsifiable comparison.
+- `docs/roadmap.md`: the Later bullet points at it as part of the IDE tooling deferred until after hosted bootstrap. Not a Task 31 requirement.
