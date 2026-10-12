@@ -115,7 +115,7 @@ holds one spec per concept; `CHANGES.md` is the architectural log.
 
       python3 -m tests.lanes <lane>
 
-  CI runs every lane in one job on Python 3.12, each lane as its own process,
+  CI runs every lane in one job on Python 3.14, each lane as its own process,
   as many at a time as the runner has CPUs, and prints a per-lane result and
   timing table:
 
