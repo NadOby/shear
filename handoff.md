@@ -9,19 +9,36 @@ repository before relying on it.
 - Issue: #111 (`follow-up`): a constraint in a code node's payload made the
   node a constraint relation.
 - Branch: `fix/111-constraint-payload`, from `main` at `1de2510`.
-- Role: Plan and Execute done in one chat, with the owner's permission.
-  Waiting for an independent Review in a fresh chat. This context does not
-  certify its own work.
+- Role: Plan and Execute done in one chat, with the owner's permission. An
+  independent Review accepted the fix, with three findings; Resolve is done
+  (below). Waiting for the mutation campaign, then the PR.
 
 ## Decision (owner)
 
-Option 1 of three, the endpoint rule: a relation is a constraint relation
+The endpoint rule: a relation is a constraint relation
 only if its payload is a constraint and it has at least one endpoint
 (relation_model.md §7, Decided). Rejected:
 
 - wrapping literal payloads, which would change nearly every program's
   identity;
 - forbidding constraint literals, which restricts the language for nothing.
+
+## Review findings and fixes
+
+1. **P2, no campaign confirmed the `relations.py` repin.** A campaign is
+   dispatched on this branch with a small `mutation_count`. The plan job
+   turns revalidation on itself, because the survivor catalog differs from
+   `main`.
+2. **P3, the decision comment on #111 said "option 1"**, which is a
+   different rule in the issue body. Fixed: the comment now says "the
+   endpoint rule" and names the difference.
+3. **P3, the wrapped-constraint hazard was untested.** Fixed: a new test in
+   `test_constraint_relations.py` checks it.
+   - A bare constraint payload on a relation with an endpoint is enforced.
+   - The same constraint wrapped in a tuple or a map is data.
+   - The test catches a planted rule that looks inside wrappers.
+   - It is a characterization test, not a regression test: it passes on
+     `main` too.
 
 ## Changes
 
@@ -31,7 +48,7 @@ only if its payload is a constraint and it has at least one endpoint
   consequences; the §10 status line.
 - `CLAUDE.md`: the model map line for `relations.py`.
 - `tests/test_data_is_opaque.py` (new, lane `language-runtime`).
-- `tests/test_constraint_relations.py`: one new recognition test. No
+- `tests/test_constraint_relations.py`: two new recognition tests. No
   existing test was edited.
 - `tests/lanes.py`: one line.
 - `tests/mutation_catalog_data/shear/relations.toml`: `source_blob`
@@ -79,6 +96,4 @@ Measured with Python 3.13.
 
 ## Next action
 
-- **Mutation:** dispatch a campaign with `mutation_revalidate` on, as is
-  usual after a target repin.
-- **Review:** in a fresh chat.
+When the campaign is green, open the PR closing #111.
