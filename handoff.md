@@ -154,6 +154,20 @@ checked.
   injection refuses an already produced chunk, so a `produce` event comes
   first in every compilation order.
 
+## Fix after Execute's report (owner-relayed)
+
+- Verified defect in a Plan-owned test, fixed:
+  `Lifetime.test_repeated_updates_release_retired_versions` called
+  `upgrade(1, 2, 2 + m)`, but `handle(2)` is 3 on the initial image, so the
+  m-th update answers `3 + m`. The host oracle reproduced the failure
+  (`'wrong' != 'installed'`). The test now uses `3 + m` and checks every
+  step against a host runtime, as `drive` does. Its expectations were the
+  only ones in the module not checked against the host.
+- Every other hard-coded expectation in `tests/test_live_artifacts.py` was
+  rechecked on the host and holds: `migrate`, `try_wrong`, `try_crash`,
+  `same_trial`, `same_activate`, `upgrade(10, 2, 13)` and `bound_first`.
+- Execute rebases onto the new Plan head; no other Plan-owned file changed.
+
 ## State of the tests on the Plan head (Python 3.13)
 
 - The three new modules: 30 tests. All fail or error against the task-30
@@ -256,7 +270,7 @@ live_evolution.md section 9, claims 1 to 7.
 
 ## Plan head
 
-`fc006f41a1185bb4d8c4743eb5146b163661563e`
-("GH-67 Fix a test reference that kept a released trial artifact alive").
-Earlier Plan heads: `82a6a69`, `f11706d`, `51c9612`. Execute starts from
-the commit that records this file.
+`3d58684faaac0d9360b83036005cc6d4059c1b6b`
+("GH-67 Fix the expected answers of the repeated-update lifetime test").
+Earlier Plan heads: `82a6a69`, `f11706d`, `51c9612`, `fc006f4`. Execute
+rebases onto the commit that records this file.
