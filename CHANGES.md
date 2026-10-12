@@ -1872,3 +1872,6 @@ golden records or historical measurements changed.
   re-run, run 38193089999) succeeded with no unclassified survivor, so the
   survivor catalog holds. A local sample ran about 15 % faster.
 - The `python_version` input stays, so a later Python can be tried the same way.
+- Timings recorded before this entry (tasks 23, 29 and 30) were measured on
+  Python 3.12 or 3.13; compare later costs with them knowing the interpreter
+  changed.

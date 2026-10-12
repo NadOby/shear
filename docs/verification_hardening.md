@@ -538,11 +538,10 @@ execute the mutant's line.
   another mutant and none to the original, a small saving that needs an engine
   change, and any engine change repins and revalidates every reviewed
   survivor. If an engine change is ever needed, group these with it.
-- Not decided here: moving CI to Python 3.14 (#53). A local sample ran about
-  15 % faster. The confirming exhaustive campaign (all 4056 mutants, reviewed
-  survivors re-run, workflow input `python_version` 3.14) succeeded with no
-  unclassified survivor, so the survivor catalog holds under 3.14; moving CI
-  itself is a separate change.
+- Python 3.14 (#53): CI and the campaign run on 3.14. A local sample ran about
+  15 % faster, and the confirming exhaustive campaign (all 4056 mutants,
+  reviewed survivors re-run, workflow input `python_version` 3.14) succeeded
+  with no unclassified survivor, so the survivor catalog holds under 3.14.
 
 Limitations: the coverage map costs one traced run of every oracle module
 (about 76 s wall, 149 s CPU here) per campaign; it needs Python 3.12 or newer;
