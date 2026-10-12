@@ -260,8 +260,9 @@ Evidence:
   `StaleReference` needs a `Reference` built directly, or `make_reference`
   given a value the named state does not hold.
 - Production code reads `Reference.version` only in those two checks.
-  `Runtime.keep`, the transfer of kept references at activation and
-  `TransformResult.mapped_entities` use the state and the entity. The
+  `Runtime.keep` and the transfer of kept references at activation reach it
+  only through them (`State.resolve`, `transfer_reference`);
+  `TransformResult.mapped_entities` uses the state and the entity. The
   language never makes or observes a `Reference`, a `VersionID` or a
   `StateID`; its function references are `EntityID`s (language_data.md
   section 3).
