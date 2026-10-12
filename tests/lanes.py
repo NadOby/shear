@@ -109,6 +109,7 @@ LANES: dict[str, tuple[str, ...]] = {
         "test_mutation_regressions_boundaries",
         "test_mutation_regressions_records",
         "test_properties",
+        "test_reference_version",
         "test_stateful_sequences",
     ),
     "mutation": (
