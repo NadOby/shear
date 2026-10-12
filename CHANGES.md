@@ -1898,3 +1898,25 @@ golden records or historical measurements changed.
 - Follow-ups: #110 (tuple link targets and `function` roles fail closed),
   #111 (a code literal holding a constraint makes its node a constraint
   relation; found along the way, not about arity).
+
+### Constraint relations need an endpoint (GH-111)
+
+- A relation is a constraint relation only if its payload is a constraint
+  and it has at least one endpoint (`relations.constraint_relations`;
+  relation_model.md §7, Decided by the owner). Before, a constraint held as
+  program data in a `lit` node, in a `quote` template without holes, or as
+  an `arg` name made that node a constraint relation over nothing, so the
+  program, or code generated and activated from it, was rejected at load or
+  activation. Only states rejected that way change: they now load and
+  activate.
+- Chosen over wrapping every literal payload, which would have changed the
+  identity of nearly every program, and over forbidding constraint literals.
+- `tests/test_data_is_opaque.py` (lane `language-runtime`): a value of every
+  kind of content, semantic records included, comes back unchanged as a
+  literal, quoted, as an argument, in a cell, in a tuple and in activated
+  code; a constraint used as a parameter name fails when it runs. A
+  recognition test in `tests/test_constraint_relations.py` covers relations
+  with no roles and with only an empty role. All fail on the old code, and a
+  planted `roles`-for-`endpoints` bug is caught.
+- Mutation: `shear/relations.py` repinned after re-reviewing its two
+  survivors, which the change does not touch. No golden change.
