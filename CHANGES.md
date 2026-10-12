@@ -1917,6 +1917,8 @@ golden records or historical measurements changed.
   code; a constraint used as a parameter name fails when it runs. A
   recognition test in `tests/test_constraint_relations.py` covers relations
   with no roles and with only an empty role. All fail on the old code, and a
-  planted `roles`-for-`endpoints` bug is caught.
+  planted `roles`-for-`endpoints` bug is caught. A further test pins the
+  remaining hazard: beside an endpoint, a bare constraint is enforced, and
+  one wrapped in a tuple or a map is data.
 - Mutation: `shear/relations.py` repinned after re-reviewing its two
   survivors, which the change does not touch. No golden change.
