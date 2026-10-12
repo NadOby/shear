@@ -75,6 +75,43 @@ class ConstraintRelationRecognitionTests(unittest.TestCase):
 
         self.assertEqual(set(constraint_relations(state)), {ORDER})
 
+    def test_a_relation_without_endpoints_keeps_its_constraint_as_data(
+        self,
+    ) -> None:
+        nullary = EntityID("nullary")
+        empty = EntityID("empty")
+        state = State.create({
+            LOW: Value.create(LOW, 1),
+            ORDER: Value.create(
+                ORDER,
+                Relation("anything", {"x": LOW}, Role("x", IsKind("int"))),
+            ),
+            nullary: Value.create(nullary, Relation("lit", {}, IsKind("int"))),
+            empty: Value.create(empty, Relation("quote", {"holes": ()}, IsKind("int"))),
+        })
+
+        self.assertEqual(set(constraint_relations(state)), {ORDER})
+        Runtime(state)
+
+    def test_a_constraint_kept_as_data_beside_endpoints_must_be_wrapped(
+        self,
+    ) -> None:
+        # relation_model.md §7: with an endpoint, a bare constraint payload
+        # is enforced; wrapped in a tuple or a map it is a description.
+        def state(payload: Any) -> State:
+            return State.create({
+                LOW: Value.create(LOW, 1),
+                ORDER: Value.create(ORDER, Relation("described", {"x": LOW}, payload)),
+            })
+
+        with self.assertRaises(RelationConstraintRejected):
+            Runtime(state(IsKind("str")))
+
+        for payload in ((IsKind("str"),), {"type": IsKind("str")}):
+            with self.subTest(payload=payload):
+                self.assertEqual(dict(constraint_relations(state(payload))), {})
+                Runtime(state(payload))
+
 
 class LoadTests(unittest.TestCase):
     def test_satisfied_relation_loads(self) -> None:

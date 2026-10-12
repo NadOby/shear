@@ -256,10 +256,13 @@ def relation_index(
 def constraint_relations(
     state: State,
 ) -> Mapping[EntityID, tuple[Relation, Constraint]]:
-    """Relations whose payload is a constraint (relation_model.md §7).
+    """Relations with an endpoint whose payload is a constraint
+    (relation_model.md §7).
 
     The payload, not the kind, makes a relation a constraint relation: the
-    kind has no built-in meaning in the core.
+    kind has no built-in meaning in the core. A relation without endpoints
+    constrains nothing, so its payload stays data; code in graph form keeps
+    literals there.
     """
 
     found = {}
@@ -267,7 +270,11 @@ def constraint_relations(
     for entity, relation in relations_of(state).items():
         payload = relation.payload
 
-        if isinstance(payload, CanonicalNode) and payload[1] == "constraint":
+        if (
+            isinstance(payload, CanonicalNode)
+            and payload[1] == "constraint"
+            and relation.endpoints
+        ):
             found[entity] = (relation, Constraint.from_content(payload))
 
     return MappingProxyType(found)
