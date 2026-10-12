@@ -8,8 +8,8 @@ GitHub and the repository before relying on it.
 
 - Issue: #59 (`task`), roadmap task 22, reference version audit.
 - Branch: `task/22-reference-version`, from `main` at `1db6d5e`.
-- Role: Plan done. Next: the owner decides D22 (below), then Execute.
-- Plan head: the commit that adds this file. Execute records its SHA here
+- Role: Plan done; the owner chose D22 option 1. Next: Execute.
+- Plan head: the commit that records D22 in this file. Execute records its SHA here
   first; Review diffs the Plan-owned files from it.
 
 ## Result of the audit (Plan)
@@ -27,9 +27,10 @@ the state from the reference, resolves across states, or makes `StateID`
 partial. New constraint found: a reference held in semantic content cannot
 contain the `StateID` of its own state, nor its own entity's `VersionID`.
 
-## Decision for the owner (D22)
+## Decision (owner, D22)
 
-How to classify the version, given the evidence. No refactor either way.
+Option 1, chosen 2026-10-12. How to classify the version, given the
+evidence. No refactor either way.
 
 1. **Redundant, kept until the `ref` design chooses the reference form**
    (recommended, written in §14 as Provisional). The `ref` design may move the
@@ -40,8 +41,7 @@ How to classify the version, given the evidence. No refactor either way.
    `make_reference`, `resolve`, `transfer_reference`, `StaleReference`, about
    ten tests). Not recommended before the `ref` design.
 
-Execute does not choose; with 2 or 3 it adjusts §14's first paragraph and,
-for 3, the owner opens the follow-up issue.
+§14 already states option 1; it needs no change.
 
 ## Plan-owned files
 
@@ -67,7 +67,7 @@ for 3, the owner opens the follow-up issue.
 ## Execute
 
 1. Record the Plan head SHA above.
-2. Apply the owner's D22 choice (above).
+2. Leave §14 as written: it states the owner's D22 choice.
 3. Append to `CHANGES.md`:
 
    ```
@@ -123,4 +123,4 @@ expectations. If the audit's argument is wrong, return to Plan.
 
 ## Next action
 
-The owner answers D22 and commits the Plan files; then Execute task 22.
+Execute task 22.
