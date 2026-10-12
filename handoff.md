@@ -10,7 +10,10 @@ against GitHub and the repository before relying on it.
   route. Follow-up opened by Plan: #115 (VM instructions).
 - Branch: `task/31-live-evolution`, from `main` at `4ed6e14`.
 - Role: Plan done, revised three times after Plan reviews (below); the
-  combined review of `51c9612` approved it after one test fix. Next: Execute.
+  combined review of `51c9612` approved it after one test fix. Execute has
+  implemented the task in the working tree (not committed, pushed or run in
+  CI when this was written). Next: the owner dispatches the mutation
+  campaign, then Review.
 - Plan head: recorded under "Plan head" below. Review diffs the Plan-owned
   files from it.
 
@@ -263,6 +266,18 @@ Also required:
     ordinary host execution. One instruction table is shared as metadata by
     admission, the machine's tests and the SHEAR-written VM. Update latency
     and retention are measured in hosted_bootstrap.md.
+
+## Execute notes
+
+- Rebased onto Plan head `3d58684` (the lifetime test fix). All lanes pass
+  (`python3 -m tests.lanes --all`); `cross-boundary` took 151 s (two lanes at a time).
+- Mutation: `shear/instructions.py` is now a target, `live_diagnostics.py`
+  an omission; survivors of `machine.py`, `runtime.py` and `examples/vm.py`
+  were re-reviewed (unchanged sites) and repinned. The campaign for the
+  changed targets still has to run in CI by workflow dispatch.
+- Provisional choices are listed in hosted_bootstrap.md section 6.
+- Follow-up candidate (not opened): reuse of unchanged nodes dominates
+  update latency and is linear in program size (hosted_bootstrap.md 4.1).
 
 ## Claims Review must verify independently
 

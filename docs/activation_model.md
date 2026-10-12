@@ -342,6 +342,20 @@ The embedded compiler regenerates the executable representation of `S₁`.
 Native code can be cached by `VersionID`, so entities whose version is
 unchanged reuse existing code.
 
+**Provisional:**
+
+The reference model's hosted route (live_evolution.md,
+hosted_bootstrap.md section 6) has the analogue for its admitted artifacts. A
+loaded version owns the artifacts compiled for its state, not the `StateID`,
+because two loaded versions can have one state. A candidate built by a
+running program is compiled and admitted whole when it is activated or tried,
+before the switch or the trial run; an artifact is reused when the entity and
+its version are unchanged, the owner is the same, the same compiler produced
+it and the chunk still validates against the new state. A version's set is
+released when the version retires, and a trial's when the trial ends. This
+concerns derived artifacts only; native code and its platform policies stay
+open.
+
 Installing new native code interacts with W^X memory policies, code signing,
 and platforms that forbid runtime code generation. These are listed as open
 areas in the README.
@@ -419,6 +433,12 @@ The language layer in `shear.lang` additionally provides:
 Frames keep executing in the version they started in; the switching strategy
 for code in flight (section 5) is implemented by the language as
 version coexistence with switching at every linked call.
+
+`shear.runtime.listening` and `VersionListener` let a host follow versions
+for a run: it is told of a staged and accepted candidate of an activation or
+trial before anything changes (and may refuse it), of a retiring version and
+of the end of a trial. The hosted route uses it to keep per-version artifact
+sets (section 10); a runtime with no listener behaves as before.
 
 ## 13. Unresolved areas
 

@@ -44,6 +44,11 @@ Status definitions:
 The matrix describes current code, not the post-task-30 target subset
 or proof of an end-to-end bootstrap.
 
+The matrix describes expanded mode (`lower(e)`), the route A compiler. Since
+task 31 the node-mode compiler (`compile_node`, route B) also lowers `quote`,
+`unquote`, `function`, `activate` and `trial`, so node mode covers every
+kind (hosted_bootstrap.md section 2); the rows below are unchanged.
+
 ## 2. Operation support matrix
 
 **Provisional:**
