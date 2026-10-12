@@ -268,6 +268,27 @@ evidence undermines its architecture. Canonical source, separate
 candidate construction and activation, independent behavioral oracles,
 and complete producer provenance remain mandatory.
 
+## Decision D5: live candidates on the hosted route
+
+**Decided** (owner, 2026-10-12; issue #67). Applied by task 31
+(live_evolution.md section 3).
+
+1. A candidate built by a running program is compiled by the image's
+   retained compiler when the program runs `activate` or `trial`: after the
+   host stages the candidate and before the switch, or before any candidate
+   code runs in a trial. Unchanged nodes reuse their artifacts. A candidate
+   becomes active only when every code node is admitted. The program does
+   not install chunks (D4). Lazy or tiered production is Open: it is
+   compatible with this rule if everything that can make a node fail to
+   compile is decided before the switch.
+2. A candidate that cannot be compiled or admitted is not activated or
+   trialled. The runtime is unchanged and the run ends with
+   `AdmissionRejected`, a host failure that `catch` cannot see.
+
+Owner's direction for the same task: one instruction table shared as
+metadata by admission, the host machine's tests and the SHEAR-written VM;
+new VM instructions are follow-up #115.
+
 Decided since: constraint relations see an owner endpoint with its owned
 subtree (relation_model.md §7).
 
@@ -970,7 +991,8 @@ parity is a task-30 prerequisite.
 
 ### 31. Live evolution on the bootstrap route (handoff)
 
-**Planned.** Issue #67. After task 30.
+**Planned.** Issue #67. After task 30. The Plan contract is in
+live_evolution.md, under D5.
 
 Complete the corpus cases deferred by task 30, including self-modification
 and error-handling canaries, with every executed program-code artifact

@@ -29,7 +29,7 @@ from shear.examples import EXAMPLES
 from shear.examples._support import program
 from shear.examples.compiler_source import compiler_entities
 from shear.hosted_bootstrap import AdmissionRejected, HostedSession
-from shear.hosted_bootstrap import command, generations, seed
+from shear.hosted_bootstrap import command, descriptors, generations, seed
 from shear.hosted_bootstrap.command import _jsonable
 from shear.hosted_bootstrap.artifacts import Artifact
 from shear.hosted_bootstrap.descriptors import (
@@ -246,11 +246,11 @@ class DescriptorBoundary(unittest.TestCase):
                 with self.assertRaises(AdmissionRejected):
                     describe(state, entity, F)
 
-    def test_unsupported_operations_are_named_not_lowered(self):
-        self.assertEqual(
-            set(NODE_KINDS) - SUPPORTED_KINDS,
-            {"activate", "function", "quote", "trial", "unquote"},
-        )
+    def test_every_node_kind_is_lowered(self):
+        # Task 31 (GH-67) renamed this from
+        # test_unsupported_operations_are_named_not_lowered: the five kinds
+        # task 30 left out are now lowered (docs/live_evolution.md 2.3).
+        self.assertEqual(set(NODE_KINDS) - SUPPORTED_KINDS, set())
 
     def test_results_that_are_not_chunks_are_refused(self):
         for result in (5, "chunk", None, (("LIT", 1), 5), ((1, 2),), ((),)):
@@ -611,13 +611,24 @@ class MissingArtifactsFailClosed(unittest.TestCase):
         with self.assertRaises(AdmissionRejected):
             self.run_forbidding_host_lowering(session, F, 1)
 
-    def test_an_unsupported_node_is_recorded_and_never_lowered(self):
+    def test_a_kind_outside_the_supported_set_is_recorded_and_never_lowered(
+        self,
+    ):
+        # Task 31 (GH-67) renamed this from
+        # test_an_unsupported_node_is_recorded_and_never_lowered: every kind
+        # is lowered now, so quote is taken out of the supported set to keep
+        # witnessing the fail-closed path.
         entry = EntityID("hb_quoted")
         runtime = Runtime(load(program({
             entry: Function((), ("quote", ("lit", 1))),
         })))
         session = HostedSession(runtime)
-        session.prepare(compiler_generation=1)
+
+        with mock.patch.object(
+            descriptors, "SUPPORTED_KINDS", SUPPORTED_KINDS - {"quote"},
+        ):
+            session.prepare(compiler_generation=1)
+
         rejected = [e for e in session.trace() if e.kind == "reject"]
 
         self.assertTrue(rejected)
