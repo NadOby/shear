@@ -1922,3 +1922,16 @@ golden records or historical measurements changed.
   one wrapped in a tuple or a map is data.
 - Mutation: `shear/relations.py` repinned after re-reviewing its two
   survivors, which the change does not touch. No golden change.
+
+### Reference version audit (task 22, GH-59)
+
+- Audit only, no change under `shear/`. `docs/reference_model.md` §14
+  classifies the version in a state-pinned reference as redundant,
+  because `StateID` fixes every entity's version; it stays until the
+  planned `ref` values choose the reference form (Provisional). §14 also
+  lists the premises under which the version would carry information and
+  a constraint for references held in semantic content.
+- `tests/test_reference_version.py` (lane `cross-boundary`) pins that the
+  state and entity determine the version and that only a hand-built
+  reference is stale. Three planted bugs are each caught. No golden
+  change.
