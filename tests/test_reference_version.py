@@ -191,11 +191,11 @@ class VersionIsDeterminedTests(unittest.TestCase):
                             AmbiguousEntityMapping,
                         ):
                             pass
-
-                        transferred += 1
+                        else:
+                            transferred += 1
 
         self.assertGreater(resolved, 1000)
-        self.assertGreater(transferred, 300)
+        self.assertGreater(transferred, 100)
 
     def test_only_a_hand_built_reference_is_stale(self) -> None:
         source = load(parse(continuity.CASES[0].source))
