@@ -273,6 +273,27 @@ endpoints maps to the tuple of their contents.
 
 **Decided:**
 
+A relation is a constraint relation only if it also has at least one
+endpoint. A relation without endpoints constrains nothing: its subject is
+always the empty map, so its verdict never depends on state, and its payload
+stays data.
+
+Code in graph form needs this (graph_form.md §3). A `lit` or `arg` node, and
+a `quote` node whose template has no holes, has no endpoints and keeps
+program data, a constraint included, in its payload. Every code node with
+endpoints holds a checked payload: a link or let name, a map, a kind filter,
+or a quote's template tuple; never a bare constraint.
+
+A constraint held as data in a relation with endpoints (for example, one a
+metaprogram records about an entity) must be wrapped in a tuple or a map, or
+it is enforced.
+
+Before this rule, a relation without endpoints and with a constraint payload
+either rejected every load and activation or checked nothing. The only
+change is that states rejected that way now load and activate (issue #111).
+
+**Decided:**
+
 An endpoint that owns entities contributes its owned
 subtree with it, as the map `{"value": <its own content>, "owned": {child:
 <the child's contribution>, ...}}`, recursively; an endpoint that owns
@@ -355,7 +376,8 @@ The Python reference model currently provides:
         the derived index from entity to (relation, role) pairs
 
     constraint relations
-        constraint_relations and Role; a runtime evaluates constraint
+        constraint_relations (relations with an endpoint and a constraint
+        payload) and Role; a runtime evaluates constraint
         relations when a version loads, when a write changes an endpoint
         cell or a cell an endpoint owns, and against the staged content of
         activation and trial runs, rejecting anything but Satisfied; an
