@@ -275,12 +275,14 @@ Roles checked and not found:
 
 - Integrity witness: the version catches a triple whose parts disagree, not
   a forged reference, since anyone can compute it from public content.
-- Cache key: caches key on a value's own `VersionID` (bytecode chunks,
-  native code in activation_model.md section 10, hosted artifacts by entity
-  and version), never on a reference.
-- Offline validation: checking a value against a reference without its
-  state, or comparing versions across states, would resolve across states,
-  which section 3 forbids. No caller does either.
+- Cache key: caches are tied to a value (bytecode chunks are kept with the
+  `Value`) or to its version (hosted artifacts, keyed by entity and version;
+  native code, Open in activation_model.md section 10), never to a
+  reference.
+- Offline validation: checking a value against `(EntityID, VersionID)`
+  without its state is not resolution across states, which section 3
+  forbids. No caller does it; with partially loaded states (premise 3) it
+  would become a role.
 
 **Open:**
 
