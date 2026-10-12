@@ -697,7 +697,7 @@ evidence. No refactor in this task.
 
 ### 22. Reference version audit (one session)
 
-**Planned.** Issue #59.
+**Implemented** (PR #114). The classification is in reference_model.md §14.
 
 `Reference(StateID, EntityID, VersionID)`: `State.resolve` and reference
 transfer check `StateID` first, so `StaleReference` is reachable only for a
