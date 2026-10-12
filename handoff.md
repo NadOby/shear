@@ -9,7 +9,7 @@ against GitHub and the repository before relying on it.
 - Issue: #67 (`task`), roadmap task 31, live evolution on the bootstrap
   route. Follow-up opened by Plan: #115 (VM instructions).
 - Branch: `task/31-live-evolution`, from `main` at `4ed6e14`.
-- Role: Plan done, revised after two Plan reviews (below). Next: Execute.
+- Role: Plan done, revised twice after Plan reviews (below). Next: Execute.
 - Plan head: recorded under "Plan head" below. Review diffs the Plan-owned
   files from it.
 
@@ -33,7 +33,7 @@ against GitHub and the repository before relying on it.
 - `tests/live_support.py` (new): the image program, step tables, oracles.
 - `tests/test_live_evolution.py`, `tests/test_live_artifacts.py` (new, lane
   `cross-boundary`) and `tests/test_instruction_table.py` (new, lane
-  `language-runtime`): 26 tests.
+  `language-runtime`): 30 tests.
 - `tests/test_hosted_bootstrap.py`: four task-30 tests that used `quote` as
   the unsupported kind (live_evolution.md section 8); each says so in a
   comment.
@@ -90,15 +90,53 @@ Rebutted:
   `NODE_KINDS`, so the sets are equal once the five kinds are added. Section
   2.3 now says so.
 
+## Second revision, after a third and a fourth Plan review
+
+The owner relayed two reviews of `f11706d`. One accepted it with two P3
+notes; the other requested changes. Each finding was checked.
+
+Accepted and fixed:
+
+- P2, error precedence: a compilation failure could have masked
+  `activation_rejected`. Language rejections now take precedence. A
+  candidate is compiled only after the runtime's own checks accept it
+  (section 3.2). `bound_first` plus
+  `test_a_language_rejection_wins_over_a_compilation_failure` witness it.
+- P2, two loaded versions with one `StateID`: confirmed on the host
+  (`same_activate`). The API is now per version: `retained_versions()` and
+  `admitted(version)` (sections 4.1 and 6). A test checks that both loaded
+  versions own separate records.
+- P2, direct `bytecode.lower`: `no_host_lowering` now forbids it too.
+- P2, same-state trial ownership: `observed_chunks` records the version of
+  the frame that opened each chunk. It wraps `_open`, `_open_closure` and
+  `_child_chunk`, since `_chunk_for` sees only a state. Every opened chunk
+  must be the admitted object of its own version's set, a trial's included.
+  The same-state trial test checks that the trial's records are separate
+  from the active set's, and that the chunks are shared.
+- P3, partial failure: the injected failure now refuses the produced chunk
+  at admission (`LEN` removed from the table). `grow` makes `len` the only
+  new node kind, so the test requires a `produce` event before the failure.
+- Test-side references to versions and artifacts are dropped before every
+  heap count, so the orphan check cannot be inflated by the tests.
+
+On the P3 notes of the accepting review:
+
+- The stand-in table check was local, and the script is not on the branch.
+  Treat it as a sanity check of the tests, not as evidence about any
+  implementation.
+- The shared-record hypothesis is now settled by the tests: separate
+  admission records with a shared chunk are required (sections 4.2 and 4.3).
+
 ## State of the tests on the Plan head (Python 3.13)
 
-- The three new modules: 26 tests. All fail or error against the task-30
+- The three new modules: 30 tests. All fail or error against the task-30
   route except two, which check the declared sets and the host oracle:
   `test_every_corpus_example_is_claimed` and
   `test_the_oracle_catches_what_the_route_must_not`.
 - Every hand-written expectation holds on ordinary host execution.
-- The table tests pass against a stand-in table built from `validation.py`'s
-  own facts, and they catch three planted table bugs.
+- The table tests passed a local check against a stand-in table built from
+  `validation.py`'s own facts, and caught three planted table bugs. The
+  stand-in is not on the branch, so this is not evidence.
 - `tests.test_hosted_bootstrap`: one failure,
   `test_every_node_kind_is_lowered`. The three other changed tests pass.
 - `python3 -m tests.lanes --all`: only `language-runtime` (the table tests)
@@ -124,8 +162,10 @@ Implement live_evolution.md. Suggested order:
      (section 3.3);
    - the reuse rule (4.3);
    - trial sets (4.2) and release at retirement (4.1);
-   - cleanup after a failed attempt (3.2);
-   - `retained_states`, `admitted`, the `reuse`/`release` events and
+   - cleanup after a failed attempt, and language rejections before any
+     compilation (3.2);
+   - sets owned by `Version` objects, `retained_versions`,
+     `admitted(version)`, the `reuse`/`release` events and
      `TraceEvent.source_artifact_id`.
 4. Measurements (section 7) in `diagnostics.py` and `hosted_bootstrap.md`,
    with a smoke test.
@@ -142,9 +182,9 @@ Execute may choose the following, and marks each Provisional:
   `linked`;
 - the diagnostics layout.
 
-The tests observe chunks by wrapping `machine._chunk_for` and
-`machine._child_chunk`, as task 30's tests wrap `machine._open`. Keep those
-two as the machine's chunk boundaries.
+The tests observe chunks by wrapping `machine._open`,
+`machine._open_closure` and `machine._child_chunk`, as task 30's tests wrap
+`machine._open`. Keep those three as the machine's chunk boundaries.
 
 Execute must not:
 
@@ -187,7 +227,7 @@ live_evolution.md section 9, claims 1 to 7.
 
 ## Plan head
 
-`f11706d4e7fea1e9d7eb4cdc96c29b0cf8fb65bc`
-("GH-67 Change the task 31 contract and tests after two Plan reviews").
-The first Plan head was `82a6a69`. Execute starts from the commit that
-records this file.
+`51c96128b80e6712e043deec93cbe76cbb290fbb`
+("GH-67 Change the task 31 contract and tests after the third Plan review").
+Earlier Plan heads: `82a6a69`, `f11706d`. Execute starts from the commit
+that records this file.
