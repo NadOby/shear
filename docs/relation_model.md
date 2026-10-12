@@ -67,6 +67,38 @@ Relation records are canonical like other records, so equal records have equal
 identity. The kind is not interpreted by the core model; meaning comes from
 the tools, constraints, and metaprograms that use it.
 
+### Endpoint arity
+
+**Open:**
+
+Whether the difference between one endpoint and a one-element tuple is
+redundant, semantically required, or retained deliberately (roadmap task 21).
+Canonical encoding keeps the two apart, so `{r: a}` and `{r: (a,)}` are
+different records with different `VersionID`s.
+
+Predictions, recorded before the audit, per family of relation:
+
+- **Language relations** (code nodes, `definition`, `links`): redundant as
+  information. Every role's arity follows from its kind: `operations.py`
+  for code roles, `lang` for link-target roles (`target`, `cell`,
+  `targets`), one endpoint for every `definition` and `links` role. Readers
+  either flatten a role or assume its declared arity; none branches on it.
+  Retained deliberately as representation: an ordered role holds zero or more
+  endpoints, so it needs the tuple form anyway, and one shape per role keeps
+  every reader free of a normalizing step.
+- **Kinds the core does not interpret** (constraint relations, a
+  metaprogram's own relations): semantically required. No schema says which
+  roles are sequences, so the record is the only carrier, and a constraint
+  observes it (section 7): `Role("r", c)` checks `c` against the content for
+  `{r: a}` and against a one-element tuple for `{r: (a,)}`.
+- **A tuple where the language expects one endpoint** (a link target, a
+  `links` relation's `function`): has no meaning, and consumers disagree
+  about it. A limitation, not a use of the distinction.
+
+Falsified if a reader in `shear/` gives a different result for the two forms
+within one kind and role of a language relation, or if any language relation
+in the corpora has a role whose arity differs from its kind's.
+
 ## 3. Referential integrity
 
 **Decided:**
