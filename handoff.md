@@ -1,100 +1,126 @@
 # Handoff
 
-Read `CLAUDE.md`, the Workflow section of `docs/roadmap.md`, issue #111 and
-`docs/relation_model.md` §7. Verify this checkpoint against GitHub and the
-repository before relying on it.
+Read `CLAUDE.md`, the Workflow section of `docs/roadmap.md`, roadmap task 22,
+issue #59 and `docs/reference_model.md` §14. Verify this checkpoint against
+GitHub and the repository before relying on it.
 
 ## Current state
 
-- Issue: #111 (`follow-up`): a constraint in a code node's payload made the
-  node a constraint relation.
-- Branch: `fix/111-constraint-payload`, from `main` at `1de2510`.
-- Role: Plan and Execute done in one chat, with the owner's permission. An
-  independent Review accepted the fix, with three findings; Resolve is done
-  (below). The full campaign passed and PR #113 is open; waiting for the
-  owner to merge.
+- Issue: #59 (`task`), roadmap task 22, reference version audit.
+- Branch: `task/22-reference-version`, from `main` at `1db6d5e`.
+- Role: Plan done. Next: the owner decides D22 (below), then Execute.
+- Plan head: the commit that adds this file. Execute records its SHA here
+  first; Review diffs the Plan-owned files from it.
 
-## Decision (owner)
+## Result of the audit (Plan)
 
-The endpoint rule: a relation is a constraint relation
-only if its payload is a constraint and it has at least one endpoint
-(relation_model.md §7, Decided). Rejected:
+`VersionID` in a state-pinned `Reference` is redundant: `StateID` hashes
+every entity's `VersionID` (state_model.md §4), every producer derives the
+version from the named state, and `resolve` and `transfer_reference` check
+the state first. `StaleReference` needs a hand-built reference. No
+production reader uses the version for anything else, and the language
+never sees a `Reference`, `VersionID` or `StateID`.
 
-- wrapping literal payloads, which would change nearly every program's
-  identity;
-- forbidding constraint literals, which restricts the language for nothing.
+With the planned `ref` values (Later), the version stays redundant as long
+as a `ref` carries a `StateID`. It does work only if the `ref` design drops
+the state from the reference, resolves across states, or makes `StateID`
+partial. New constraint found: a reference held in semantic content cannot
+contain the `StateID` of its own state, nor its own entity's `VersionID`.
 
-## Review findings and fixes
+## Decision for the owner (D22)
 
-1. **P2, no campaign confirmed the `relations.py` repin.** Fixed: a full
-   campaign with revalidation ran on this branch (run 38204935969, all 4,056
-   mutants, `mutation_count` 600). All 16 shards and the summary passed. A
-   smaller sample would have missed `relations.py`'s two survivors.
-2. **P3, the decision comment on #111 said "option 1"**, which is a
-   different rule in the issue body. Fixed: the comment now says "the
-   endpoint rule" and names the difference.
-3. **P3, the wrapped-constraint hazard was untested.** Fixed: a new test in
-   `test_constraint_relations.py` checks it.
-   - A bare constraint payload on a relation with an endpoint is enforced.
-   - The same constraint wrapped in a tuple or a map is data.
-   - The test catches a planted rule that looks inside wrappers.
-   - It is a characterization test, not a regression test: it passes on
-     `main` too.
+How to classify the version, given the evidence. No refactor either way.
 
-## Changes
+1. **Redundant, kept until the `ref` design chooses the reference form**
+   (recommended, written in §14 as Provisional). The `ref` design may move the
+   version into the key rather than drop it, so removing it now risks churn.
+2. Retained deliberately as an integrity witness. Not recommended: it catches
+   only a triple whose parts disagree, not a forged reference.
+3. Redundant, removed now: a follow-up issue for the refactor (`Reference`,
+   `make_reference`, `resolve`, `transfer_reference`, `StaleReference`, about
+   ten tests). Not recommended before the `ref` design.
 
-- `shear/relations.py`: one condition in `constraint_relations`, plus its
-  docstring.
-- `docs/relation_model.md` §7: the rule, why code needs it, and the
-  consequences; the §10 status line.
-- `CLAUDE.md`: the model map line for `relations.py`.
-- `tests/test_data_is_opaque.py` (new, lane `language-runtime`).
-- `tests/test_constraint_relations.py`: two new recognition tests. No
-  existing test was edited.
+Execute does not choose; with 2 or 3 it adjusts §14's first paragraph and,
+for 3, the owner opens the follow-up issue.
+
+## Plan-owned files
+
+- `docs/reference_model.md`: §2 and §5 say when a stale reference can arise;
+  new §14 holds the classification, evidence, roles checked, the `ref`
+  premises and the content constraint.
+- `docs/roadmap.md`: the Later item for `ref` values points to §14.
+- `tests/test_reference_version.py` (new, lane `cross-boundary`), three tests
+  over 150 generated states and transformations and the 21 continuity cases:
+  - state and entity determine the version of every produced reference
+    (`State.reference`, `transfer_reference`, `rebind_reference`);
+  - a produced reference never fails the version check in `resolve` or
+    `transfer_reference`, including against an independently rebuilt equal
+    state;
+  - a hand-built reference with another version is stale.
+  These are characterization tests: they pass on `main`. Planted bugs, each
+  caught: transfer keeping the source version, a `StateID` that ignores
+  versions, `make_reference` deriving a wrong version.
 - `tests/lanes.py`: one line.
-- `tests/mutation_catalog_data/shear/relations.toml`: `source_blob`
-  repinned to `eab7f94`. Both survivors (`@dataclass(frozen=True,
-  eq=False)` and `return NotImplemented` in `Relation.__eq__`) were
-  re-reviewed: the diff touches only `constraint_relations`, so both
-  classifications still hold.
-- `CHANGES.md`.
+- Golden: none declared. Measured against `main`: 55 unchanged, 0 new,
+  0 changed.
 
-## Evidence
+## Execute
 
-Measured with Python 3.13.
+1. Record the Plan head SHA above.
+2. Apply the owner's D22 choice (above).
+3. Append to `CHANGES.md`:
 
-- **On `main` (without the fix):** the new tests fail:
-  - the `constraint` exemplar as a literal, quoted, and in activated code;
-  - a constraint used as a parameter name;
-  - the recognition test.
-- **Planted bug:** `relation.roles` instead of `relation.endpoints` fails
-  the quoted route and the recognition test, so the empty-tuple case is
-  covered.
-- **With the fix:** all eight lanes pass, and the golden check against
-  `main` shows 55 unchanged, 0 new, 0 changed.
+   ```
+   ### Reference version audit (task 22, GH-59)
+
+   - Audit only, no change under `shear/`. `docs/reference_model.md` §14
+     classifies the version in a state-pinned reference as redundant,
+     because `StateID` fixes every entity's version; it stays until the
+     planned `ref` values choose the reference form (Provisional). §14 also
+     lists the premises under which the version would carry information and
+     a constraint for references held in semantic content.
+   - `tests/test_reference_version.py` (lane `cross-boundary`) pins that the
+     state and entity determine the version and that only a hand-built
+     reference is stale. Three planted bugs are each caught. No golden
+     change.
+   ```
+
+4. Verify: `python3 -m tests.lanes --all`, `python3 -m tests.golden
+   --against main` (expect 0 new, 0 changed), and the three planted bugs.
+   No mutation campaign is needed: nothing under `shear/` changes.
+
+Execute must not change `shear/`, the classification or the test
+expectations. If the audit's argument is wrong, return to Plan.
 
 ## Claims Review must verify independently
 
-1. No language relation with endpoints can hold a bare constraint payload.
-   Check every payload `lang._Builder._relation` writes, and `fold`.
-2. Before the rule, a relation without endpoints and with a constraint
-   payload could only reject a load or activation, or check nothing. So the
-   only behaviour change is that such states are now accepted.
-3. The exemplars cover every kind `constraints.KINDS` names, plus
-   `function`. The routes cover every node that can carry program data in
-   its payload (`lit`, `quote`, `arg`), plus a cell, a tuple and activated
-   code.
-4. The repin is justified: the survivors' lines are unchanged.
+1. `StateID` covers every entity's `VersionID`: `_state_content` takes all
+   values, `StateID` cannot be supplied, and no path builds a `State`
+   without deriving it.
+2. Production code reads `Reference.version` only in `State.resolve` and
+   `transfer_reference`; the language (`lang`, `bytecode`, `machine`) never
+   constructs a `Reference`, `VersionID` or `StateID` value.
+3. The tests' oracle is independent: expected versions come from the
+   states' values, not from the references under test, and the transfer
+   route is actually exercised (the corpus yields results for 20 of 21
+   cases).
+4. §14's content constraint is correct, including that a cell's declared
+   initial content is state content and its current content is not.
 
-## Limitations
+## Limitations and notes
 
-- The rule rests on the language's current shapes: a future operation with
-  endpoints and a data payload must keep its payload from being a bare
-  constraint. The opaque test catches that only if a route for that
-  operation is added.
-- A constraint stored as data in a relation with endpoints is still
-  enforced unless it is wrapped; the spec now says so.
+- The argument assumes SHA-256 has no collisions, as state identity does.
+- `tests/test_references.py::test_version_fast_path_for_exact_value`
+  compares two states with equal content, so one `StateID`; it shows no
+  cross-state use. Left unchanged (owner's test); rename only if the owner
+  wants.
+- Hosted-bootstrap descriptors carry `(state_id, node, version)` with the
+  same redundancy inside one pinned state; their artifact key
+  `(entity, version)` is deliberate for reuse across activations (task 31).
+  Out of scope: they are not `Reference`.
+- CI fails on the commit between adding the test module and its lane entry;
+  it passes once both are on the branch.
 
 ## Next action
 
-The owner merges PR #113, which closes #111.
+The owner answers D22 and commits the Plan files; then Execute task 22.
