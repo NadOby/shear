@@ -472,6 +472,18 @@ The semantic graph remains authoritative.
 
 ---
 
+## Compiler- and VM-driven language server
+
+**Provisional – future research.**
+
+A SHEAR language server should be a client of the compiler, runtime and VM, not a second implementation of name resolution, semantics or compilation analysis. It keeps the one textual syntax and offers relations, identity, provenance and versions as annotations, navigation and inspectors.
+
+Navigation across source, semantic graph, lowered IR and machine code (where a backend exists) needs provenance that may be many-to-many and incomplete after optimization. Navigation is not editability.
+
+Evaluation happens only when explicitly requested, isolated from external effects and resource-bounded. The server never runs program code implicitly.
+
+---
+
 # Future Multi-View Workflow
 
 ```text
@@ -483,7 +495,7 @@ The semantic graph remains authoritative.
   Source View   Graph View   IR View
 ```
 
-All views edit the same semantic object.
+All views refer to the same semantic program. Source and semantic transformations change it; IR and machine-code views are read-only unless a well-defined reverse transformation exists.
 
 Changes produce a new semantic version.
 
@@ -491,13 +503,7 @@ Changes produce a new semantic version.
 
 # Long-Term Goal
 
-A function, relation, data structure, transformation, module, or entire program can be viewed and edited as:
-
-- human source
-- semantic graph
-- executable IR
-
-without changing its identity.
+A function, relation, data structure, transformation, module, or entire program can be viewed as human source, semantic graph or executable IR, and edited as source or through semantic transformations. Identity survives an edit only where continuity is established (docs/continuity_inference.md); a view does not guarantee it.
 
 The semantic graph is primary.
 

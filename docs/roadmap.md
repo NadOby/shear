@@ -641,7 +641,9 @@ mutation targets are carried or dropped by the task 19 rule.
 - Declared error kinds: program entities, like cells, naming a kind and
   constraining its detail (error_handling.md section 13).
 - Syntax and tooling notes (syntax_notes.md): graph and IR views next to
-  the source view of task 11.
+  the source view of task 11, and a language server built on the compiler and
+  VM (corpus.md section 7), evaluated first as a tool powered by SHEAR. Part
+  of the IDE tooling deferred below; Provisional research only.
 - The program root and modules (ownership_model.md §13), when explicit
   modules or libraries need them.
 - No Python at runtime: the milestone after section I. It lists the runtime
