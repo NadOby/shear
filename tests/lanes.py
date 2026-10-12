@@ -45,6 +45,7 @@ LANES: dict[str, tuple[str, ...]] = {
         "test_bytecode_regressions",
         "test_closures",
         "test_data_graph_form",
+        "test_data_is_opaque",
         "test_data_ops",
         "test_data_regressions",
         "test_error_handling",
