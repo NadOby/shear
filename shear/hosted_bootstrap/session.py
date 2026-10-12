@@ -10,6 +10,10 @@ A ``HostedSession`` joins one target runtime to the pinned SHEAR compiler:
   node of the target's active state; ``run`` executes only those.
 * ``stage_edit`` prepares an edited candidate beside the original without
   activating it.
+* a candidate built by a running program is compiled and admitted when the
+  program runs ``activate`` or ``trial`` (docs/live_evolution.md); a version
+  owns the artifacts of its state (``retained_versions``, ``admitted``) and
+  they are released when it retires.
 
 Nothing here defines or activates a state, and host lowering is reachable
 only through the declared seed.
@@ -23,7 +27,7 @@ from typing import Any, Mapping
 from ..identity import EntityID, StateID, VersionID
 from ..lang import _definition_of
 from ..reconcile import reconcile
-from ..runtime import Runtime
+from ..runtime import Runtime, Version
 from ..state import State
 from .artifacts import Artifact
 from .errors import AdmissionRejected
@@ -144,6 +148,22 @@ class HostedSession:
         may_activate: bool = False,
     ) -> Any:
         return self._bound().run(entry, *args, may_activate=may_activate)
+
+    def retained_versions(self) -> frozenset[Version]:
+        """The versions of the target runtime that own an artifact set: its
+        loaded versions, and the version of a trial while it runs."""
+
+        return self._bound().retained_versions()
+
+    def admitted(
+        self,
+        version: Version,
+    ) -> Mapping[tuple[EntityID, VersionID], Artifact]:
+        """A read-only mapping from ``(node, node version)`` to the artifact
+        admitted in the set ``version`` owns. ``AdmissionRejected`` if it
+        owns none."""
+
+        return self._bound().admitted(version)
 
     def trace(self) -> tuple[TraceEvent, ...]:
         return self._trace.snapshot()

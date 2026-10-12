@@ -6,6 +6,9 @@ pinned state and owner it belongs to, and the compiler generation that
 produced it. An ``ArtifactSet`` holds the admitted artifacts of one pinned
 state and is the only source of chunks for a run that uses it: ``resolver``
 gives the machine a function that returns an admitted chunk or fails closed.
+
+A set is owned by a version (or by a running trial), not by its state: see
+``HostedTarget`` and docs/live_evolution.md section 4.1.
 """
 
 from __future__ import annotations
@@ -34,13 +37,18 @@ def artifact_id(
     version: VersionID,
     owner: EntityID,
     chunk: tuple,
+    reused_from: str | None = None,
 ) -> str:
-    """Content-derived identity; it binds every field that authorizes use."""
+    """Content-derived identity; it binds every field that authorizes use,
+    and, for an artifact admitted by reuse, the artifact it reuses."""
 
     content = (
         "artifact", domain, generation, produced_by,
         state_id, entity, version, owner, chunk,
     )
+
+    if reused_from is not None:
+        content += (reused_from,)
 
     return sha256(
         canonical_serialize(canonicalize(content))
@@ -62,11 +70,17 @@ class Artifact:
     """The generation of the SHEAR compiler that produced it; None for the
     seed, which the host lowered."""
     artifact_id: str
+    reused_from: str | None = None
+    """For an artifact admitted by reuse (live_evolution.md section 4.3): the
+    id of the artifact of the active version whose chunk it shares. Two
+    admissions for one state then differ, so a reuse is never its own
+    source."""
 
     def verify(self) -> None:
         recomputed = artifact_id(
             self.domain, self.generation, self.produced_by, self.state_id,
             self.entity, self.version, self.owner, self.chunk,
+            self.reused_from,
         )
 
         if recomputed != self.artifact_id:
@@ -112,6 +126,16 @@ class ArtifactSet:
         self._valid = False
         self._artifacts.clear()
         self._chunks.clear()
+
+    def get(self, entity: EntityID, version: VersionID) -> Artifact | None:
+        """The artifact admitted for this node at this version, if any."""
+
+        return self._artifacts.get((entity, version))
+
+    def artifacts(self) -> Mapping[tuple[EntityID, VersionID], Artifact]:
+        """A read-only view of the admitted artifacts."""
+
+        return MappingProxyType(self._artifacts)
 
     def chunks(self) -> Mapping[tuple[EntityID, VersionID], tuple]:
         """Read-only bindings to the exact admitted chunk objects."""
