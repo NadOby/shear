@@ -19,12 +19,14 @@ from shear.examples import EXAMPLES, play
 from shear.hosted_bootstrap import HostedSession
 from shear.relations import relation_of
 from tests.live_support import (
+    BOUND,
     CLOSURES,
     LIVE,
     MAIN,
     MALFORMED,
     MIGRATE,
     MOVE,
+    SAME,
     TWICE,
     HostedRunner,
     admitted_run,
@@ -34,9 +36,9 @@ from tests.live_support import (
     drive,
     host,
     image_state,
-    loaded_states,
     malformed_state,
     outcome,
+    retained_as_loaded,
 )
 from tests.test_hosted_corpus import DEFERRED, INCLUDED
 
@@ -64,10 +66,7 @@ class LiveCorpus(unittest.TestCase):
 
                 for session in runner.sessions.values():
                     assert_provenance(self, session.trace())
-                    self.assertEqual(
-                        session.retained_states(),
-                        loaded_states(session.target_runtime),
-                    )
+                    retained_as_loaded(self, session)
 
 
 class LiveImage(unittest.TestCase):
@@ -104,6 +103,12 @@ class LiveImage(unittest.TestCase):
     def test_moved_nodes(self):
         drive(self, MOVE)
 
+    def test_activation_of_the_active_state_itself(self):
+        drive(self, SAME)
+
+    def test_a_bound_rejection_inside_a_run(self):
+        drive(self, BOUND)
+
 
 class MalformedActivation(unittest.TestCase):
     """Section 2.3: activation and trial forms that carry a problem are
@@ -111,9 +116,10 @@ class MalformedActivation(unittest.TestCase):
 
     def test_problem_forms_compile_as_host_lowering_does(self):
         state = malformed_state()
-        session = HostedSession(Runtime(state))
+        runtime = Runtime(state)
+        session = HostedSession(runtime)
         session.prepare(compiler_generation=1)
-        admitted = session.admitted(state.id)
+        admitted = session.admitted(runtime.active)
         kinds = set()
 
         for node, owner in code_nodes(state):

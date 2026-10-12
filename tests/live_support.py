@@ -119,11 +119,25 @@ fn drop_scaler():
     let r = catch(c(2))
     item(item(r, 1), 1)
 
+fn same_activate():
+    let old = code(handle)
+    activate(handle = function(item(old, 0), item(old, 1)))
+    handle(1)
+
+fn bound_first():
+    activate(handle = fn(x): x * 3)
+    let r = catch(activate(handle = fn(x): len((x, 7))))
+    item(item(r, 1), 1)
+
+fn grow(k):
+    let old = code(handle)
+    function(item(old, 0), quote(unquote(item(old, 1)) + len((literal(k),))))
+
 fn guarded(k):
-    catch(activate(handle = plus(k)))
+    catch(activate(handle = grow(k)))
 
 fn guarded_trial(k):
-    catch(trial(handle(1), handle = plus(k)))
+    catch(trial(handle(1), handle = grow(k)))
 
 fn whole(x):
     x * 2 + 1
@@ -180,6 +194,16 @@ MOVE = (
     ("whole", (5,), False, 11, 0),
 )
 
+SAME = (
+    ("same_activate", (), True, 2, 1),
+    ("handle", (1,), False, 2, 2),
+)
+
+BOUND = (
+    ("bound_first", (), True, "activation_rejected", 0),
+    ("handle", (5,), False, 15, 0),
+)
+
 # Activation and trial forms whose link does not resolve, or whose value is
 # not a function. Host lowering keeps the problem in the instruction
 # (bytecode._lower_activation); each fails as a language error.
@@ -216,12 +240,19 @@ def forbid_host_lowering(*args, **kwargs):
 
 @contextlib.contextmanager
 def no_host_lowering():
+    """Forbid every host lowering entry, ``bytecode.lower`` included, for the
+    duration of an admitted run. The oracle calls ``bytecode.lower`` only
+    after the run."""
+
     with (
         mock.patch.object(
             bytecode, "chunk_of", side_effect=forbid_host_lowering,
         ),
         mock.patch.object(
             bytecode, "lower_value", side_effect=forbid_host_lowering,
+        ),
+        mock.patch.object(
+            bytecode, "lower", side_effect=forbid_host_lowering,
         ),
     ):
         yield
@@ -238,52 +269,61 @@ def code_nodes(state):
             yield node, owner
 
 
-def loaded_states(runtime):
-    return frozenset(version.id for version in runtime.versions)
+def admitted_or_none(session, version):
+    """The artifact set ``version`` owns, or None if it owns none."""
+
+    try:
+        return session.admitted(version)
+    except AdmissionRejected:
+        return None
 
 
 @contextlib.contextmanager
 def observed_chunks(session):
     """Record every chunk the machine opens for the target, at the machine's
-    own chunk boundaries, independently of the session's trace.
+    own chunk boundaries (``_open``, ``_open_closure``, ``_child_chunk``),
+    independently of the session's trace.
 
-    Each record is ``(state, entity, chunk, admitted)``. ``admitted`` is
-    whether the chunk is the very object admitted for that node in that
-    state, or None when the state was not a loaded version at that moment (a
-    trial's candidate).
+    Each record is ``(version, entity, chunk, artifact)``: the version whose
+    frame opened the chunk, and the artifact admitted for the node in the set
+    that version owns at that moment, or None. A trial's version owns its own
+    set while the trial runs.
     """
 
     records = []
     compiler = session.compiler_source_state.id
-    chunk_for = machine._chunk_for
+    open_ = machine._open
+    open_closure = machine._open_closure
     child_chunk = machine._child_chunk
 
-    def record(state, entity, chunk):
-        if state.id == compiler:
+    def record(version, entity, chunk):
+        if version.state.id == compiler:
             return
 
-        admitted = None
+        owned = admitted_or_none(session, version)
+        key = (entity, version.state.values[entity].version_id)
+        artifact = None if owned is None else owned.get(key)
+        records.append((version, entity, chunk, artifact))
 
-        if state.id in loaded_states(session.target_runtime):
-            key = (entity, state.values[entity].version_id)
-            artifact = session.admitted(state.id).get(key)
-            admitted = artifact is not None and artifact.chunk is chunk
+    def observe_open(activation, *args, **kwargs):
+        chunk, env, node = open_(activation, *args, **kwargs)
+        record(activation.hold.version, node, chunk)
+        return chunk, env, node
 
-        records.append((state, entity, chunk, admitted))
-
-    def observe_chunk_for(state, entity, owner):
-        chunk = chunk_for(state, entity, owner)
-        record(state, entity, chunk)
-        return chunk
+    def observe_open_closure(activation, *args, **kwargs):
+        chunk, env, node = open_closure(activation, *args, **kwargs)
+        record(activation.hold.version, node, chunk)
+        return chunk, env, node
 
     def observe_child_chunk(activation, entity, function):
         chunk = child_chunk(activation, entity, function)
-        record(activation.hold.version.state, entity, chunk)
+        record(activation.hold.version, entity, chunk)
         return chunk
 
     with (
+        mock.patch.object(machine, "_open", side_effect=observe_open),
         mock.patch.object(
-            machine, "_chunk_for", side_effect=observe_chunk_for,
+            machine, "_open_closure", side_effect=observe_open_closure,
         ),
         mock.patch.object(
             machine, "_child_chunk", side_effect=observe_child_chunk,
@@ -293,25 +333,29 @@ def observed_chunks(session):
 
 
 def assert_observed(test, records):
-    """Every opened chunk is host lowering's chunk of its node, and the
-    admitted object wherever its state is loaded."""
+    """Every opened chunk is host lowering's chunk of its node, and the very
+    object admitted for it in the set its frame's version owns."""
 
     test.assertTrue(records, "no chunk was opened")
     checked = set()
 
-    for state, entity, chunk, admitted in records:
-        key = (state.id, entity, id(chunk))
+    for version, entity, chunk, artifact in records:
+        key = (id(version), entity, id(chunk))
 
         if key in checked:
             continue
 
         checked.add(key)
+        state = version.state
 
         with test.subTest(entity=entity.value, state=state.id.value[:12]):
             test.assertEqual(
                 chunk, bytecode.lower(relation_of(state.values[entity])),
             )
-            test.assertIsNot(admitted, False)
+            test.assertIsNotNone(
+                artifact, "an opened chunk with no admitted artifact",
+            )
+            test.assertIs(artifact.chunk, chunk)
 
 
 def admitted_run(session, entry, *args, may_activate=False, records=None):
@@ -428,16 +472,26 @@ def live_target_artifacts(session):
     ]
 
 
+def retained_as_loaded(test, session):
+    """The versions that own artifact sets are the loaded versions."""
+
+    test.assertEqual(
+        session.retained_versions(),
+        frozenset(session.target_runtime.versions),
+    )
+
+
 def assert_no_orphans(test, session):
     """Nothing but the loaded versions' sets keeps target artifacts alive,
     and no frame still holds a version."""
 
     runtime = session.target_runtime
     retained = sum(
-        len(session.admitted(state)) for state in session.retained_states()
+        len(session.admitted(version))
+        for version in session.retained_versions()
     )
 
-    test.assertEqual(session.retained_states(), loaded_states(runtime))
+    retained_as_loaded(test, session)
     test.assertEqual(len(live_target_artifacts(session)), retained)
 
     for version in runtime.versions:
@@ -493,9 +547,9 @@ def drive(test, steps, generation=1, session_out=None):
     """Run ``steps`` on a fresh image on the host and on the admitted route.
 
     Checks each step's hand-written expectation on the host, that the hosted
-    observation equals the host's, that the retained artifact states are the
-    loaded versions at every step boundary, and that every opened chunk is
-    host lowering's and the admitted one. Returns the session.
+    observation equals the host's, that the versions owning artifact sets are
+    the loaded versions at every step boundary, and that every opened chunk
+    is host lowering's and the admitted one. Returns the session.
     """
 
     host_runtime = Runtime(image_state())
@@ -527,7 +581,7 @@ def drive(test, steps, generation=1, session_out=None):
             )
             test.assertEqual(actual, expected)
             test.assertEqual(observation(runtime), observation(host_runtime))
-            test.assertEqual(session.retained_states(), loaded_states(runtime))
+            retained_as_loaded(test, session)
 
     assert_observed(test, records)
     assert_provenance(test, session.trace())

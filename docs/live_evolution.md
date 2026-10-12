@@ -72,7 +72,14 @@ which the acceptance tests drive as a persistent image. It:
   previous version is held is rejected (`activation_rejected`);
 - moves nodes to another function with a program-driven activation (`move`);
 - trials a candidate identical to the active program (`same_trial`), whose
-  state is the active state itself (section 4.2).
+  state is the active state itself (section 4.2);
+- activates the active program itself inside a run (`same_activate`), so two
+  loaded versions share one `StateID` until the old frame returns;
+- breaks the two-version bound with a candidate that cannot be compiled
+  under a test's injection (`bound_first`, section 3.2);
+- grows `handle` by a node kind (`len`) that no other code node of the
+  program has (`grow`, used by `guarded` and `guarded_trial`), so a test can
+  make exactly the new candidate node fail to compile or to be admitted.
 
 The trial-rejection kind `depth_limit` is covered by `safe_install`.
 `MALFORMED` adds the activation and trial forms whose link does not resolve
@@ -144,16 +151,25 @@ or `trial`. With every node kind supported, only a compiler fault, an
 invalidated compiler generation or tampering reaches this path.
 
 The failure may come after some candidate nodes were already compiled or
-reused. Nothing of the attempt survives it: no candidate artifact set,
-admitted artifact record or retained state, and no hold. Only the trace
+reused: in the tests, a chunk is refused at admission after the compiler
+produced it. Nothing of the attempt survives it: no candidate artifact set,
+admitted artifact record or retained version, and no hold. Only the trace
 records it.
 
 A candidate the language rejects keeps its existing failure: a missing
 activation capability, a malformed definition, a constraint or a
-two-version-bound rejection is raised as today. The first two are rejected
-in the machine before any compilation. Constraint and bound checks run
-inside `Runtime.activate`; if Execute compiles before them, the compiled set
-is discarded when they reject, under the rule above.
+two-version-bound rejection is raised as today.
+
+**Language rejections take precedence.** This follows from D5.2: this path is
+for host faults, never a substitute for a language rejection. A candidate is
+compiled only once the language would accept it. The machine rejects the
+capability and a malformed definition before any compilation. The cell,
+constraint and two-version-bound checks in `Runtime.activate`, and the
+staging in `Runtime.trial`, run before the candidate is compiled; the switch
+or the trial run comes after. So a compilation failure can never mask a
+catchable language rejection. `bound_first` witnesses this: it breaks the
+bound with a candidate that cannot be compiled, and the program sees
+`activation_rejected`.
 
 ### 3.3 The compiler run
 
@@ -175,12 +191,18 @@ loaded version owns the admitted artifacts of its state. An artifact
 set lives as long as its version is loaded and is released when the version
 retires. The artifacts of a state that is not loaded cannot be used.
 
-An artifact set belongs to a version, or to a trial (section 4.2). It is
-not merely an entry under a `StateID`, because two owners can have the same
-state. `retained_states()` and `admitted(state_id)` speak about the loaded
-versions only. At every step boundary, `retained_states()` is exactly the
-states of the runtime's loaded versions; during a run it includes at least
-those.
+An artifact set belongs to a version: a loaded version of the runtime, or
+the version of a running trial (section 4.2). It is not an entry under a
+`StateID`, because two owners can have the same state:
+
+- a trial of a candidate identical to the active program (`same_trial`);
+- an activation of the active state itself while the old frame still holds
+  the previous version (`same_activate`), which leaves two loaded versions
+  with one `StateID`.
+
+At every step boundary, the versions that own a set (`retained_versions()`)
+are exactly the runtime's loaded versions. During a run they include at
+least those.
 
 A released set leaves nothing in the session that keeps its artifact
 records alive; the tests count target `Artifact` objects in the heap. Chunks
@@ -189,16 +211,17 @@ The trace is intentionally retained history and keeps identifiers only.
 
 ### 4.2 Trials
 
-A trial's candidate gets its own artifact set, admitted before the trial runs
-and released when the trial returns, fails inside, or cannot be admitted. It
-is never used for the parent runtime's states, and nothing is reused from it
-afterwards: an activation of the same candidate compiles again relative to
-the active version (**Provisional**).
+A trial's version gets its own artifact set, admitted before the trial runs.
+It is released when the trial returns, fails inside, or cannot be admitted.
+It is never used for the parent runtime's versions, and nothing is reused
+from it afterwards: an activation of the same candidate compiles again
+relative to the active version (**Provisional**).
 
-A trial whose candidate equals a loaded version's state (`same_trial`: the
-same `StateID`) still gets its own set. Its nodes all reuse the active
-version's artifacts (section 4.3). Releasing it leaves the loaded version's
-set as it was.
+A trial whose candidate equals the active state (`same_trial`) still gets
+its own set, of separate admission records. Its nodes all reuse the active
+version's chunks (section 4.3). Releasing it leaves the active version's set
+as it was. The same holds for two loaded versions of one state: each owns
+its own records.
 
 ### 4.3 Reuse
 
@@ -304,11 +327,12 @@ the Plan-owned tests use:
 
 - `run(entry, *args, may_activate=False)` handles program-driven `activate`
   and `trial` as section 3 says.
-- `retained_states()` returns the frozenset of `StateID`s of the loaded
-  versions that own an artifact set.
-- `admitted(state_id)` returns a read-only mapping from `(EntityID,
-  VersionID)` to the `Artifact` admitted for that loaded version's state, and
-  raises `AdmissionRejected` for a state that is not retained.
+- `retained_versions()` returns the frozenset of the target runtime's
+  `Version` objects that own an artifact set.
+- `admitted(version)` returns a read-only mapping from `(EntityID,
+  VersionID)` to the `Artifact` admitted in the set `version` owns: a loaded
+  version's, or a running trial's version's while the trial runs. It raises
+  `AdmissionRejected` for a version that owns none.
 - `TraceEvent` gains `source_artifact_id`. Event kinds added:
   - `reuse` (route `host-admission`): `artifact_id` is the new admission,
     `source_artifact_id` the reused one, and `target_state_id` the state it
@@ -356,8 +380,13 @@ with one repeat, and Review checks the recorded numbers against a rerun.
   - `tests/test_instruction_table.py` (lane `language-runtime`, beside
     `test_bytecode`).
 
-  `live_support.py` is about 530 lines: one program and the oracles that
-  read it, kept together.
+  `live_support.py` is about 590 lines: one program and the oracles that
+  read it, kept together. Its `no_host_lowering` forbids `bytecode.lower`,
+  `bytecode.chunk_of` and `bytecode.lower_value` during admitted runs; the
+  oracle calls `bytecode.lower` only afterwards. Its `observed_chunks` wraps
+  the machine's chunk boundaries `machine._open`, `machine._open_closure`
+  and `machine._child_chunk`, as task 30's tests wrap `machine._open`, so
+  Execute keeps those three as the boundaries.
   `cross-boundary` is already the slowest lane. Execute records its time
   with the new modules. Splitting the lane would change
   verification_hardening.md section 12 (Decided), so it is a separate change
@@ -393,22 +422,24 @@ becomes a target or gets a justified omission.
 
 1. Every chunk the machine opens for a target, including those of
    candidates, trials, old frames and closures, equals host lowering's chunk
-   of its node. Where its state is loaded, it is the admitted object.
+   of its node, and is the very object admitted in the set its frame's
+   version owns (a trial's version included).
    Separately, the trace gives every executed artifact an authentic chain of
    production and admission, directly or through reuse. No host lowering
    happens during any run.
 2. A candidate is fully admitted before it becomes active or runs in a trial.
    A compilation failure, also one partway through a candidate, leaves the
    runtime unchanged, leaves no artifacts or holds behind, and is not
-   catchable.
+   catchable. A language rejection takes precedence over it.
 3. The reuse rule is applied exactly. The produced and reused node sets of
    each activation follow section 4.3 from the two states, every reuse source
    is an artifact of the active version, a moved node is compiled again, and
    a reused chunk equals a fresh compilation.
-4. Artifact sets follow version lifetime. Retained states equal loaded
-   versions at step boundaries; trial sets are released on every path,
-   including a trial of the active state itself; and released artifact
-   records are reclaimed from the heap.
+4. Artifact sets follow version lifetime and belong to versions, not to
+   `StateID`s. The versions owning sets equal the loaded versions at step
+   boundaries, and two loaded versions of one state have separate sets.
+   Trial sets are released on every path, including a trial of the active
+   state itself. Released artifact records are reclaimed from the heap.
 5. Observable behaviour (results, failures, cells, active `StateID`s and loaded
    versions) equals ordinary host execution step by step, for the corpus and
    the live image.
