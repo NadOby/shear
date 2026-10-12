@@ -503,14 +503,25 @@ class Lifetime(unittest.TestCase):
         witness = weakref.ref(artifact)
         del artifact
         seen = {first}
+        host_runtime = Runtime(image_state())
 
+        # handle(2) is 3 on the initial image, and each update adds 1.
         for m in range(1, UPDATES + 1):
             with self.subTest(update=m):
+                args = (1, 2, 3 + m)
+                self.assertEqual(
+                    host(host_runtime, H("upgrade"), *args, may_activate=True),
+                    "installed",
+                    "the host oracle disagrees with the written expectation",
+                )
                 self.assertEqual(
                     admitted_run(
-                        session, H("upgrade"), 1, 2, 2 + m, may_activate=True,
+                        session, H("upgrade"), *args, may_activate=True,
                     ),
                     "installed",
+                )
+                self.assertEqual(
+                    observation(runtime), observation(host_runtime),
                 )
                 seen.add(runtime.active.state.id)
                 self.assertEqual(len(runtime.versions), 1)
