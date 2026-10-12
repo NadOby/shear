@@ -243,7 +243,9 @@ itself is not changed.
   the SHEAR compiler and admits the result. Only when every node is admitted
   does the set become the version's. On a failure it traces `reject`,
   invalidates the partial set and re-raises `AdmissionRejected`, before the
-  switch or the trial run. Host-API activations are not reported and reuse
+  switch or the trial run. Preparing and candidate compilation drop each
+  production record once its admission has been tried; only the public
+  `produce()` and `admit()` leave their evidence to the caller. Host-API activations are not reported and reuse
   nothing; a trial's candidate reuses from the active version only, never from
   another trial's set.
 - **Reuse.** A reused artifact is a new `Artifact` bound to the candidate's

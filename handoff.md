@@ -283,6 +283,10 @@ Also required:
   the injected, renamed "refused" ones. Finding 4 (reuse rule 4 has no
   witness, so removing it passes every test) stays a hypothesis; finding 5
   is follow-up issue #116 (reuse cost).
+- Resolve (second review, `2b65be2`): the P3 is fixed. `prepare()` drops each
+  production record after its admission, as candidate compilation does;
+  `ConsumedEvidenceTests` fails on the old code. Still open: the mutation
+  campaign in CI and a fresh Review against `d76708f`.
 - Provisional choices are listed in hosted_bootstrap.md section 6.
 
 ## Second implementation review (`e037104`), and Plan's amendment
