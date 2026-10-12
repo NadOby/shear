@@ -48,6 +48,7 @@ TARGETS = (
     "shear/errors.py",
     "shear/fold.py",
     "shear/identity.py",
+    "shear/instructions.py",
     "shear/lang.py",
     "shear/machine.py",
     "shear/matching.py",
@@ -97,6 +98,8 @@ OMITTED = {
         "command-line entry shim that calls hosted_bootstrap.command.main",
     "shear/hosted_bootstrap/diagnostics.py":
         "diagnostic measurement harness (section 10); reports, asserts no contract",
+    "shear/hosted_bootstrap/live_diagnostics.py":
+        "live evolution measurement harness (live_evolution.md section 7); reports, asserts no contract",
     "shear/hosted_bootstrap/seed_cli.py":
         "command-line entry shim that calls hosted_bootstrap.seed.main; nothing imports it",
     "shear/hosted_bootstrap/errors.py":
