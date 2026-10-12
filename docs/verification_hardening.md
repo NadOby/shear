@@ -437,7 +437,9 @@ A mutant that makes a test module fail to import (with any exception, not only
 `ImportError`) is a failing test, not a crash. Memory exhaustion that escapes
 the test runner is a `resource_kill`, not an abnormal exit.
 
-**Provisional:** the baseline records how long each test takes, and a mutant
+**Provisional:**
+
+The baseline records how long each test takes, and a mutant
 run reports `timeout` as soon as one test runs longer than
 `max(30 s, 10 x its baseline time)` (`--times`), instead of waiting for the run
 limit. On CI the 12 hung mutants of a 2646-mutant campaign were about 79 % of
