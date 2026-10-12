@@ -163,9 +163,14 @@ class HostedTarget:
                 )
                 continue
 
-            self.admit(
-                node, self.state.values[node].version_id, chunk, evidence,
-            )
+            try:
+                self.admit(
+                    node, self.state.values[node].version_id, chunk, evidence,
+                )
+            finally:
+                # The evidence was consumed here; keeping it would keep the
+                # production record and its chunk for the session's lifetime.
+                del self._productions[evidence]
 
     # -- production and admission ----------------------------------------------
 

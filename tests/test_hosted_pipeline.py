@@ -771,5 +771,59 @@ class LateRetirementTests(unittest.TestCase):
         self.assertEqual(self.released(), [self.old.state.id])
 
 
+class ConsumedEvidenceTests(unittest.TestCase):
+    """Preparing consumes its production records: they do not outlive the
+    admission they authorized, however long the session runs on
+    (live_evolution.md section 4.1). The public ``produce`` and ``admit``
+    keep their evidence for the caller."""
+
+    @staticmethod
+    def productions():
+        import gc
+
+        from shear.hosted_bootstrap.target import _Production
+
+        gc.collect()
+
+        return [o for o in gc.get_objects() if isinstance(o, _Production)]
+
+    def test_prepare_retains_no_production_record(self):
+        from tests.live_support import H, image_state
+
+        runtime = Runtime(image_state())
+        session = HostedSession(runtime)
+        before = len(self.productions())
+        session.prepare(compiler_generation=1)
+
+        self.assertEqual(len(self.productions()), before)
+
+        # Updates compile candidates and retire versions; none leaves any.
+        self.assertEqual(
+            session.run(H("upgrade"), 10, 2, 13, may_activate=True),
+            "installed",
+        )
+        self.assertEqual(session.run(H("handle"), 1), 12)
+        self.assertEqual(len(runtime.versions), 1)
+        self.assertEqual(len(self.productions()), before)
+
+    def test_the_public_produce_and_admit_keep_the_callers_evidence(self):
+        from tests.live_support import H, image_state
+
+        runtime = Runtime(image_state())
+        session = HostedSession(runtime)
+        session.prepare(compiler_generation=1)
+        state = runtime.active.state
+        node = next(
+            n for n in state.owned_subtree(H("handle")) - {H("handle")}
+        )
+        before = len(self.productions())
+
+        chunk, evidence = session.produce(node)
+
+        self.assertEqual(len(self.productions()), before + 1)
+        session.admit(node, state.values[node].version_id, chunk, evidence)
+        self.assertEqual(len(self.productions()), before + 1)
+
+
 if __name__ == "__main__":
     unittest.main()
