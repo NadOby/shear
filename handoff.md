@@ -11,7 +11,9 @@ GitHub and the repository before relying on it.
 - Role: Plan and Execute done, in separate chats; the owner chose D22
   option 1. Two rounds of findings, both P3 and both resolved (below): the
   first from a check by the Plan's own chat, the second from an independent
-  Review of `9f73957`. Next: a fresh Review of the final head.
+  Review of `9f73957`. Two further independent Reviews of the final head
+  accepted it with no blocking finding. Publish is done: PR #114 is open and
+  ready, closing #59, and the roadmap entry says Implemented (PR #114).
 - Plan head: `b7123c3a0ff3adb951c60dc65e5dc155a354ce5c` ("Change handoff.md
   to record the owner's D22 choice"). Review diffs the Plan-owned files from
   it. Execute head: `634bbbe`. First Resolve head: `9f73957`. Second Resolve
@@ -192,4 +194,9 @@ nothing under `shear/` changes.
 
 ## Next action
 
-Review task 22, in a fresh chat, over the Resolve head.
+The owner merges PR #114, which closes #59, after the `tests` job is green
+on its head. It was green on `7e6c1fb` (Python 3.14, run 38237083952) before
+the roadmap and handoff commits that Publish added; those two commits touch
+only `docs/roadmap.md` and this file. No follow-up issues: the reviews' only
+limitations (the test oracle shares `version_id_for`; the reference form is
+decided with the `ref` design, roadmap Later) are recorded here and in §14.
