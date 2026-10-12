@@ -58,16 +58,17 @@ against GitHub and the repository before relying on it.
   kill, status file ignored, baseline timed, pinned survivors re-run, `--first`
   ignored, uncertain modules dropped, opaque detection off, stale map
   accepted, watchdog off, import errors uncaught): each is caught.
-- Python 3.14 (#53): about 15 % faster locally and passes the oracle; not
-  adopted (needs an exhaustive campaign for the survivor catalog).
 - De-duplicating mutants by compiled code: 223 of 4056 sites (5.5 %).
-- CI (150 per target, seed 1, 16 shards, run 38188546294 vs baseline run
-  38184400290 on `main`): slowest shard 65.2 to 17.6 min, total 724 to 191
-  shard-minutes. That run failed in shards 6 and 9 on two `abnormal_exit`
-  mutants (`matching.py`, MemoryError escaping the runner): fixed, with a
-  regression test. 12 timeouts were ~79 % of campaign time, hence the
-  per-test budget below. A re-run on the final commit is the CI evidence to
-  attach.
+- CI, 150 per target, seed 1, 16 shards: `main` (run 38184400290) vs this
+  branch (run 38192089614): slowest shard 65.2 to 13.3 min, total 724 to 151
+  shard-minutes; 2533 kills in both branch runs, 97 reviewed survivors not
+  run, 16 timeouts. The first branch run failed in shards 6 and 9 on two
+  `abnormal_exit` mutants (MemoryError escaping the runner): fixed with a
+  regression test. 12 hung mutants were ~79 % of campaign time, hence the
+  per-test budget.
+- Python 3.14: exhaustive campaign (4056 mutants, `mutation_revalidate`, run
+  38193089999) succeeded: the survivor catalog holds under 3.14. CI not moved.
+- De-duplicating mutants by compiled code: 223 of 4056 sites (5.5 %).
 
 ## Edits to existing tests (call-outs)
 
@@ -101,8 +102,8 @@ against GitHub and the repository before relying on it.
 
 ## Follow-ups
 
-- #51 (shard balance), #53 (Python 3.14), #49 (carried-key check): see the PR
-  for what the CI evidence says; none is closed by assertion here.
+- #101 CI replay (filed). #51: suggest closing as not planned (comment
+  posted). #53: evidence posted, owner decides moving CI. #49 untouched.
 
 ## Next action
 

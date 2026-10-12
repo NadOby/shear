@@ -1848,8 +1848,8 @@ golden records or historical measurements changed.
   `mutation_revalidate`, `coverage_diagnostics`, `coverage_targets`.
 - The engine `tests/mutation.py` is unchanged, so its pin and all survivor
   classifications stay valid and nothing needed revalidation.
-- CI campaign (150 per target, 16 shards): slowest shard 65 to 18 min, total
-  724 to 191 shard-minutes. Cost-aware sharding (#51) not built; see
+- CI campaign (150 per target, 16 shards): slowest shard 65 to 13 min, total
+  724 to 151 shard-minutes. Cost-aware sharding (#51) not built; see
   `docs/verification_hardening.md`.
 - Measured on a 76-mutant sample: wall 2156 s to 655 s, CPU 4103 s to 1024 s,
   mean kill time 31.7 s to 6.7 s (4.7 times, short of the 5 times aimed for).

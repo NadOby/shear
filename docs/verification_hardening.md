@@ -507,10 +507,12 @@ children's user plus system time.
 | outcomes | 69 killed, 7 reviewed survivors | the same, except the hanging mutant is `timeout` |
 
 The same change on CI (`mutation_count` 150, seed 1, 16 shards, 2646
-mutants; before = `main`, after = this branch before the per-test budget):
-slowest shard 65.2 min to 17.6 min, median shard 48.3 min to 12.7 min, all
-shards 724 to 191 shard-minutes; 2533 kills, 97 reviewed survivors not run,
-12 timeouts, 2 resource kills. Shard balance did not change (slowest over
+mutants; before = `main`, after = this branch): slowest shard 65.2 min to
+13.3 min, median shard 48.3 min to 9.4 min, all shards 724 to 151
+shard-minutes. 2533 kills, 97 reviewed survivors not run and 16 mutants that
+were not killed (all `timeout`) in every run, so the per-test budget cost no
+kill: before it the same 16 were 12 timeouts, 2 resource kills and 2 abnormal
+exits. Shard balance did not change (slowest over
 median 1.35 before, 1.38 after), so cost-aware sharding (#51) was not built:
 the imbalance comes from the hung mutants, and a better assignment would save at
 most a few minutes while needing per-mutant cost history that a fresh run does
@@ -536,9 +538,11 @@ execute the mutant's line.
   another mutant and none to the original, a small saving that needs an engine
   change, and any engine change repins and revalidates every reviewed
   survivor. If an engine change is ever needed, group these with it.
-- Not decided here: Python 3.14 (#53). A local sample ran about 15 % faster and
-  passed the oracle, but the survivor catalog needs one confirming exhaustive
-  campaign under the new version before CI moves.
+- Not decided here: moving CI to Python 3.14 (#53). A local sample ran about
+  15 % faster. The confirming exhaustive campaign (all 4056 mutants, reviewed
+  survivors re-run, workflow input `python_version` 3.14) succeeded with no
+  unclassified survivor, so the survivor catalog holds under 3.14; moving CI
+  itself is a separate change.
 
 Limitations: the coverage map costs one traced run of every oracle module
 (about 76 s wall, 149 s CPU here) per campaign; it needs Python 3.12 or newer;
