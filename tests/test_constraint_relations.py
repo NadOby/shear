@@ -75,6 +75,24 @@ class ConstraintRelationRecognitionTests(unittest.TestCase):
 
         self.assertEqual(set(constraint_relations(state)), {ORDER})
 
+    def test_a_relation_without_endpoints_keeps_its_constraint_as_data(
+        self,
+    ) -> None:
+        nullary = EntityID("nullary")
+        empty = EntityID("empty")
+        state = State.create({
+            LOW: Value.create(LOW, 1),
+            ORDER: Value.create(
+                ORDER,
+                Relation("anything", {"x": LOW}, Role("x", IsKind("int"))),
+            ),
+            nullary: Value.create(nullary, Relation("lit", {}, IsKind("int"))),
+            empty: Value.create(empty, Relation("quote", {"holes": ()}, IsKind("int"))),
+        })
+
+        self.assertEqual(set(constraint_relations(state)), {ORDER})
+        Runtime(state)
+
 
 class LoadTests(unittest.TestCase):
     def test_satisfied_relation_loads(self) -> None:
