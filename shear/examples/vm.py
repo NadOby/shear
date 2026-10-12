@@ -36,6 +36,7 @@ from __future__ import annotations
 from typing import Any
 
 from .. import ActivationRejected, EntityID
+from ..instructions import INSTRUCTIONS
 from ..lang import FUNCTION_ROLE, Function, links
 from . import Example, Raises, Step
 from ._support import program
@@ -192,7 +193,15 @@ def _validate_names(names: tuple) -> tuple:
 
 def _cases() -> list[tuple[str, tuple]]:
     k = _instruction_operand
-    name = k(1)
+    def operand(opcode: str, field: str, which: int = 0) -> tuple:
+        """The operand the instruction table lists under ``field``."""
+
+        return k(getattr(INSTRUCTIONS[opcode], field)[which] + 1)
+
+    def count(opcode: str) -> tuple:
+        """The operand that gives the instruction's item count."""
+
+        return k(INSTRUCTIONS[opcode].counted[0] + 1)
 
     def direct_call(
         function: tuple,
@@ -239,7 +248,7 @@ def _cases() -> list[tuple[str, tuple]]:
                         "call",
                         "vm_lookup",
                         _ENV,
-                        name,
+                        operand("ARG", "names"),
                         _lit(0),
                     ),
                 )
@@ -250,19 +259,19 @@ def _cases() -> list[tuple[str, tuple]]:
             _next(
                 _push(
                     _STACK,
-                    _enter(k(1)),
+                    _enter(operand("EVAL", "children")),
                 )
             ),
         ),
         ("END", _top()),
-        ("GOTO", _enter(k(1))),
+        ("GOTO", _enter(operand("GOTO", "children"))),
         (
             "BRANCH",
             (
                 "if",
                 _top(),
-                _enter(k(1)),
-                _enter(k(2)),
+                _enter(operand("BRANCH", "children", 0)),
+                _enter(operand("BRANCH", "children", 1)),
             ),
         ),
         ("POP", _next(_drop(1))),
@@ -340,11 +349,11 @@ def _cases() -> list[tuple[str, tuple]]:
             "MKTUPLE",
             _next(
                 _push(
-                    _drop(k(1)),
+                    _drop(count("MKTUPLE")),
                     (
                         "slice",
                         _STACK,
-                        _sub(_N, k(1)),
+                        _sub(_N, count("MKTUPLE")),
                         _N,
                     ),
                 )
@@ -357,13 +366,13 @@ def _cases() -> list[tuple[str, tuple]]:
                     "call",
                     "vm_find",
                     _LINKS,
-                    name,
+                    operand("CALL", "linked"),
                     _lit(0),
                 ),
                 (
                     "slice",
                     _STACK,
-                    _sub(_N, k(2)),
+                    _sub(_N, count("CALL")),
                     _N,
                 ),
             ),
@@ -384,13 +393,13 @@ def _cases() -> list[tuple[str, tuple]]:
                     _STACK,
                     _sub(
                         _N,
-                        ("add", k(1), _lit(1)),
+                        ("add", count("APPLY"), _lit(1)),
                     ),
                 ),
                 (
                     "slice",
                     _STACK,
-                    _sub(_N, k(1)),
+                    _sub(_N, count("APPLY")),
                     _N,
                 ),
             ),
@@ -415,7 +424,7 @@ def _cases() -> list[tuple[str, tuple]]:
                             "call",
                             "vm_find",
                             _LINKS,
-                            name,
+                            operand("REF", "linked"),
                             _lit(0),
                         ),
                     ),
@@ -438,7 +447,7 @@ def _cases() -> list[tuple[str, tuple]]:
                             "tuple",
                             _TOKEN,
                             _lit("closure"),
-                            k(1),
+                            operand("CLOSURE", "children"),
                             k(2),
                             (
                                 "call",
@@ -462,7 +471,7 @@ def _cases() -> list[tuple[str, tuple]]:
                     "call",
                     "vm_has",
                     _ENV,
-                    name,
+                    operand("LETCHECK", "names"),
                     _lit(0),
                 ),
                 ("call", "vm_trap"),
@@ -472,7 +481,7 @@ def _cases() -> list[tuple[str, tuple]]:
         (
             "LETBIND",
             _enter(
-                k(2),
+                operand("LETBIND", "children"),
                 (
                     "concat",
                     _ENV,
@@ -480,7 +489,7 @@ def _cases() -> list[tuple[str, tuple]]:
                         "tuple",
                         (
                             "tuple",
-                            name,
+                            operand("LETBIND", "names"),
                             _top(),
                         ),
                     ),
