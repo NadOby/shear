@@ -23,6 +23,24 @@ on:
         description: "Mutation campaign shards, 1 to 16; empty sizes it from the selected mutants (one shard per 150, at most 16)"
         required: false
         default: ""
+      python_version:
+        description: "Python for the mutation plan and campaign shards (evidence for moving CI to a newer Python)"
+        required: false
+        default: "3.12"
+      mutation_revalidate:
+        description: "Also re-run reviewed survivors (use after repinning the engine or a target)"
+        required: false
+        default: false
+        type: boolean
+      coverage_diagnostics:
+        description: "Report executable lines of mutation targets that no oracle module executes (diagnostic only)"
+        required: false
+        default: false
+        type: boolean
+      coverage_targets:
+        description: "Target path prefixes for the coverage diagnostic, space separated; empty selects every target"
+        required: false
+        default: ""
       content_baseline:
         description: "Run task 23 bootstrap measurements (diagnostic only)"
         required: false
@@ -129,13 +147,30 @@ jobs:
     outputs:
       count: ${{ steps.plan.outputs.count }}
       shards: ${{ steps.plan.outputs.shards }}
+      revalidate: ${{ steps.revalidate.outputs.revalidate }}
 
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      # Reviewed survivors are not re-run, which is only sound while their
+      # review is current. A change to the engine or the survivor catalog
+      # against main is a repin, so the campaign re-runs them.
+      - name: Revalidate reviewed survivors when the review changed
+        id: revalidate
+        shell: bash
+        run: |
+          if [ -n "$(git diff --name-only origin/main...HEAD -- tests/mutation.py tests/mutation_catalog_data)" ]; then
+            echo "revalidate=1" >> "$GITHUB_OUTPUT"
+            echo "Engine or survivor catalog differs from main: reviewed survivors will be re-run."
+          else
+            echo "revalidate=" >> "$GITHUB_OUTPUT"
+          fi
 
       - uses: actions/setup-python@v7
         with:
-          python-version: "3.12"
+          python-version: ${{ inputs.python_version || '3.12' }}
 
       - name: Size the shard matrix from the selected mutants
         id: plan
@@ -151,10 +186,25 @@ jobs:
           --batch "$BATCH"
           --shards "$SHARDS"
 
+      # Orders each mutant's run (modules that execute its line first); it
+      # never changes which tests run or the outcome, so a failure here only
+      # costs speed and the shards then run in the default order.
+      - name: Build the coverage map once for every shard
+        continue-on-error: true
+        run: python -m tests.mutation_coverage build --out mutation-coverage-map.json
+
+      - name: Upload the coverage map
+        uses: actions/upload-artifact@v7
+        with:
+          name: mutation-coverage-map
+          path: mutation-coverage-map.json
+          if-no-files-found: warn
+
   mutation-campaign:
     needs: mutation-plan
 
     runs-on: ubuntu-latest
+    timeout-minutes: 120
     name: mutation campaign (shard ${{ matrix.shard }}/${{ needs.mutation-plan.outputs.count }})
 
     strategy:
@@ -169,6 +219,51 @@ jobs:
       SHEAR_MUTATE_SHARDS: ${{ needs.mutation-plan.outputs.count }}
       SHEAR_MUTATE_SHARD: ${{ matrix.shard }}
       SHEAR_MUTATION_REPORT: mutation-report-batch-${{ inputs.mutation_batch }}-shard-${{ matrix.shard }}.jsonl
+      SHEAR_MUTATE_REVALIDATE: ${{ inputs.mutation_revalidate && '1' || needs.mutation-plan.outputs.revalidate }}
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ inputs.python_version || '3.12' }}
+
+      - name: Download the coverage map
+        continue-on-error: true
+        uses: actions/download-artifact@v7
+        with:
+          name: mutation-coverage-map
+
+      - name: Run mutation batch shard
+        shell: bash
+        run: |
+          if [ -f mutation-coverage-map.json ]; then
+            export SHEAR_MUTATION_COVERAGE=mutation-coverage-map.json
+          fi
+          python -m tests.lanes mutation
+
+      - name: Summarize this shard
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          if [ -f "$SHEAR_MUTATION_REPORT" ]; then
+            python -m tests.mutation_performance "$SHEAR_MUTATION_REPORT" | tee -a "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload mutation evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: mutation-evidence-batch-${{ inputs.mutation_batch }}-shard-${{ matrix.shard }}
+          path: mutation-report-batch-${{ inputs.mutation_batch }}-shard-${{ matrix.shard }}.jsonl
+          if-no-files-found: warn
+
+  mutation-summary:
+    needs: [mutation-plan, mutation-campaign]
+    if: ${{ always() && needs.mutation-plan.result == 'success' }}
+
+    runs-on: ubuntu-latest
+    name: mutation campaign summary
 
     steps:
       - uses: actions/checkout@v7
@@ -177,15 +272,52 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Run mutation batch shard
-        run: python -m tests.lanes mutation
+      - name: Download every shard's report
+        uses: actions/download-artifact@v7
+        with:
+          pattern: mutation-evidence-*
+          merge-multiple: true
 
-      - name: Upload mutation evidence
+      - name: Summarize the whole campaign
+        shell: bash
+        run: |
+          python -m tests.mutation_performance mutation-report-*.jsonl --json mutation-performance.json | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload the performance summary
+        uses: actions/upload-artifact@v7
+        with:
+          name: mutation-performance-batch-${{ inputs.mutation_batch }}
+          path: mutation-performance.json
+          if-no-files-found: warn
+
+  coverage-diagnostics:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.coverage_diagnostics == true }}
+
+    runs-on: ubuntu-latest
+    name: mutation coverage diagnostics
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Report executable lines no oracle module executes
+        shell: bash
+        env:
+          TARGETS: ${{ inputs.coverage_targets }}
+        run: |
+          set -o pipefail
+          # shellcheck disable=SC2086
+          python -m tests.mutation_coverage report --json coverage-report.json $TARGETS | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload the coverage report
         if: ${{ always() }}
         uses: actions/upload-artifact@v7
         with:
-          name: mutation-evidence-batch-${{ inputs.mutation_batch }}-shard-${{ matrix.shard }}
-          path: mutation-report-batch-${{ inputs.mutation_batch }}-shard-${{ matrix.shard }}.jsonl
+          name: mutation-coverage-report-${{ github.sha }}
+          path: coverage-report.json
           if-no-files-found: warn
 
   hosted-diagnostics:

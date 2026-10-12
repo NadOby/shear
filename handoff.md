@@ -1,91 +1,111 @@
 # Handoff
 
-Read `CLAUDE.md`, the Workflow and D3/D4 sections of
-`docs/roadmap.md`, `docs/hosted_pipeline.md` and `docs/hosted_bootstrap.md`.
-Verify this checkpoint against GitHub before relying on it.
+Read `CLAUDE.md`, the Workflow section of `docs/roadmap.md`, issue #95 and
+`docs/verification_hardening.md` sections 10 and 15. Verify this checkpoint
+against GitHub and the repository before relying on it.
 
 ## Current state
 
-- Task: 30 – Hosted-bootstrap pipeline. Issue: #66. PR: #98.
-- Branch: `task/30-hosted-bootstrap`; protected Plan head `fbbb32379c327c1e29f5646e89d30fd1bb8a8084`.
-- Role: Publish (PR opened); two independent Reviews accepted
-  `248a5e1` (full 16-shard mutation campaign green). Waiting for the owner to merge.
-
-`docs/hosted_pipeline.md` is authoritative. This handoff is a checkpoint,
-not evidence.
+- Task: #95 – mutation testing reliability and performance. Execute, without
+  a separate Plan (the owner allowed it).
+- Branch: `workflow/mutation-reliability`, on `main` at `0994e70`.
+- Role: Execute done; waiting for an independent Review. This session does
+  not certify its own work.
 
 ## What was built
 
-- `shear/examples/compiler_source.py`: the one SHEAR compiler (`lower_op`
-  core, `lower` expanded, `compile_node` node-aware, with `catch`/`raise`).
-- `shear/hosted_bootstrap/`: seed and manifest, generations 1–3, descriptors,
-  structural validation, artifacts and resolver, target, session, command,
-  trace, diagnostics. Module map: `docs/hosted_bootstrap.md`.
-- `machine.run(..., resolver=)`: optional per-run chunk source. Unchanged
-  behaviour without it.
-- Removed: `shear/execution_route_spike.py`, `tests/test_execution_route.py`,
-  its workflow job. Added a `hosted_diagnostics` dispatch input and job.
+- `tests/mutation_verdict.py` (new): the status-file protocol and `classify`.
+  Outcomes `killed`, `timeout`, `resource_kill`, `abnormal_exit`, `survived`;
+  only a failing test is a kill.
+- `tests/mutation_oracle.py`: `--status`, `--limit` (watchdog, also while
+  test modules import), `--first` (module order); a module that fails to
+  import with any exception is a failed test; no-argument `main()`/`suite()`
+  still work.
+- `tests/mutation_reporting.py`, `tests/mutation_campaign.py`: run the oracle
+  with the protocol, limit `max(180, 3 x baseline)`, untimed baseline, report
+  new outcomes and counts, skip reviewed survivors (`rerun_classified`),
+  replay prints the outcome. The legacy 3-argument `_execute_one` path is kept
+  for the existing tests.
+- `tests/mutation_coverage.py` (new): coverage map (`sys.monitoring`, one
+  traced process per oracle module, opaque-module detection, tree
+  fingerprint), ordering, and a non-gating report.
+- `tests/mutation_performance.py` (new): campaign summary from reports.
+- `.github/workflows/semantic-model.yml`: plan job builds the map (failure
+  only costs speed), shards download it, per-shard and campaign summaries,
+  inputs `mutation_revalidate`, `coverage_diagnostics`, `coverage_targets`.
+- Tests: `test_mutation_verdict`, `test_mutation_outcomes` (real subprocesses
+  over a fixture oracle), `test_mutation_coverage`,
+  `test_mutation_performance`; all in the `mutation` lane.
+- Docs: `docs/verification_hardening.md` section 10 (outcomes, ordering,
+  revalidation, accepted and rejected optimizations, numbers) and 15;
+  `CHANGES.md`.
 
-## Verification performed
+## Pins and revalidation
 
-- `python3 -m tests.lanes --all`: all 8 lanes ok locally (Python 3.13);
-  CI on 3.12 passed for `1b77784` and `7c99964`.
-- Protected Plan tests pass unmodified. Golden changes are exactly the three
-  declared (`programs/compiler`, `programs/bootstrap`, `programs/instrument`).
-- `tests/test_hosted_bootstrap.py` (Execute-owned) compares the SHEAR
-  compiler's chunk with `bytecode.lower` for every supported node of every
-  corpus program, and covers bad admission evidence, seed manifest, the
-  resolver hook and trace deduplication.
-- Diagnostics: 5-repeat local run recorded in `docs/hosted_bootstrap.md`;
-  CI dispatch at `7c99964` and push run at `1b77784` succeeded.
+- The engine `tests/mutation.py` and every target source are unchanged, so
+  the engine blob pin (`cf45fbb`) and all 156 classifications stay valid; no
+  repin, no revalidation was needed. Any later engine edit needs
+  `SHEAR_MUTATE_REVALIDATE=1` for one campaign.
 
-## Edits to Plan-owned or existing files (call-outs)
+## Evidence
 
-- `tests/lanes.py` (Plan-owned): registered `test_hosted_bootstrap`; removed
-  `test_execution_route`.
-- Existing tests edited to follow the compiler: `test_self_hosting.py`,
-  `test_bootstrap_boundary.py` (catch/raise now lowered),
-  `test_vm.py` (one size check now compiles `lower_op`, since `lower` is
-  small), `content_baseline_evidence.py` (compiler file path),
-  `docs/bootstrap.md`.
-- `shear/examples/vm.py`: swaps `named_tail`, `child`, `lower_op`; derives
-  retained-source links from the compiler instead of a hand-written table.
-- No other Plan-owned file changed.
+- Local 76-mutant sample (`SHEAR_MUTATE=2`, seed 1), before on `main` vs
+  after: wall 2156 s to 655 s, CPU 4103 s to 1024 s (+149 s once for the
+  map), mean kill 31.7 s to 6.7 s (4.7 times; the 5 times aim was narrowly
+  missed). Outcomes identical for 75 of 76; the hanging `reconcile.py` mutant
+  was "killed" after 900 s and is now `timeout` after 440 s.
+- Regression tests were checked against planted bugs (timeout counted as a
+  kill, status file ignored, baseline timed, pinned survivors re-run, `--first`
+  ignored, uncertain modules dropped, opaque detection off, stale map
+  accepted, watchdog off, import errors uncaught): each is caught.
+- De-duplicating mutants by compiled code: 223 of 4056 sites (5.5 %).
+- CI, 150 per target, seed 1, 16 shards: `main` (run 38184400290) vs this
+  branch (run 38192089614): slowest shard 65.2 to 13.3 min, total 724 to 151
+  shard-minutes; 2533 kills in both branch runs, 97 reviewed survivors not
+  run, 16 timeouts. The first branch run failed in shards 6 and 9 on two
+  `abnormal_exit` mutants (MemoryError escaping the runner): fixed with a
+  regression test. 12 hung mutants were ~79 % of campaign time, hence the
+  per-test budget.
+- Python 3.14: exhaustive campaign (4056 mutants, `mutation_revalidate`, run
+  38193089999) succeeded: the survivor catalog holds under 3.14. CI not moved.
+- De-duplicating mutants by compiled code: 223 of 4056 sites (5.5 %).
 
-## Provisional choices (Review to examine)
+## Edits to existing tests (call-outs)
 
-- Descriptor `(operands, (state_id, node, version, owner))`; `LIT` operand
-  kept canonical, other identities decoded.
-- Nodes of kinds the compiler does not lower (`activate`, `function`,
-  `quote`, `trial`, `unquote`) are recorded as `reject` and fail closed at run.
-- Any state change makes all artifacts stale; `prepare` again.
-- Execute events record first use per artifact.
-- Admission checks origin and structure only, not compiler correctness.
+- `tests/test_mutation_campaign.py`: `test_exact_replay_runs_resolved_mutant`
+  became `..._and_reports_its_outcome` (replay returns an outcome, not a bool).
+- `tests/test_mutation.py`: uses the timed baseline, the mutant limit, the
+  optional map and revalidation, and asserts there are no abnormal exits.
+- `tests/lanes.py`: registers the four new test modules.
 
-## Mutation decisions
+## Provisional choices for Review
 
-- New targets: `compiler_source.py` and every `hosted_bootstrap` module
-  except `__init__`, `__main__`, `errors`, `diagnostics` (omissions justified
-  in `tests/mutation_catalog.py`). Repins of `self_hosting.py`, `vm.py` and
-  `machine.py` are confirmed by the green campaign.
-- Mutants of `compiler_source.py` all die at the manifest check; behavioural
-  coverage rests on the differential test.
-- The oracle owns its 900 s limit and a 3 GiB address-space cap; the engine
-  `tests/mutation.py` is unchanged. A mutant that times out counts as killed (#95).
+- Per-test budget `max(30 s, 10 x baseline)`: a test over it is reported as a
+  non-failing `timeout` (owner accepted this as Provisional after Review; the
+  question stays open in #103). A mutant that slows one test tenfold but would
+  still pass is no longer an unclassified survivor. Replay has no such budget.
+  Say if an unexplained timeout should fail a campaign instead.
+- Cost-aware sharding (#51) dropped: imbalance is unchanged and comes from
+  hangs. Suggest closing #51 as not planned.
+- Workflow input `python_version` (default 3.12) exists so an exhaustive
+  campaign can be run on 3.14 (#53); CI is not moved.
+- An `abnormal_exit` fails a campaign; a `timeout` and a `resource_kill` are
+  reported but do not (owner decision wanted if this is too lax).
+- Reviewed survivors are not re-run by default.
+- Coverage map: "uncertain" modules (those that start processes or fail) run
+  right after the covering ones; nothing is ever skipped.
 
 ## Known limitations
 
-- Cross-activation reuse and live evolution: Task 31 (#67).
-- Generation ancestry is witnessed for function bodies only; events record
-  first use of an artifact; recorded timings predate the last fixes.
+- A hang is still bounded only by 3 x baseline (about 8 minutes on CI).
+- The map needs Python 3.12+ and costs one traced run of every oracle module.
+- Engine-level ideas (fork per mutant, de-duplication) are not done.
 
-## Follow-ups (not part of Task 30)
+## Follow-ups
 
-- #94: maintainability of oversized production modules.
-- #95: coverage diagnostic and faster mutation campaign.
-- #96: split `tests/test_hosted_bootstrap.py`.
-- #97: record the per-example operation inventory.
+- #101 CI replay (filed). #51: suggest closing as not planned (comment
+  posted). #53: evidence posted, owner decides moving CI. #49 untouched.
 
 ## Next action
 
-The owner merges #98. Then Plan task 31 (#67) in a fresh chat.
+Independent Review of the PR for #95.

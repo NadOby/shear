@@ -38,6 +38,7 @@ from pathlib import Path
 
 from tests import mutation
 from tests import mutation_campaign
+from tests import mutation_coverage
 from tests import mutation_oracle
 from tests import mutation_reporting
 from tests.mutation_catalog import (
@@ -806,10 +807,13 @@ class SuiteMutationTests(unittest.TestCase):
 
         oracle = mutation_oracle.command()
 
-        baseline = mutation.baseline(
+        (
+            baseline,
+            baseline_seconds,
+            test_times,
+        ) = mutation_reporting.run_baseline(
             mutation.ROOT,
             oracle,
-            timeout=mutation_oracle.TIMEOUT_SECONDS,
         )
 
         self.assertEqual(
@@ -849,6 +853,25 @@ class SuiteMutationTests(unittest.TestCase):
                 )
             )
 
+        # An optional coverage map orders each mutant's run; it never changes
+        # which tests run. It must describe exactly this tree.
+        coverage_setting = os.environ.get("SHEAR_MUTATION_COVERAGE")
+        coverage = (
+            mutation_coverage.load(
+                Path(coverage_setting),
+                mutation.ROOT,
+            )
+            if coverage_setting
+            else None
+        )
+
+        # A reviewed survivor is not run again (its pinned review is current,
+        # and it cannot fail the campaign) unless this asks for revalidation.
+        revalidate = os.environ.get(
+            "SHEAR_MUTATE_REVALIDATE",
+            "",
+        ) not in ("", "0", "false")
+
         result = mutation_reporting.run_campaign(
             mutation.ROOT,
             work,
@@ -864,7 +887,20 @@ class SuiteMutationTests(unittest.TestCase):
                 "selected_unsharded": len(
                     full_work
                 ),
+                "baseline_seconds": baseline_seconds,
+                "slowest_baseline_tests": sorted(
+                    test_times.items(),
+                    key=lambda item: -item[1],
+                )[:5],
             },
+            options=mutation_reporting.RunOptions(
+                limit=mutation_oracle.mutant_limit(
+                    baseline_seconds
+                ),
+                coverage=coverage,
+                rerun_classified=revalidate,
+                test_times=test_times,
+            ),
         )
 
         self.assertEqual(
@@ -875,6 +911,15 @@ class SuiteMutationTests(unittest.TestCase):
                 "equivalent, intentionally unspecified, or a semantic test "
                 "gap. Fix test gaps rather than classifying them. "
                 "The mutation report was completed before this failure."
+            ),
+        )
+        self.assertEqual(
+            result.abnormal_exits,
+            (),
+            (
+                "mutant runs ended without a verdict from the oracle, so "
+                "neither a kill nor a survivor can be claimed for them; "
+                "replay each with the command in the report."
             ),
         )
 

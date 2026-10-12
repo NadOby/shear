@@ -1824,3 +1824,41 @@ golden records or historical measurements changed.
 - Added six application-level canaries to `docs/corpus.md`, covering genetic programming, workflow evolution, simulations, adaptive agents, semantic tooling and DSLs.
 - Recorded comparison and falsification criteria, with genetic programming as the first proposed research experiment.
 - Kept these experiments Provisional and outside the committed roadmap.
+
+### Mutation outcomes and a faster campaign (#95)
+
+- A mutant that hangs, exhausts memory or ends without a verdict is no longer
+  counted as killed. The oracle writes a status file (`--status`, `--limit`,
+  `--first`); `tests/mutation_verdict.py` classifies each run as `killed`,
+  `timeout`, `resource_kill`, `abnormal_exit` or `survived`. An abnormal exit
+  fails the campaign; a timeout or resource kill is reported, not counted. A
+  mutant that breaks a test module's import is a failed test.
+- The mutant limit is `max(180 s, 3 x baseline)` instead of a fixed 900 s; the
+  baseline has no limit. Provisional: a test running longer than
+  `max(30 s, 10 x its baseline time)` is reported as a `timeout` at once
+  (hung mutants were 79 % of the CI campaign time). Memory exhaustion that
+  escapes the test runner is a `resource_kill`.
+- Optional coverage map (`tests/mutation_coverage.py`): modules that execute a
+  mutant's line run first, so only the order of a fail-fast run changes. Also
+  a non-gating report of executable lines no module executes.
+- Reviewed survivors are not run again unless `SHEAR_MUTATE_REVALIDATE=1`
+  (needed after any repin); a dispatched campaign turns it on by itself when
+  the engine or the survivor catalog differs from `main`. Shard jobs time out
+  after 120 minutes.
+- `tests/mutation_performance.py` summarizes reports; the workflow builds the
+  map once, prints per-shard and campaign summaries, and has dispatch inputs
+  `mutation_revalidate`, `coverage_diagnostics`, `coverage_targets`.
+- The engine `tests/mutation.py` is unchanged, so its pin and all survivor
+  classifications stay valid and nothing needed revalidation.
+- CI campaign (150 per target, 16 shards): slowest shard 65 to 13 min, total
+  724 to 151 shard-minutes. Cost-aware sharding (#51) not built; see
+  `docs/verification_hardening.md`.
+- Measured on a 76-mutant sample: wall 2156 s to 655 s, CPU 4103 s to 1024 s,
+  mean kill time 31.7 s to 6.7 s (4.7 times, short of the 5 times aimed for).
+  Rejected or deferred, with reasons, in `docs/verification_hardening.md`
+  section 10: skipping uncovered modules, a shared baseline, fork per mutant,
+  de-duplication (5.5 % of sites), Python 3.14 (#53).
+- Existing test edited, called out: `test_exact_replay_runs_resolved_mutant`
+  in `test_mutation_campaign.py` is now
+  `test_exact_replay_runs_resolved_mutant_and_reports_its_outcome`, because
+  replay now returns the outcome instead of a bare boolean.

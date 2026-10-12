@@ -403,6 +403,152 @@ and differ in selected mutant count by at most one. Every individual mutant
 still runs the complete semantic test suite, so sharding does not weaken the
 kill criterion.
 
+### Mutant outcomes
+
+**Decided:**
+
+A mutant run ends in one of five outcomes, and only a failing test is a kill.
+The oracle (`tests/mutation_oracle.py`) writes a small status file
+(`--status`) that `tests/mutation_verdict.py` defines and the campaign reads:
+
+- `killed`: a test failed or errored;
+- `timeout`: the run reached its limit (`--limit`, enforced by a watchdog in
+  the oracle that also covers hangs while test modules import), so nothing was
+  noticed in time;
+- `resource_kill`: the first failure was `MemoryError` from the oracle's
+  address-space cap;
+- `abnormal_exit`: the process ended without a usable verdict, or the verdict
+  contradicts the exit status;
+- `survived`: every test passed.
+
+A timeout, resource kill or abnormal exit is reported as such (with the test
+running at the time) and is not counted as a kill. An unclassified survivor or
+an abnormal exit fails the campaign; a timeout or resource kill is reported
+but does not fail it, because a hang or memory exhaustion is a legitimate
+effect of some mutants that no test is expected to name. Before this change
+the engine counted a timeout as a kill, so one hanging mutant cost the full
+900 s and was reported as killed.
+
+A mutant's time limit is `max(180 s, 3 x the baseline run)`, not a fixed 900 s;
+the baseline run itself has no limit. The engine's own timeout is a backstop
+30 s longer, for a run that cannot report.
+
+A mutant that makes a test module fail to import (with any exception, not only
+`ImportError`) is a failing test, not a crash. Memory exhaustion that escapes
+the test runner is a `resource_kill`, not an abnormal exit.
+
+**Provisional:**
+
+The baseline records how long each test takes, and a mutant
+run reports `timeout` as soon as one test runs longer than
+`max(30 s, 10 x its baseline time)` (`--times`), instead of waiting for the run
+limit. On CI the 12 hung mutants of a 2646-mutant campaign were about 79 % of
+the campaign time at the 3 x baseline limit. The cost is a narrow gap: a mutant
+that makes one test at least ten times slower but would still finish and pass
+is reported as a non-failing `timeout` where it used to be an unclassified
+survivor. Every timeout is printed with the test it stopped in and a `replay`
+command, and replay does not apply the per-test budget. The baseline's slowest
+tests are recorded in the report's `campaign_start` event, so a test that
+becomes slow is visible there.
+
+### Coverage-ordered runs and the coverage diagnostic
+
+**Provisional:**
+
+`python -m tests.mutation_coverage build --out map.json` runs each oracle
+module once in its own process under `sys.monitoring` and records which lines
+of the mutation targets it executes. A campaign given the map
+(`SHEAR_MUTATION_COVERAGE=<path>`) runs, for each mutant, the modules that
+execute its line first, then the modules that might (those that start
+processes, whose lines the tracer cannot see, or that did not run cleanly),
+then the rest. The oracle still runs every module and stops at the first
+failure, so only the order changes and the outcome of a mutant does not. The
+map carries a fingerprint of every file under `shear/` and `tests/` and a
+campaign refuses a map that does not match its tree; CI builds it once in the
+plan job and the shards download it. Without a map the default order runs.
+
+`python -m tests.mutation_coverage report [target prefixes]` (workflow input
+`coverage_diagnostics`) lists the executable lines of the targets that no
+module executes. It is a diagnostic and gates nothing; lines it lists may
+still be reached by the modules that start processes.
+
+`python -m tests.mutation_performance mutation-report-*.jsonl` summarizes
+reports as one campaign: wall time (slowest shard), CPU time (sum), outcomes,
+kill-time distribution and in which stage mutants died. The workflow prints it
+per shard and for the whole campaign.
+
+### Reviewed survivors are not run again
+
+**Decided:**
+
+A survivor whose classification is current (its target and the engine match
+their pins, which a campaign checks before it starts) cannot fail the campaign
+and costs a whole oracle run. A campaign therefore reports it as `pinned, not
+run` and does not execute it. `SHEAR_MUTATE_REVALIDATE=1` (workflow input
+`mutation_revalidate`) runs them anyway; it is required after repinning a
+target or the engine, since a changed review is exactly when a reviewed
+survivor might now be killed or might no longer survive. Replay always runs
+the mutant.
+
+### Accepted and rejected optimizations
+
+Measured on one local campaign: 76 mutants (`SHEAR_MUTATE=2`, seed 1, one
+shard, two workers; 7 of them reviewed survivors), same tree apart from the
+change. Wall time is the elapsed time of the whole test command, CPU the
+children's user plus system time.
+
+| | before | after |
+| --- | --- | --- |
+| wall | 2156 s | 655 s |
+| CPU | 4103 s | 1024 s (+149 s once for the coverage map) |
+| mean kill time | 31.7 s (excluding the hang) | 6.7 s |
+| median kill time | 4.5 s | 0.8 s |
+| hanging mutant | 900 s, "killed" | 440 s, `timeout` |
+| outcomes | 69 killed, 7 reviewed survivors | the same, except the hanging mutant is `timeout` |
+
+The same change on CI (`mutation_count` 150, seed 1, 16 shards, 2646
+mutants; before = `main`, after = this branch): slowest shard 65.2 min to
+13.3 min, median shard 48.3 min to 9.4 min, all shards 724 to 151
+shard-minutes. 2533 kills, 97 reviewed survivors not run and 16 mutants that
+were not killed (all `timeout`) in every run, so the per-test budget cost no
+kill: before it the same 16 were 12 timeouts, 2 resource kills and 2 abnormal
+exits. Shard balance did not change (slowest over
+median 1.35 before, 1.38 after), so cost-aware sharding (#51) was not built:
+the imbalance comes from the hung mutants, and a better assignment would save at
+most a few minutes while needing per-mutant cost history that a fresh run does
+not have and breaking the plain round-robin that replay relies on.
+
+The mean kill time fell 4.7 times; the aim was 5 times, so the target was
+narrowly missed and the change is kept because it also removes the survivor
+re-runs and bounds hangs. 65 of 68 kills were found in the modules that
+execute the mutant's line.
+
+- Accepted: the outcome protocol (correctness); the 3 x baseline limit
+  (a hang costs 440 s here instead of 900 s); coverage ordering (mean kill time
+  31.7 s to 6.7 s); not re-running reviewed survivors (7 runs of about 140 s,
+  roughly 980 s of the 4103 s CPU); the performance summary.
+- Rejected: skipping modules that do not execute the mutant's line. Five oracle
+  modules start processes whose lines the tracer cannot see, so "uncovered"
+  cannot be proven for every line, and skipping would change kill decisions.
+  Ordering gets most of the benefit without that risk.
+- Rejected: a shared baseline for all shards. Each shard still has to show its
+  own runner is healthy; the baseline is about 150 s per shard.
+- Rejected for now: fork-per-mutant and de-duplicating mutants that compile to
+  the same code. Over all 4056 sites 223 (5.5 %) compile to the same code as
+  another mutant and none to the original, a small saving that needs an engine
+  change, and any engine change repins and revalidates every reviewed
+  survivor. If an engine change is ever needed, group these with it.
+- Not decided here: moving CI to Python 3.14 (#53). A local sample ran about
+  15 % faster. The confirming exhaustive campaign (all 4056 mutants, reviewed
+  survivors re-run, workflow input `python_version` 3.14) succeeded with no
+  unclassified survivor, so the survivor catalog holds under 3.14; moving CI
+  itself is a separate change.
+
+Limitations: the coverage map costs one traced run of every oracle module
+(about 76 s wall, 149 s CPU here) per campaign; it needs Python 3.12 or newer;
+a timeout is bounded by 3 x the baseline, so a campaign with many hangs is
+still slow; the map cannot see code that child processes run.
+
 ### Survivor identity
 
 A reviewed survivor has a compact site key:
@@ -688,3 +834,16 @@ Moved from CLAUDE.md's Testing section; no rule changed.
   workflow dispatch; ordinary PR CI keeps the deterministic default budgets.
   Mutation campaign shards publish their JSONL evidence as workflow artifacts,
   including when a shard fails after finding unclassified survivors.
+- Mutant outcomes, the time limit, coverage ordering and the coverage and
+  performance diagnostics are described in section 10. Commands:
+
+      python3 -m tests.mutation_coverage build --out map.json
+      SHEAR_MUTATE=2 SHEAR_MUTATION_COVERAGE=map.json \
+          python3 -m tests.test_mutation
+      python3 -m tests.mutation_coverage report shear/reconcile.py
+      python3 -m tests.mutation_performance mutation-report-*.jsonl
+
+  `SHEAR_MUTATE_REVALIDATE=1` runs reviewed survivors too; use it after any
+  repin. A dispatched campaign turns it on by itself when `tests/mutation.py`
+  or `tests/mutation_catalog_data/` differs from `main`. The dispatch inputs `mutation_revalidate`, `coverage_diagnostics` and
+  `coverage_targets` do the same in CI.
