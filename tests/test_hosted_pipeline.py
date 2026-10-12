@@ -664,5 +664,57 @@ class CommandTests(unittest.TestCase):
         )
 
 
+class LiveDiagnosticsTests(unittest.TestCase):
+    """The live evolution measurements (live_evolution.md section 7) run once
+    with one repeat; no number is asserted, only that they ran and left
+    nothing patched."""
+
+    def test_the_live_measurements_run_once_and_restore_what_they_wrap(self):
+        from shear.hosted_bootstrap import live_diagnostics
+        from shear.hosted_bootstrap.target import HostedTarget
+        from shear.instructions import INSTRUCTIONS
+        from shear.runtime import Runtime as Rt
+
+        wrapped = (
+            Rt.activate, HostedTarget.candidate, HostedTarget._produce,
+            HostedTarget._admit, HostedTarget._reuse,
+            machine._define_for_operation, dict(INSTRUCTIONS),
+        )
+
+        result = live_diagnostics.measure(1, (2,), 1)
+
+        self.assertEqual(
+            wrapped,
+            (
+                Rt.activate, HostedTarget.candidate, HostedTarget._produce,
+                HostedTarget._admit, HostedTarget._reuse,
+                machine._define_for_operation, dict(INSTRUCTIONS),
+            ),
+        )
+
+        valid = result["updates"]["valid"]
+        rejected = result["updates"]["rejected"]
+
+        for phase in live_diagnostics.PHASES:
+            self.assertEqual(len(valid[phase]["observations"]), 1)
+            self.assertEqual(len(rejected[phase]["observations"]), 1)
+
+        self.assertEqual(len(valid["first_call_s"]["observations"]), 1)
+        self.assertNotIn("first_call_s", rejected)
+
+        # Only the changed nodes are compiled; every other node is reused.
+        self.assertGreater(valid["produced"][0], 0)
+        self.assertGreater(valid["reused"][0], 0)
+        self.assertEqual(rejected["reused"], [0])
+
+        # One loaded version and one retained set after either kind.
+        for record in (valid, rejected):
+            self.assertEqual(record["loaded_versions"], [1])
+            self.assertEqual(record["retained_sets"], [1])
+
+        self.assertEqual(result["peak_memory"]["retained_sets"], 1)
+        self.assertEqual(list(result["scaling_functions"]), ["6"])
+
+
 if __name__ == "__main__":
     unittest.main()

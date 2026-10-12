@@ -2,12 +2,15 @@
 (docs/hosted_pipeline.md section 10).
 
     python3 -m shear.hosted_bootstrap.diagnostics [--repeats N]
+        [--live-updates N] [--live-sizes N,N,...]
 
 Prints one JSON document: the environment, then separately timed phases.
 Timings are repeated, untraced observations; each phase reports every
 observation and their median. Different workloads are never combined into a
 ratio. Peak memory is a separate traced pass, so tracing never affects a
-timing. D4's targets are diagnostic only; nothing here asserts them.
+timing. D4's targets are diagnostic only; nothing here asserts them. The live
+evolution workloads (docs/live_evolution.md section 7) are in
+``live_diagnostics`` and printed under ``live``.
 """
 
 from __future__ import annotations
@@ -32,7 +35,7 @@ from ..reconcile import reconcile
 from ..relations import relation_of
 from ..runtime import Runtime
 from ..syntax import render_program
-from . import seed
+from . import live_diagnostics, seed
 from .descriptors import SUPPORTED_KINDS
 from .session import HostedSession
 
@@ -296,7 +299,11 @@ def peak_memory() -> dict[str, Any]:
     }
 
 
-def measure(repeats: int) -> dict[str, Any]:
+def measure(
+    repeats: int,
+    live_updates: int = 20,
+    live_sizes: tuple[int, ...] = live_diagnostics.SIZES,
+) -> dict[str, Any]:
     return {
         "environment": environment(),
         "repeats": repeats,
@@ -307,6 +314,7 @@ def measure(repeats: int) -> dict[str, Any]:
         },
         "small_edit": small_edit(repeats),
         "peak_memory": peak_memory(),
+        "live": live_diagnostics.measure(live_updates, live_sizes, repeats),
         "note": (
             "Workloads differ and are not combined into ratios. Task 23 "
             "and Task 29 measurements are historical and unchanged."
@@ -317,12 +325,29 @@ def measure(repeats: int) -> dict[str, Any]:
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(prog="python3 -m " + __spec__.name)
     parser.add_argument("--repeats", type=int, default=5)
+    parser.add_argument("--live-updates", type=int, default=20)
+    parser.add_argument(
+        "--live-sizes",
+        default=",".join(map(str, live_diagnostics.SIZES)),
+        help="extra functions in each scaling image",
+    )
     arguments = parser.parse_args(argv)
 
-    if arguments.repeats < 1:
-        parser.error("--repeats must be positive")
+    try:
+        sizes = tuple(int(item) for item in arguments.live_sizes.split(","))
+    except ValueError:
+        parser.error("--live-sizes must be integers separated by commas")
 
-    json.dump(measure(arguments.repeats), sys.stdout, indent=2)
+    if arguments.repeats < 1 or arguments.live_updates < 1 or not all(
+        size >= 0 for size in sizes
+    ):
+        parser.error("--repeats and --live-updates must be positive")
+
+    json.dump(
+        measure(arguments.repeats, arguments.live_updates, sizes),
+        sys.stdout,
+        indent=2,
+    )
     sys.stdout.write("\n")
 
     return 0
