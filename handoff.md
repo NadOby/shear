@@ -9,7 +9,8 @@ against GitHub and the repository before relying on it.
 - Issue: #67 (`task`), roadmap task 31, live evolution on the bootstrap
   route. Follow-up opened by Plan: #115 (VM instructions).
 - Branch: `task/31-live-evolution`, from `main` at `4ed6e14`.
-- Role: Plan done, revised twice after Plan reviews (below). Next: Execute.
+- Role: Plan done, revised three times after Plan reviews (below); the
+  combined review of `51c9612` approved it after one test fix. Next: Execute.
 - Plan head: recorded under "Plan head" below. Review diffs the Plan-owned
   files from it.
 
@@ -127,6 +128,32 @@ On the P3 notes of the accepting review:
 - The shared-record hypothesis is now settled by the tests: separate
   admission records with a shared chunk are required (sections 4.2 and 4.3).
 
+## Combined review of `51c9612`
+
+The review approved the plan after one fix, and both points below were
+checked.
+
+- P2, verified test defect, fixed: in
+  `test_a_trial_of_the_active_state_has_its_own_set`, the loop variable
+  `artifact` kept a released trial record alive, so `assert_no_orphans`
+  would fail on a correct implementation. The cleanup now also deletes
+  `artifact` and `chunk`. The same was done for `artifact` in
+  `test_two_loaded_versions_of_one_state_have_separate_sets`. That one held
+  an active record, so it was harmless there, but the cleanup is now
+  uniform.
+- P3, Execute and Review checkpoint (no Plan change): candidate
+  compilation and admission must finish before `Runtime.activate` mutates
+  any live runtime state, not merely before `_active` changes. That means
+  before `kept._move(new)`, before `self._versions`, `self._active` and
+  `self._history` are assigned, and before `_retire_if_unused`. The same
+  holds in `Runtime.trial` before the isolated runtime is returned for
+  execution.
+- The earlier request to require a successful admission before an injected
+  failure was withdrawn. The `produce` requirement in
+  `test_a_failure_partway_through_a_candidate_leaves_nothing` stays: the
+  injection refuses an already produced chunk, so a `produce` event comes
+  first in every compilation order.
+
 ## State of the tests on the Plan head (Python 3.13)
 
 - The three new modules: 30 tests. All fail or error against the task-30
@@ -163,7 +190,9 @@ Implement live_evolution.md. Suggested order:
    - the reuse rule (4.3);
    - trial sets (4.2) and release at retirement (4.1);
    - cleanup after a failed attempt, and language rejections before any
-     compilation (3.2);
+     compilation (3.2); compilation and admission finish before
+     `Runtime.activate` mutates any live state (`kept._move(new)` included)
+     and before `Runtime.trial` returns the isolated runtime;
    - sets owned by `Version` objects, `retained_versions`,
      `admitted(version)`, the `reuse`/`release` events and
      `TraceEvent.source_artifact_id`.
@@ -227,7 +256,7 @@ live_evolution.md section 9, claims 1 to 7.
 
 ## Plan head
 
-`51c96128b80e6712e043deec93cbe76cbb290fbb`
-("GH-67 Change the task 31 contract and tests after the third Plan review").
-Earlier Plan heads: `82a6a69`, `f11706d`. Execute starts from the commit
-that records this file.
+`fc006f41a1185bb4d8c4743eb5146b163661563e`
+("GH-67 Fix a test reference that kept a released trial artifact alive").
+Earlier Plan heads: `82a6a69`, `f11706d`, `51c9612`. Execute starts from
+the commit that records this file.
