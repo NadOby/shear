@@ -287,13 +287,13 @@ Roles checked and not found:
 
 **Open:**
 
-For the `ref` values under the roadmap's Later. The owner's direction is a distinct `ref` value that is transferred at
-activation along declared continuity and pins the old version when its
-target disappears. With a `StateID` in the reference, pinning is a hold on
-the runtime version of that state (activation_model.md sections 6 and 7),
-which `Runtime.keep` already does for model references, and transfer derives
-the new version from the destination. The version stays redundant in that
-design.
+This part concerns the `ref` values under the roadmap's Later. The owner's
+direction is a distinct `ref` value that is transferred at activation along
+declared continuity and pins the old version when its target disappears.
+With a `StateID` in the reference, pinning is a hold on the runtime version
+of that state (activation_model.md sections 6 and 7), which `Runtime.keep`
+already does for model references, and transfer derives the new version from
+the destination. The version stays redundant in that design.
 
 It carries information only if one of these premises changes, and each is a
 decision for the `ref` design:
