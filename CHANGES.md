@@ -1881,3 +1881,20 @@ golden records or historical measurements changed.
 - Documentation only. `docs/syntax_notes.md` gains a short Provisional note that a language server is a client of the compiler and VM, and its view-editing statements now say IR and machine-code views are read-only without a defined reverse transformation.
 - `docs/corpus.md`: the "Semantic development tools" canary gets a two-stage language-server experiment (powered by SHEAR, then written in SHEAR) with a falsifiable comparison.
 - `docs/roadmap.md`: the Later bullet points at it as part of the IDE tooling deferred until after hosted bootstrap. Not a Task 31 requirement.
+
+### Endpoint arity audit (task 21, GH-58)
+
+- Audit only, no change under `shear/`. `docs/relation_model.md` §2 "Endpoint
+  arity" classifies one endpoint versus a one-element tuple per family:
+  redundant but retained for language relations (Provisional), semantically
+  required for kinds the core does not interpret, since constraints observe
+  it (Decided), and without meaning for a tuple where the language expects one
+  entity (Open, #110). It lists every reader with its category.
+- `tests/test_endpoint_arity.py` (lane `cross-boundary`) pins the record
+  distinction, the declared arity of every language relation across both
+  corpora and their runs, and how a constraint sees a one-element tuple role.
+  It fails on an undeclared role or an unclassified kind. Three planted bugs
+  are each caught.
+- Follow-ups: #110 (tuple link targets and `function` roles fail closed),
+  #111 (a code literal holding a constraint makes its node a constraint
+  relation; found along the way, not about arity).
