@@ -9,11 +9,26 @@ this checkpoint against GitHub and the repository before relying on it.
 - Task: #58, task 21: endpoint arity audit.
 - Branch: `task/21-endpoint-arity`, from `main` at `a852714`.
 - Plan head: `41cd145`.
-- Role: Execute done; PR #112 is open. Waiting for an independent Review
-  in a fresh chat.
+- Role: Resolve done after the first Review of PR #112. That Review, in a
+  separate context, found no blocking defect and three P3 findings, all
+  fixed (below).
 - Plan and Execute ran in one chat, with the owner's permission. The
   evidence below therefore comes from one context and is a claim, not a
   certification. Review must re-derive it.
+
+## Review findings and fixes
+
+1. **P3, PR description held a session link.** Verified: the environment
+   appended a footer with the session URL. Fixed: the description was
+   rewritten without it.
+2. **P3, inventory omits `machine.py` (`LINKS`) and
+   `canonical.canonicalize`.** Verified. Fixed: relation_model.md §2 names
+   both, in their categories.
+3. **P3, the relation_model.md legend lacks Provisional.** Verified. Fixed:
+   added "current direction, not fully settled", the wording of
+   activation_model.md.
+
+No finding is unresolved.
 
 ## What Execute did
 
@@ -78,5 +93,5 @@ constraint test.
 
 ## Next action
 
-Review task 21 on PR #112, in a fresh chat. The roadmap entry already says
-Implemented (PR #112); Review rejects that if it does not accept the PR.
+A fresh Review pass on the fixes, or the owner merges PR #112. The roadmap
+entry already says Implemented (PR #112).
