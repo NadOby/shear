@@ -282,10 +282,31 @@ Also required:
   tree, revision `7f39921`; finding 3: trial-rejected updates added next to
   the injected, renamed "refused" ones. Finding 4 (reuse rule 4 has no
   witness, so removing it passes every test) stays a hypothesis; finding 5
-  needs a `follow-up` issue (reuse cost, text in the Resolve reply).
+  is follow-up issue #116 (reuse cost).
 - Provisional choices are listed in hosted_bootstrap.md section 6.
-- Follow-up candidate (not opened): reuse of unchanged nodes dominates
-  update latency and is linear in program size (hosted_bootstrap.md 4.1).
+
+## Second implementation review (`e037104`), and Plan's amendment
+
+Two reviews of `e037104` agreed that findings 1 to 3 are resolved, CI is
+green on `e037104`, and #116 covers the reuse cost. They differed on two
+points.
+
+- Deferred reclamation of a version that retires outside a run. The owner
+  accepted it on 2026-10-12. Plan recorded it as a Provisional exception in
+  live_evolution.md section 4.1, so it is no longer a deviation. Eager
+  release waits until a real host-held workload needs it.
+- P3, verified (pre-existing, now longer-lived): `HostedTarget.prepare()`
+  keeps its `_Production` records, with their chunks, in `_productions`
+  after admission. The candidate path deletes them, but prepare does not.
+  On the image, 228 records stay alive after the prepared version has
+  retired, for the target's whole life. The fix for Resolve is small: drop
+  each prepare-time production once it is admitted, as the candidate path
+  does, leaving the public `produce`/`admit` pair as it is. A regression
+  test should count the records after the prepared version retires. Not
+  blocking.
+
+Still open before Publish: the mutation campaign by workflow dispatch, and a
+fresh Review.
 
 ## Claims Review must verify independently
 
@@ -293,7 +314,7 @@ live_evolution.md section 9, claims 1 to 7.
 
 ## Plan head
 
-`3d58684faaac0d9360b83036005cc6d4059c1b6b`
-("GH-67 Fix the expected answers of the repeated-update lifetime test").
-Earlier Plan heads: `82a6a69`, `f11706d`, `51c9612`, `fc006f4`. Execute
-rebases onto the commit that records this file.
+`d76708ffbbd970ceed380d231ace0859a4d4fac1`
+("GH-67 Change live_evolution.md to record the accepted deferred reclamation";
+section 4.1 only). Earlier Plan heads: `82a6a69`, `f11706d`, `51c9612`,
+`fc006f4`, `3d58684`. Review diffs the Plan-owned files from this one.
