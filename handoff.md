@@ -1,111 +1,151 @@
 # Handoff
 
-Read `CLAUDE.md`, the Workflow section of `docs/roadmap.md`, issue #95 and
-`docs/verification_hardening.md` sections 10 and 15. Verify this checkpoint
-against GitHub and the repository before relying on it.
+Read `CLAUDE.md`, the Workflow section and task 21 of `docs/roadmap.md`,
+issue #58, and `docs/relation_model.md` §2 ("Endpoint arity") and §7. Verify
+this checkpoint against GitHub and the repository before relying on it.
 
 ## Current state
 
-- Task: #95 – mutation testing reliability and performance. Execute, without
-  a separate Plan (the owner allowed it).
-- Branch: `workflow/mutation-reliability`, on `main` at `0994e70`.
-- Role: Execute done; waiting for an independent Review. This session does
-  not certify its own work.
+- Task: #58, task 21: endpoint arity audit. One session.
+- Branch: `task/21-endpoint-arity`, from `main` at `a852714`.
+- Role: Plan done. Plan head: the commit that adds this file (check with
+  `git log -1 -- handoff.md`). Next: Execute.
 
-## What was built
+## Scope
 
-- `tests/mutation_verdict.py` (new): the status-file protocol and `classify`.
-  Outcomes `killed`, `timeout`, `resource_kill`, `abnormal_exit`, `survived`;
-  only a failing test is a kill.
-- `tests/mutation_oracle.py`: `--status`, `--limit` (watchdog, also while
-  test modules import), `--first` (module order); a module that fails to
-  import with any exception is a failed test; no-argument `main()`/`suite()`
-  still work.
-- `tests/mutation_reporting.py`, `tests/mutation_campaign.py`: run the oracle
-  with the protocol, limit `max(180, 3 x baseline)`, untimed baseline, report
-  new outcomes and counts, skip reviewed survivors (`rerun_classified`),
-  replay prints the outcome. The legacy 3-argument `_execute_one` path is kept
-  for the existing tests.
-- `tests/mutation_coverage.py` (new): coverage map (`sys.monitoring`, one
-  traced process per oracle module, opaque-module detection, tree
-  fingerprint), ordering, and a non-gating report.
-- `tests/mutation_performance.py` (new): campaign summary from reports.
-- `.github/workflows/semantic-model.yml`: plan job builds the map (failure
-  only costs speed), shards download it, per-shard and campaign summaries,
-  inputs `mutation_revalidate`, `coverage_diagnostics`, `coverage_targets`.
-- Tests: `test_mutation_verdict`, `test_mutation_outcomes` (real subprocesses
-  over a fixture oracle), `test_mutation_coverage`,
-  `test_mutation_performance`; all in the `mutation` lane.
-- Docs: `docs/verification_hardening.md` section 10 (outcomes, ordering,
-  revalidation, accepted and rejected optimizations, numbers) and 15;
-  `CHANGES.md`.
+Required, with no change under `shear/`:
 
-## Pins and revalidation
+1. Complete the inventory below: every reader in `shear/` of relation roles
+   or of the link table derived from them. Method: search `shear/` for
+   `.roles`, `.endpoints`, `with_endpoints`, `Endpoint`, `role_subject`,
+   `_decode_endpoint`, `.links` of a definition and the builder's `scope`.
+   Put each reader in one category (A–D).
+2. Replace the **Open** block of relation_model.md §2 "Endpoint arity" with
+   the result. Classify each family with a canonical marker (Decided or
+   Provisional), give the evidence by file and function, say whether each
+   prediction held, and give the corpus numbers.
+3. Append a `CHANGES.md` entry.
+4. Give the follow-up issue text below to the owner (or file it with write
+   access).
 
-- The engine `tests/mutation.py` and every target source are unchanged, so
-  the engine blob pin (`cf45fbb`) and all 156 classifications stay valid; no
-  repin, no revalidation was needed. Any later engine edit needs
-  `SHEAR_MUTATE_REVALIDATE=1` for one campaign.
+Not in scope: normalizing endpoints, a role schema for kinds, changing how
+tuple link targets are handled, or editing `operations.py`.
 
-## Evidence
+## Plan-owned files
 
-- Local 76-mutant sample (`SHEAR_MUTATE=2`, seed 1), before on `main` vs
-  after: wall 2156 s to 655 s, CPU 4103 s to 1024 s (+149 s once for the
-  map), mean kill 31.7 s to 6.7 s (4.7 times; the 5 times aim was narrowly
-  missed). Outcomes identical for 75 of 76; the hanging `reconcile.py` mutant
-  was "killed" after 900 s and is now `timeout` after 440 s.
-- Regression tests were checked against planted bugs (timeout counted as a
-  kill, status file ignored, baseline timed, pinned survivors re-run, `--first`
-  ignored, uncertain modules dropped, opaque detection off, stale map
-  accepted, watchdog off, import errors uncaught): each is caught.
-- De-duplicating mutants by compiled code: 223 of 4056 sites (5.5 %).
-- CI, 150 per target, seed 1, 16 shards: `main` (run 38184400290) vs this
-  branch (run 38192089614): slowest shard 65.2 to 13.3 min, total 724 to 151
-  shard-minutes; 2533 kills in both branch runs, 97 reviewed survivors not
-  run, 16 timeouts. The first branch run failed in shards 6 and 9 on two
-  `abnormal_exit` mutants (MemoryError escaping the runner): fixed with a
-  regression test. 12 hung mutants were ~79 % of campaign time, hence the
-  per-test budget.
-- Python 3.14: exhaustive campaign (4056 mutants, `mutation_revalidate`, run
-  38193089999) succeeded: the survivor catalog holds under 3.14. CI not moved.
-- De-duplicating mutants by compiled code: 223 of 4056 sites (5.5 %).
+`tests/test_endpoint_arity.py`, the one line in `tests/lanes.py`, and
+`docs/relation_model.md` outside the Open block named above. No golden
+declaration: no record should change. If the golden check reports a change,
+stop and return to Plan.
 
-## Edits to existing tests (call-outs)
+## Inventory (Plan's claims to verify)
 
-- `tests/test_mutation_campaign.py`: `test_exact_replay_runs_resolved_mutant`
-  became `..._and_reports_its_outcome` (replay returns an outcome, not a bool).
-- `tests/test_mutation.py`: uses the timed baseline, the mutant limit, the
-  optional map and revalidation, and asserts there are no abnormal exits.
-- `tests/lanes.py`: registers the four new test modules.
+- **A. Representation (keeps the two forms apart):**
+  `relations._normalize_endpoint`, `Relation.canonical_node`,
+  `relation_of`/`_decode_endpoint`, `canonical.canonicalize`.
+- **B. Flatten (arity-blind):**
+  - `Relation.endpoints`; `with_endpoints`, which keeps the shape;
+    `check_relation_endpoints`; `relation_index`;
+  - `transforms` (`_follow_relation_endpoints`, `_validate_relation_rewrites`,
+    `rebase`); `runtime._failed_constraint_relation` (`touching`);
+  - `matching._items` (in `shapes` and `match.pair`); `continuity._operands`;
+    `fold` (`children`); `lang._subtree`;
+  - `hosted_bootstrap.seed`; `hosted_bootstrap.validation._endpoints`.
+- **C. Assume the declared arity (code relations):**
+  - `bytecode.lower` and `_lower_activation`; `lang._collapse`;
+    `lang._read_definition`; `fold` role reads;
+  - `hosted_bootstrap.descriptors._operands`, which splices ordered roles,
+    so the self-hosted compiler never sees a role;
+  - `validation` `_COUNTED`, which calls `len` on the role.
+- **D. Branch on arity:**
+  - `relations.role_subject`: a tuple role becomes a tuple of contents in a
+    constraint subject. Semantic.
+  - Link targets:
+    - `_Builder.resolve` raises "does not name a single entity", untested;
+    - the machine's `LINKS` omits tuple targets, as documented in
+      vm_in_shear §1;
+    - `syntax.printer` omits them silently, so the text round trip drops
+      the link;
+    - `reconcile` compares link targets exactly.
+  - A links relation's `function` role:
+    - `load` finds the relation through the flattened index, so
+      `function: (f,)` loads and runs;
+    - `define` (`_edits_of`) and `reconcile` (`_input_links`) reject it;
+    - the parser's `_merge` ignores it.
 
-## Provisional choices for Review
+## Evidence so far
 
-- Per-test budget `max(30 s, 10 x baseline)`: a test over it is reported as a
-  non-failing `timeout` (owner accepted this as Provisional after Review; the
-  question stays open in #103). A mutant that slows one test tenfold but would
-  still pass is no longer an unclassified survivor. Replay has no such budget.
-  Say if an unexplained timeout should fail a campaign instead.
-- Cost-aware sharding (#51) dropped: imbalance is unchanged and comes from
-  hangs. Suggest closing #51 as not planned.
-- Workflow input `python_version` (default 3.12) exists so an exhaustive
-  campaign can be run on 3.14 (#53); CI is not moved.
-- An `abnormal_exit` fails a campaign; a `timeout` and a `resource_kill` are
-  reported but do not (owner decision wanted if this is too lax).
-- Reviewed survivors are not re-run by default.
-- Coverage map: "uncertain" modules (those that start processes or fail) run
-  right after the covering ones; nothing is ever skipped.
+Measured on `main` `a852714` with Python 3.13.
 
-## Known limitations
+- **Probes:**
+  - `{r: a} != {r: (a,)}`, with different `VersionID`s.
+  - A call through a `(g,)` link raises `LanguageError`; `linksof` omits the
+    link; `render_program` drops it.
+  - `matching.shapes` gives a one-argument `call` the same shape number with
+    `args: x` and with `args: (x,)`.
+  - `Role("r", IntRange(0, 9))` over cell content 5 is Satisfied for
+    `{r: c}` and Violated for `{r: (c,)}`.
+  - `load` accepts `function: (f,)`; `define` rejects it.
+- **Corpus:** 127 steps; 70 entities created by runs; 4134 role values in
+  post-run states, 293 of them one-element tuples, all of the declared
+  arity. Every kind that has roles appears, except `links` after loading,
+  since `load` removes links relations.
+- **Planted bugs:** each makes `test_endpoint_arity` fail:
+  - a one-argument `call` storing one endpoint;
+  - `activate` with one target storing one endpoint;
+  - `role_subject` flattening a one-element tuple.
+- **Runs:** `cross-boundary` lane with the new module: 210 tests, about 52 s,
+  OK.
 
-- A hang is still bounded only by 3 x baseline (about 8 minutes on CI).
-- The map needs Python 3.12+ and costs one traced run of every oracle module.
-- Engine-level ideas (fork per mutant, de-duplication) are not done.
+## Acceptance
 
-## Follow-ups
+- `tests/test_endpoint_arity.py` passes unchanged; the full suite and the
+  golden check pass; `git diff main -- shear/` is empty.
+- The relation_model section classifies each family with a canonical marker,
+  file-and-function evidence and the prediction outcomes.
+- The inventory is complete under the stated method.
 
-- #101 CI replay (filed). #51: suggest closing as not planned (comment
-  posted). #53: evidence posted, owner decides moving CI. #49 untouched.
+## Claims Review must verify independently
+
+1. Nothing under `shear/` changed.
+2. The inventory is complete: re-derive it with the stated method.
+3. Within one kind and role of a language relation, no reader branches on
+   arity. Category D's link items concern a tuple where one endpoint is
+   expected, which the language never builds.
+4. The acceptance tests are not vacuous: re-plant at least one of the bugs
+   above.
+5. Each family's status follows from the evidence: required where a reader
+   observes the distinction with no other carrier, retained where it is
+   derivable but kept for uniform readers.
+
+## Provisional choices (Plan)
+
+- Link-target role arities live in a test-local table (`LINK_TARGET_ROLES`),
+  not in `operations.Shape`, so there is no production change. The test
+  fails closed: an undeclared role, or a relation kind in a corpus state
+  that `declared()` does not classify, fails it.
+- The new module runs in the `cross-boundary` lane, because it runs both
+  corpora.
+
+## Owner decision (non-blocking)
+
+Keep `test_endpoint_arity` permanently (recommended: about 2.5 s; it guards
+the arity assumption that matching, lowering and `function_at` rely on), or
+use it once as audit evidence and keep only the constraint test.
+
+## Follow-up issue (`follow-up` label)
+
+Title: "Fail closed on a tuple link target or links `function` role".
+
+Body: A links relation may hold a tuple where the language expects one
+entity, which only the Python API can build, and consumers disagree:
+- `_Builder.resolve` raises when the link is used;
+- `linksof` and `render_program` omit the link silently;
+- `load` accepts `function: (f,)` while `define` and `reconcile` reject it.
+
+Pick one rule, for example that `load` and `define` reject it as they reject
+a second links relation, and test it. Found in task 21 (#58).
 
 ## Next action
 
-Independent Review of the PR for #95.
+Execute task 21.
