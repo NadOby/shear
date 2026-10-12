@@ -1842,7 +1842,9 @@ golden records or historical measurements changed.
   mutant's line run first, so only the order of a fail-fast run changes. Also
   a non-gating report of executable lines no module executes.
 - Reviewed survivors are not run again unless `SHEAR_MUTATE_REVALIDATE=1`
-  (needed after any repin).
+  (needed after any repin); a dispatched campaign turns it on by itself when
+  the engine or the survivor catalog differs from `main`. Shard jobs time out
+  after 120 minutes.
 - `tests/mutation_performance.py` summarizes reports; the workflow builds the
   map once, prints per-shard and campaign summaries, and has dispatch inputs
   `mutation_revalidate`, `coverage_diagnostics`, `coverage_targets`.

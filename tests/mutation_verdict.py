@@ -14,8 +14,8 @@ mutant run can end, which the process exit status alone cannot:
 
 Only a failing test is evidence that the suite catches a mutant. A timeout,
 a resource kill or an abnormal exit is reported as such and never counted as a
-kill, but it does not fail a campaign by itself; only an unclassified survivor
-does. The engine (``tests/mutation.py``) is deliberately not involved, so its
+kill. A timeout or a resource kill does not fail a campaign; an unclassified
+survivor or an abnormal exit does. The engine (``tests/mutation.py``) is deliberately not involved, so its
 version pin and the reviewed survivor classifications stay valid.
 """
 

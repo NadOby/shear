@@ -844,5 +844,6 @@ Moved from CLAUDE.md's Testing section; no rule changed.
       python3 -m tests.mutation_performance mutation-report-*.jsonl
 
   `SHEAR_MUTATE_REVALIDATE=1` runs reviewed survivors too; use it after any
-  repin. The dispatch inputs `mutation_revalidate`, `coverage_diagnostics` and
+  repin. A dispatched campaign turns it on by itself when `tests/mutation.py`
+  or `tests/mutation_catalog_data/` differs from `main`. The dispatch inputs `mutation_revalidate`, `coverage_diagnostics` and
   `coverage_targets` do the same in CI.
