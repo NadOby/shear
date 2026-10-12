@@ -1862,3 +1862,16 @@ golden records or historical measurements changed.
   in `test_mutation_campaign.py` is now
   `test_exact_replay_runs_resolved_mutant_and_reports_its_outcome`, because
   replay now returns the outcome instead of a bare boolean.
+
+### CI on Python 3.14 (#53)
+
+- CI and the mutation campaign now run on Python 3.14 (`python_version` dispatch
+  input default and every job); `CLAUDE.md` follows.
+- Evidence: all eight lanes and the golden comparison pass on 3.14.6 locally; the
+  exhaustive mutation campaign under 3.14 (4056 mutants, reviewed survivors
+  re-run, run 38193089999) succeeded with no unclassified survivor, so the
+  survivor catalog holds. A local sample ran about 15 % faster.
+- The `python_version` input stays, so a later Python can be tried the same way.
+- Timings recorded before this entry (tasks 23, 29 and 30) were measured on
+  Python 3.12 or 3.13; compare later costs with them knowing the interpreter
+  changed.
