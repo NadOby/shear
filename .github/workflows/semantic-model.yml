@@ -147,9 +147,26 @@ jobs:
     outputs:
       count: ${{ steps.plan.outputs.count }}
       shards: ${{ steps.plan.outputs.shards }}
+      revalidate: ${{ steps.revalidate.outputs.revalidate }}
 
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      # Reviewed survivors are not re-run, which is only sound while their
+      # review is current. A change to the engine or the survivor catalog
+      # against main is a repin, so the campaign re-runs them.
+      - name: Revalidate reviewed survivors when the review changed
+        id: revalidate
+        shell: bash
+        run: |
+          if [ -n "$(git diff --name-only origin/main...HEAD -- tests/mutation.py tests/mutation_catalog_data)" ]; then
+            echo "revalidate=1" >> "$GITHUB_OUTPUT"
+            echo "Engine or survivor catalog differs from main: reviewed survivors will be re-run."
+          else
+            echo "revalidate=" >> "$GITHUB_OUTPUT"
+          fi
 
       - uses: actions/setup-python@v7
         with:
@@ -187,6 +204,7 @@ jobs:
     needs: mutation-plan
 
     runs-on: ubuntu-latest
+    timeout-minutes: 120
     name: mutation campaign (shard ${{ matrix.shard }}/${{ needs.mutation-plan.outputs.count }})
 
     strategy:
@@ -201,7 +219,7 @@ jobs:
       SHEAR_MUTATE_SHARDS: ${{ needs.mutation-plan.outputs.count }}
       SHEAR_MUTATE_SHARD: ${{ matrix.shard }}
       SHEAR_MUTATION_REPORT: mutation-report-batch-${{ inputs.mutation_batch }}-shard-${{ matrix.shard }}.jsonl
-      SHEAR_MUTATE_REVALIDATE: ${{ inputs.mutation_revalidate && '1' || '' }}
+      SHEAR_MUTATE_REVALIDATE: ${{ inputs.mutation_revalidate && '1' || needs.mutation-plan.outputs.revalidate }}
 
     steps:
       - uses: actions/checkout@v7

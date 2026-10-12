@@ -81,7 +81,8 @@ against GitHub and the repository before relying on it.
 ## Provisional choices for Review
 
 - Per-test budget `max(30 s, 10 x baseline)`: a test over it is reported as a
-  non-failing `timeout`. A mutant that slows one test tenfold but would
+  non-failing `timeout` (owner accepted this as Provisional after Review; the
+  question stays open in #103). A mutant that slows one test tenfold but would
   still pass is no longer an unclassified survivor. Replay has no such budget.
   Say if an unexplained timeout should fail a campaign instead.
 - Cost-aware sharding (#51) dropped: imbalance is unchanged and comes from
