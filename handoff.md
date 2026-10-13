@@ -6,8 +6,6 @@ against GitHub and the repository before relying on it.
 
 ## Current state
 
-## Current state
-
 - Issue: #67 (`task`), roadmap task 31, live evolution on the hosted
   bootstrap route. Branch: `task/31-live-evolution`, originally from
   `main` at `4ed6e14`.
