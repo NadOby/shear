@@ -6,16 +6,38 @@ against GitHub and the repository before relying on it.
 
 ## Current state
 
-- Issue: #67 (`task`), roadmap task 31, live evolution on the bootstrap
-  route. Follow-up opened by Plan: #115 (VM instructions).
-- Branch: `task/31-live-evolution`, from `main` at `4ed6e14`.
-- Role: Plan done, revised three times after Plan reviews (below); the
-  combined review of `51c9612` approved it after one test fix. Execute has
-  implemented the task on the branch; Resolve fixed the first review's
-  findings 1 to 3 (below). Next: the owner dispatches the mutation campaign,
-  then a fresh Review.
-- Plan head: recorded under "Plan head" below. Review diffs the Plan-owned
-  files from it.
+## Current state
+
+- Issue: #67 (`task`), roadmap task 31, live evolution on the hosted
+  bootstrap route. Branch: `task/31-live-evolution`, originally from
+  `main` at `4ed6e14`.
+- Role: Resolve following independent implementation Review. The review
+  of `23d390a` accepted the implementation with one nonblocking P3
+  changelog correction, subsequently resolved.
+- Plan-owned acceptance tests, specifications and golden declarations
+  were unchanged in that review. Plan head is recorded below.
+- Full mutation campaign: workflow-dispatch run `38414508331`, commit
+  `f68e3a9`, 16 shards, 4,212 mutations: 4,042 killed, 152 classified
+  survivors, 18 timeouts, zero unclassified survivors. Reviewed
+  survivors were revalidated.
+- Of the 12 previously unclassified survivors, ten were killed by new
+  regressions and two `_reuse()` returns were classified equivalent.
+  The remaining timeouts are not counted as kills.
+- Commit `23d390a` added a G0 caching and generation-identity regression
+  targeting two compiler-generation timeouts. Their targeted mutation
+  replay has not yet been verified; this test postdates the campaign.
+- Ordinary CI passed on `23d390a` (run `38425454911`) and on the
+  changelog correction `5a3b6f7` (run `38455730847`).
+- Review's P3 documentation drift was corrected: `CHANGES.md` now
+  distinguishes immediate retirement cleanup during a run from cleanup
+  at the next run or query after host-held retirement outside a run,
+  as allowed provisionally by `docs/live_evolution.md` section 4.1.
+  Duplicate changelog text was removed in `7cea8a4`.
+- Before Publish: verify CI for `7cea8a4` (run `38456474960`),
+  verify the two compiler-generation timeout mutations on the final
+  test revision, and independently confirm the final reviewed diff.
+- Follow-ups: #115 (VM instructions), #116 (reuse cost). No unresolved
+  P0–P2 implementation defects were found by the accepted static review.
 
 ## Decisions (owner, 2026-10-12)
 
