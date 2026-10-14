@@ -1,3 +1,4 @@
+
 """Semantic partitions of the ordinary deterministic test suite.
 
 CI runs every lane in one job, each lane as its own process
@@ -101,6 +102,8 @@ LANES: dict[str, tuple[str, ...]] = {
         "test_docs",
         "test_endpoint_arity",
         "test_golden",
+        # Reject broken G0 bookkeeping before expensive hosted tests.
+        "test_mutation_regressions_records",
         "test_hosted_bootstrap",
         "test_hosted_corpus",
         "test_hosted_pipeline",
@@ -110,7 +113,6 @@ LANES: dict[str, tuple[str, ...]] = {
         "test_operations",
         "test_malformed_generation",
         "test_mutation_regressions_boundaries",
-        "test_mutation_regressions_records",
         "test_properties",
         "test_reference_version",
         "test_stateful_sequences",
