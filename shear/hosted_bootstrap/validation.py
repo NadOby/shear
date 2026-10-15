@@ -13,6 +13,11 @@ stack holds, a handover (``GOTO``, ``BRANCH``, ``LETBIND``) leaves it empty,
 only the final ``END`` follows a handover or a raise, and the chunk ends
 with exactly one value, its result. A chunk has no jumps inside it, so one
 pass settles this.
+
+The facts about each instruction (operand count, which operands are children,
+link targets or names, which give a count, and the stack effect) come from
+``shear.instructions.INSTRUCTIONS`` when a chunk is validated; this module
+keeps none of its own, so an instruction the table lacks is refused.
 """
 
 from __future__ import annotations
@@ -20,62 +25,12 @@ from __future__ import annotations
 from typing import Any
 
 from ..identity import EntityID
+from ..instructions import INSTRUCTIONS, Instruction, stack_effect
 from ..lang import NODE_KINDS, _definition_of
 from ..operations import OPERATIONS
 from ..relations import relation_of
 from ..state import State
 from .errors import AdmissionRejected
-
-# Operand counts of the instructions the SHEAR compiler can produce.
-_OPERANDS = {
-    "END": 0, "POP": 0, "ADD": 0, "SUB": 0, "MUL": 0, "LT": 0, "EQ": 0,
-    "LEN": 0, "ITEM": 0, "SLICE": 0, "CONCAT": 0, "REFCHECK": 0,
-    "APPLYV": 0, "FAIL": 0,
-    "LIT": 1, "ARG": 1, "EVAL": 1, "GOTO": 1, "INT": 1, "TUPLE": 1,
-    "MKTUPLE": 1, "APPLY": 1, "LETCHECK": 1, "RAISE": 1, "READ": 1,
-    "WRITE": 1,
-    "BRANCH": 2, "CALL": 2, "LETBIND": 2, "CATCH": 2,
-    "REF": 2, "CODE": 2, "LINKS": 2,
-    "CLOSURE": 3,
-}
-
-# Positions of operands that name a child node of the chunk's node.
-_CHILDREN = {
-    "EVAL": (0,), "GOTO": (0,), "BRANCH": (0, 1), "LETBIND": (1,),
-    "CATCH": (0,), "CLOSURE": (0,),
-}
-
-# Instructions whose first operand names a link target of the node.
-_LINKED = frozenset({"CALL", "REF", "CODE", "LINKS", "READ", "WRITE"})
-
-# Instructions whose count operand is the number of items in a role.
-_COUNTED = {"CALL": "args", "APPLY": "args", "MKTUPLE": "items"}
-
-
-# Values an instruction takes from the stack and leaves on it. ``MKTUPLE``,
-# ``CALL`` and ``APPLY`` also take their counted arguments (see _taken).
-_STACK = {
-    "LIT": (0, 1), "ARG": (0, 1), "EVAL": (0, 1), "REF": (0, 1),
-    "CODE": (0, 1), "LINKS": (0, 1), "READ": (0, 1), "CLOSURE": (0, 1),
-    "CATCH": (0, 1), "LETCHECK": (0, 0), "POP": (1, 0), "INT": (1, 1),
-    "TUPLE": (1, 1), "REFCHECK": (1, 1), "WRITE": (1, 1), "LEN": (1, 1),
-    "ADD": (2, 1), "SUB": (2, 1), "MUL": (2, 1), "LT": (2, 1),
-    "EQ": (2, 1), "ITEM": (2, 1), "CONCAT": (2, 1), "APPLYV": (2, 1),
-    "SLICE": (3, 1), "MKTUPLE": (0, 1), "CALL": (0, 1), "APPLY": (1, 1),
-}
-
-# Handovers: the instruction takes this many values and nothing may stay.
-_HANDOVER = {"GOTO": 0, "BRANCH": 1, "LETBIND": 1}
-
-# Instructions that raise: nothing is checked after them.
-_RAISING = {"FAIL": 2, "RAISE": 0}
-
-# Operands that name something and so must be strings.
-_NAMES = {
-    "ARG": (0,), "INT": (0,), "TUPLE": (0,), "LETCHECK": (0,),
-    "LETBIND": (0,), "RAISE": (0,), "REF": (1,), "CODE": (1,),
-    "LINKS": (1,),
-}
 
 
 def _endpoints(value: Any) -> tuple[EntityID, ...]:
@@ -142,7 +97,7 @@ def validate_chunk(
     open_ = True
 
     for position, instruction in enumerate(chunk):
-        _check(node, entity, instruction, children, targets & permitted)
+        entry = _check(node, entity, instruction, children, targets & permitted)
         opcode, operands = instruction[0], instruction[1:]
 
         if opcode == "END":
@@ -164,7 +119,7 @@ def validate_chunk(
                 f"{entity.value}: {opcode} is unreachable"
             )
 
-        taken, left = _stack_effect(opcode, operands)
+        taken, left = stack_effect(entry, operands)
 
         if depth < taken:
             raise AdmissionRejected(
@@ -174,33 +129,15 @@ def validate_chunk(
 
         depth += left - taken
 
-        if opcode in _HANDOVER:
+        if entry.handover:
             if depth != 0:
                 raise AdmissionRejected(
                     f"{entity.value}: {opcode} leaves {depth} values"
                 )
 
             open_ = False
-        elif opcode in _RAISING:
+        elif entry.raises:
             open_ = False
-
-
-def _stack_effect(opcode: str, operands: tuple) -> tuple[int, int]:
-    """``(taken, left)`` of one instruction."""
-
-    ends = _HANDOVER.get(opcode, _RAISING.get(opcode))
-
-    if ends is not None:
-        # Nothing is left: control leaves the chunk (a raise's own count is
-        # never read, as no instruction may follow it).
-        return ends, 0
-
-    taken, left = _STACK[opcode]
-
-    if opcode in _COUNTED:
-        taken += operands[-1]
-
-    return taken, left
 
 
 def _check(
@@ -209,7 +146,9 @@ def _check(
     instruction: Any,
     children: set[EntityID],
     targets: set[EntityID],
-) -> None:
+) -> Instruction:
+    """Check one instruction against the table and the node; its entry."""
+
     def reject(why: str) -> AdmissionRejected:
         return AdmissionRejected(f"{entity.value}: {why}")
 
@@ -221,23 +160,79 @@ def _check(
         raise reject("malformed instruction")
 
     opcode, operands = instruction[0], instruction[1:]
+    entry = INSTRUCTIONS.get(opcode)
 
-    if opcode not in _OPERANDS:
+    if entry is None:
         raise reject(f"unsupported instruction {opcode}")
 
-    if len(operands) != _OPERANDS[opcode]:
+    if len(operands) != entry.operands:
         raise reject(f"wrong operand count for {opcode}")
 
-    for index in _CHILDREN.get(opcode, ()):
+    for index in entry.children:
         if operands[index] not in children:
             raise reject(f"{opcode} names a node that is not a child")
 
-    if opcode in _LINKED and operands[0] not in targets:
-        raise reject(f"{opcode} names a target that is not linked")
+    for index in entry.linked:
+        _check_linked(opcode, entry, index, operands[index], targets, reject)
 
-    for index in _NAMES.get(opcode, ()):
+    for index in entry.names:
         if not isinstance(operands[index], str):
             raise reject(f"{opcode} needs a name")
+
+    if entry.counted is not None:
+        index, role = entry.counted
+
+        if (
+            type(operands[index]) is not int
+            or operands[index] != len(node.roles.get(role, ()))
+        ):
+            raise reject(f"{opcode} count disagrees with the node")
+
+    for index, role in entry.sized:
+        if (
+            not isinstance(operands[index], tuple)
+            or len(operands[index]) != len(node.roles.get(role, ()))
+        ):
+            raise reject(f"{opcode} disagrees with the node's {role}")
+
+    _check_shapes(opcode, operands, reject)
+
+    return entry
+
+
+def _check_linked(
+    opcode: str,
+    entry: Instruction,
+    index: int,
+    operand: Any,
+    targets: set[EntityID],
+    reject: Any,
+) -> None:
+    """A link operand is one entity, a tuple of entities, or (where the table
+    allows it) none, and every entity is a link target."""
+
+    if operand is None and index in entry.optional:
+        return
+
+    if index in entry.grouped:
+        found = (
+            isinstance(operand, tuple)
+            and all(isinstance(item, EntityID) for item in operand)
+        )
+        group = operand if found else ()
+    else:
+        found = isinstance(operand, EntityID)
+        group = (operand,) if found else ()
+
+    if not found:
+        raise reject(f"{opcode} needs link targets")
+
+    if any(target not in targets for target in group):
+        raise reject(f"{opcode} names a target that is not linked")
+
+
+def _check_shapes(opcode: str, operands: tuple, reject: Any) -> None:
+    """The types of operands the table does not describe."""
 
     if opcode == "CLOSURE" and not all(
         isinstance(names, tuple) and all(isinstance(n, str) for n in names)
@@ -251,11 +246,30 @@ def _check(
     ):
         raise reject("CATCH needs None or a tuple of kinds")
 
-    role = _COUNTED.get(opcode)
+    if opcode in ("ACTIVATE", "TRIAL") and not _entries(operands[0]):
+        raise reject(f"{opcode} needs (link, problem) entries")
 
-    if role is not None:
-        if (
-            type(operands[-1]) is not int
-            or operands[-1] != len(node.roles.get(role, ()))
-        ):
-            raise reject(f"{opcode} count disagrees with the node")
+    if opcode == "TRIAL" and not (
+        operands[2] is None or isinstance(operands[2], str)
+    ):
+        raise reject("TRIAL needs None or a problem string")
+
+
+def _entries(value: Any) -> bool:
+    """A tuple of ``(name, problem)`` pairs: a name is a link name or a
+    ``(link, label)`` pair, and a problem is none or a string."""
+
+    def name(item: Any) -> bool:
+        return isinstance(item, str) or (
+            isinstance(item, tuple)
+            and len(item) == 2
+            and all(isinstance(part, str) for part in item)
+        )
+
+    return isinstance(value, tuple) and all(
+        isinstance(pair, tuple)
+        and len(pair) == 2
+        and name(pair[0])
+        and (pair[1] is None or isinstance(pair[1], str))
+        for pair in value
+    )

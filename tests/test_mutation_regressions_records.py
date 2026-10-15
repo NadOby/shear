@@ -1,3 +1,4 @@
+
 """Mutation regressions for semantic records and graph transformations."""
 
 from __future__ import annotations
@@ -19,6 +20,7 @@ from shear import (
     canonicalize,
 )
 from shear.closures import Closure, closure_value
+from shear.hosted_bootstrap import AdmissionRejected, HostedSession
 from shear.lang import (
     Function,
     LanguageError,
@@ -253,6 +255,29 @@ class LanguageGenerationRegressionTests(unittest.TestCase):
             },
             {"g/2"},
         )
+
+
+class CompilerSeedGenerationMutationRegressions(unittest.TestCase):
+    """The seed is generation zero, and repeated requests reuse it."""
+
+    def test_g0_is_cached_without_implicitly_creating_g1(self) -> None:
+        state = load(State.create({
+            F: Value.create(F, Function((), ("lit", 0))),
+        }))
+        session = HostedSession(Runtime(state))
+
+        self.assertEqual(session.rebuild_through(0), ())
+        self.assertTrue(session.compiler_artifacts(0))
+        first = sum(event.kind == "host-lower" for event in session.trace())
+        self.assertEqual(first, len(session.seed_manifest.code_nodes))
+
+        self.assertEqual(session.rebuild_through(0), ())
+        self.assertEqual(
+            sum(event.kind == "host-lower" for event in session.trace()),
+            first,
+        )
+        with self.assertRaisesRegex(AdmissionRejected, "not built"):
+            session.compiler_artifacts(1)
 
 
 class TransformationRecordRegressionTests(unittest.TestCase):

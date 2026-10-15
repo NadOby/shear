@@ -29,7 +29,7 @@ from shear.examples import EXAMPLES
 from shear.examples._support import program
 from shear.examples.compiler_source import compiler_entities
 from shear.hosted_bootstrap import AdmissionRejected, HostedSession
-from shear.hosted_bootstrap import command, generations, seed
+from shear.hosted_bootstrap import command, descriptors, generations, seed
 from shear.hosted_bootstrap.command import _jsonable
 from shear.hosted_bootstrap.artifacts import Artifact
 from shear.hosted_bootstrap.descriptors import (
@@ -246,11 +246,11 @@ class DescriptorBoundary(unittest.TestCase):
                 with self.assertRaises(AdmissionRejected):
                     describe(state, entity, F)
 
-    def test_unsupported_operations_are_named_not_lowered(self):
-        self.assertEqual(
-            set(NODE_KINDS) - SUPPORTED_KINDS,
-            {"activate", "function", "quote", "trial", "unquote"},
-        )
+    def test_every_node_kind_is_lowered(self):
+        # Task 31 (GH-67) renamed this from
+        # test_unsupported_operations_are_named_not_lowered: the five kinds
+        # task 30 left out are now lowered (docs/live_evolution.md 2.3).
+        self.assertEqual(set(NODE_KINDS) - SUPPORTED_KINDS, set())
 
     def test_results_that_are_not_chunks_are_refused(self):
         for result in (5, "chunk", None, (("LIT", 1), 5), ((1, 2),), ((),)):
@@ -611,13 +611,24 @@ class MissingArtifactsFailClosed(unittest.TestCase):
         with self.assertRaises(AdmissionRejected):
             self.run_forbidding_host_lowering(session, F, 1)
 
-    def test_an_unsupported_node_is_recorded_and_never_lowered(self):
+    def test_a_kind_outside_the_supported_set_is_recorded_and_never_lowered(
+        self,
+    ):
+        # Task 31 (GH-67) renamed this from
+        # test_an_unsupported_node_is_recorded_and_never_lowered: every kind
+        # is lowered now, so quote is taken out of the supported set to keep
+        # witnessing the fail-closed path.
         entry = EntityID("hb_quoted")
         runtime = Runtime(load(program({
             entry: Function((), ("quote", ("lit", 1))),
         })))
         session = HostedSession(runtime)
-        session.prepare(compiler_generation=1)
+
+        with mock.patch.object(
+            descriptors, "SUPPORTED_KINDS", SUPPORTED_KINDS - {"quote"},
+        ):
+            session.prepare(compiler_generation=1)
+
         rejected = [e for e in session.trace() if e.kind == "reject"]
 
         self.assertTrue(rejected)
@@ -1174,9 +1185,14 @@ class RefusalsAreReachable(unittest.TestCase):
         root = seed.ROOTS[0]
         entities[root] = Function((), ("quote", ("lit", 1)))
 
-        self.refused(
-            "cannot lower", seed.derive, load(program(entities)),
-        )
+        # Task 31 (GH-67): every kind is lowered now, so quote is taken out
+        # of the supported set to keep witnessing the refusal.
+        with mock.patch.object(
+            seed, "SUPPORTED_KINDS", SUPPORTED_KINDS - {"quote"},
+        ):
+            self.refused(
+                "cannot lower", seed.derive, load(program(entities)),
+            )
 
     def test_a_link_to_something_that_is_not_a_function_is_not_followed(self):
         entities = compiler_entities(extra={"data": EntityID("hb_data")})
@@ -1333,7 +1349,15 @@ class CommandRunsInProcess(unittest.TestCase):
             with self.subTest(name=name):
                 runtime = Runtime(load(program({F: Function((), body)})))
 
-                with tempfile.TemporaryDirectory() as directory:
+                # Task 31 (GH-67): every kind is lowered now, so quote is
+                # taken out of the supported set to keep a refusal.
+                with (
+                    tempfile.TemporaryDirectory() as directory,
+                    mock.patch.object(
+                        descriptors, "SUPPORTED_KINDS",
+                        SUPPORTED_KINDS - {"quote"},
+                    ),
+                ):
                     path = Path(directory) / "p.shear"
                     path.write_text(render_program(runtime.active.state))
                     code, out, err = self.run_command(
@@ -1368,6 +1392,151 @@ class CommandRunsInProcess(unittest.TestCase):
         self.assertEqual((code, out), (1, ""))
         self.assertIn("unknown entry: hb_nothing", err)
         self.assertNotIn("Traceback", err)
+
+
+
+class LiveAdmissionMutationRegressions(unittest.TestCase):
+    """Malformed chunks must fail independently of normal lowering.
+
+    Negative cases alter genuine host-lowered activation/trial chunks,
+    preserving their graph provenance and all unrelated operands.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        from shear.examples.self_modification import EXAMPLES as live_examples
+
+        example = next(e for e in live_examples if e.name == "checked_compile")
+        cls.state = load(example.program)
+        cls.witnesses = {}
+
+        for node in code_nodes(cls.state):
+            chunk = bytecode.lower(relation_of(cls.state.values[node]))
+            owner = cls.state.owner_of(node)
+
+            for index, instruction in enumerate(chunk):
+                if instruction[0] not in ("ACTIVATE", "TRIAL"):
+                    continue
+
+                validate_chunk(cls.state, node, owner, chunk)
+                cls.witnesses.setdefault(
+                    instruction[0], (node, owner, chunk, index),
+                )
+
+        if set(cls.witnesses) != {"ACTIVATE", "TRIAL"}:
+            raise AssertionError("the checked_compile witness changed")
+
+    def instruction(self, opcode):
+        _, _, chunk, index = self.witnesses[opcode]
+        return chunk[index]
+
+    def rejects(self, opcode, instruction, before=()):
+        node, owner, chunk, index = self.witnesses[opcode]
+        forged = (
+            chunk[:index] + before + (instruction,) + chunk[index + 1:]
+        )
+
+        with self.assertRaises(AdmissionRejected):
+            validate_chunk(self.state, node, owner, forged)
+
+    def test_sized_entries_match_node_even_when_stack_is_sound(self):
+        original = self.instruction("ACTIVATE")
+        entries = original[1]
+        self.assertTrue(entries)
+        # The extra value makes the forged chunk stack-correct. Admission
+        # must reject the mismatched role size, not rely on underflow.
+        forged = (original[0], entries + (entries[0],), *original[2:])
+        self.rejects("ACTIVATE", forged, before=(("LIT", 0),))
+
+    def test_optional_trial_target_must_be_linked_when_present(self):
+        original = self.instruction("TRIAL")
+        forged = (*original[:4], EntityID("hb_not_a_link"), *original[5:])
+        self.rejects("TRIAL", forged)
+
+    def test_nonoptional_link_cannot_be_none(self):
+        original = self.instruction("ACTIVATE")
+        forged = (*original[:2], None, *original[3:])
+        self.rejects("ACTIVATE", forged)
+
+    def test_grouped_link_targets_must_be_a_tuple(self):
+        original = self.instruction("ACTIVATE")
+        self.assertIsInstance(original[2], tuple)
+        forged = (*original[:2], list(original[2]), *original[3:])
+        self.rejects("ACTIVATE", forged)
+
+    def test_entry_name_tuple_must_have_two_parts(self):
+        original = self.instruction("ACTIVATE")
+        self.assertTrue(original[1])
+        name, problem = original[1][0]
+        forged_entries = (
+            ((name, "label", "extra"), problem),
+            *original[1][1:],
+        )
+        self.rejects(
+            "ACTIVATE", (original[0], forged_entries, *original[2:]),
+        )
+
+    def test_entry_pair_must_have_two_parts(self):
+        original = self.instruction("ACTIVATE")
+        forged_entries = (("link",), *original[1][1:])
+        self.rejects(
+            "ACTIVATE", (original[0], forged_entries, *original[2:]),
+        )
+
+
+class CandidateSetCleanupRegression(unittest.TestCase):
+    def test_failed_admission_invalidates_partial_candidate_set(self):
+        from shear.hosted_bootstrap import target as target_module
+        from shear.instructions import INSTRUCTIONS
+        from tests.live_support import image_state
+
+        runtime = Runtime(image_state())
+        session = HostedSession(runtime)
+        session.prepare(compiler_generation=1)
+        original_version = runtime.active
+        original_sets = session.retained_versions()
+        created = []
+        real_set = target_module.ArtifactSet
+
+        def capture(state, first_use):
+            result = real_set(state, first_use)
+            created.append(result)
+            return result
+
+        with (
+            mock.patch.object(target_module, "ArtifactSet", side_effect=capture),
+            mock.patch.dict(INSTRUCTIONS),
+        ):
+            del INSTRUCTIONS["LEN"]
+            with self.assertRaises(AdmissionRejected):
+                session.run(EntityID("guarded"), 5, may_activate=True)
+
+        self.assertEqual(len(created), 1, "candidate was not constructed")
+        # Holding the failed set exposes a missing invalidate(), even if
+        # the session otherwise drops all references to the candidate.
+        self.assertFalse(created[0].valid)
+        self.assertFalse(created[0].artifacts())
+        self.assertIs(runtime.active, original_version)
+        self.assertEqual(session.retained_versions(), original_sets)
+
+
+class InstructionMetadataMutationRegressions(unittest.TestCase):
+    def test_instruction_metadata_is_frozen_and_end_leaves_no_value(self):
+        from shear.instructions import INSTRUCTIONS, Instruction
+
+        entry = Instruction(operands=0)
+        with self.assertRaises(dataclasses.FrozenInstanceError):
+            entry.operands = 5
+
+        self.assertEqual(INSTRUCTIONS["END"].left, 0)
+
+    def test_handover_and_raise_do_not_leave_stack_values(self):
+        from shear.instructions import Instruction, stack_effect
+
+        for terminal in ("handover", "raises"):
+            with self.subTest(terminal=terminal):
+                entry = Instruction(0, taken=2, left=3, **{terminal: True})
+                self.assertEqual(stack_effect(entry, ()), (2, 0))
 
 
 if __name__ == "__main__":

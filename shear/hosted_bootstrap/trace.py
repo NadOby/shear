@@ -18,6 +18,8 @@ HOST_LOWER = "host-lower"  # a declared seed node lowered by the host
 PRODUCE = "produce"  # a chunk returned by an observed SHEAR compiler run
 ADMIT = "admit"  # a produced chunk admitted
 REJECT = "reject"  # a node the pipeline does not compile
+REUSE = "reuse"  # an artifact of the active version admitted for a candidate
+RELEASE = "release"  # a version's or a trial's artifact set released
 EXECUTE = "execute"  # first run of an admitted program-code artifact
 COMPILER_EXECUTE = "compiler-execute"  # first run of an admitted compiler one
 
@@ -42,6 +44,8 @@ class TraceEvent:
     """The generation of the SHEAR compiler that produced the artifact."""
     target_state_id: StateID | None = None
     detail: str = ""
+    source_artifact_id: str | None = None
+    """For a ``reuse``: the artifact of the active version that was reused."""
 
     def as_json(self) -> dict[str, Any]:
         def text(value: Any) -> Any:
@@ -57,6 +61,7 @@ class TraceEvent:
             "compiler_generation": self.compiler_generation,
             "target_state_id": text(self.target_state_id),
             "detail": self.detail,
+            "source_artifact_id": self.source_artifact_id,
         }
 
 

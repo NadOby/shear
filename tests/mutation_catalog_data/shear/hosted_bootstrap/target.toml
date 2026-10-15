@@ -1,0 +1,26 @@
+
+source_blob = "2f14efae9f988ea376e9847e47f2158571047b2e"
+
+[[survivor]]
+kind = "return"
+source = "return False"
+occurrence = 0
+classification = "equivalent"
+reason = """
+The owner or compiler-generation mismatch in _reuse returns False. Its only
+production caller uses the result as a truth value in _compile_candidate.
+Returning None instead also chooses fresh compilation and changes no
+observable result or artifact.
+"""
+
+[[survivor]]
+kind = "return"
+source = "return False"
+occurrence = 1
+classification = "equivalent"
+reason = """
+Failed structural admission in _reuse returns False. Its only production
+caller uses the result as a truth value in _compile_candidate. Returning
+None instead also chooses fresh compilation and changes no observable
+result or artifact.
+"""

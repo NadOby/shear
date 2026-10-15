@@ -1,202 +1,344 @@
 # Handoff
 
-Read `CLAUDE.md`, the Workflow section of `docs/roadmap.md`, roadmap task 22,
-issue #59 and `docs/reference_model.md` §14. Verify this checkpoint against
-GitHub and the repository before relying on it.
+Read `CLAUDE.md`, the Workflow section of `docs/roadmap.md`, roadmap task 31
+and D5, issue #67 and `docs/live_evolution.md`. Verify this checkpoint
+against GitHub and the repository before relying on it.
 
 ## Current state
 
-- Issue: #59 (`task`), roadmap task 22, reference version audit.
-- Branch: `task/22-reference-version`, from `main` at `1db6d5e`.
-- Role: Plan and Execute done, in separate chats; the owner chose D22
-  option 1. Two rounds of findings, both P3 and both resolved (below): the
-  first from a check by the Plan's own chat, the second from an independent
-  Review of `9f73957`. Two further independent Reviews of the final head
-  accepted it with no blocking finding. Publish is done: PR #114 is open and
-  ready, closing #59, and the roadmap entry says Implemented (PR #114).
-- Plan head: `b7123c3a0ff3adb951c60dc65e5dc155a354ce5c` ("Change handoff.md
-  to record the owner's D22 choice"). Review diffs the Plan-owned files from
-  it. Execute head: `634bbbe`. First Resolve head: `9f73957`. Second Resolve
-  head: the commit that records this file.
+- Issue: #67 (`task`), roadmap task 31, live evolution on the hosted
+  bootstrap route. Branch: `task/31-live-evolution`, originally from
+  `main` at `4ed6e14`.
+- Role: Resolve following independent implementation Review. The review
+  of `23d390a` accepted the implementation with one nonblocking P3
+  changelog correction, subsequently resolved.
+- Plan-owned acceptance tests, specifications and golden declarations
+  were unchanged in that review. Plan head is recorded below.
+- Full mutation campaign: workflow-dispatch run `38414508331`, commit
+  `f68e3a9`, 16 shards, 4,212 mutations: 4,042 killed, 152 classified
+  survivors, 18 timeouts, zero unclassified survivors. Reviewed
+  survivors were revalidated.
+- Of the 12 previously unclassified survivors, ten were killed by new
+  regressions and two `_reuse()` returns were classified equivalent.
+  The remaining timeouts are not counted as kills.
+- Commit `23d390a` added a G0 caching and generation-identity regression
+  targeting two compiler-generation timeouts. Their targeted mutation
+  replay has not yet been verified; this test postdates the campaign.
+- Ordinary CI passed on `23d390a` (run `38425454911`) and on the
+  changelog correction `5a3b6f7` (run `38455730847`).
+- Review's P3 documentation drift was corrected: `CHANGES.md` now
+  distinguishes immediate retirement cleanup during a run from cleanup
+  at the next run or query after host-held retirement outside a run,
+  as allowed provisionally by `docs/live_evolution.md` section 4.1.
+  Duplicate changelog text was removed in `7cea8a4`.
+- Before Publish: verify CI for `7cea8a4` (run `38456474960`),
+  verify the two compiler-generation timeout mutations on the final
+  test revision, and independently confirm the final reviewed diff.
+- Follow-ups: #115 (VM instructions), #116 (reuse cost). No unresolved
+  P0–P2 implementation defects were found by the accepted static review.
 
-## Result of the audit (Plan)
+## Decisions (owner, 2026-10-12)
 
-`VersionID` in a state-pinned `Reference` is redundant: `StateID` hashes
-every entity's `VersionID` (state_model.md §4), every producer derives the
-version from the named state, and `resolve` and `transfer_reference` check
-the state first. `StaleReference` needs a hand-built reference. No
-production reader uses the version for anything else, and the language
-never sees a `Reference`, `VersionID` or `StateID`.
-
-With the planned `ref` values (Later), the version stays redundant as long
-as a `ref` carries a `StateID`. It does work only if the `ref` design drops
-the state from the reference, resolves across states, or makes `StateID`
-partial. New constraint found: a reference held in semantic content cannot
-contain the `StateID` of its own state, nor its own entity's `VersionID`.
-
-## Decision (owner, D22)
-
-Option 1, chosen 2026-10-12. How to classify the version, given the
-evidence. No refactor either way.
-
-1. **Redundant, kept until the `ref` design chooses the reference form**
-   (recommended, written in §14 as Provisional). The `ref` design may move the
-   version into the key rather than drop it, so removing it now risks churn.
-2. Retained deliberately as an integrity witness. Not recommended: it catches
-   only a triple whose parts disagree, not a forged reference.
-3. Redundant, removed now: a follow-up issue for the refactor (`Reference`,
-   `make_reference`, `resolve`, `transfer_reference`, `StaleReference`, about
-   ten tests). Not recommended before the `ref` design.
-
-§14 already states option 1; it needs no change.
+- **D5.1:** a candidate built by a running program is compiled by the
+  image's retained compiler at `activate`/`trial`, after staging and before
+  the switch; unchanged nodes reuse artifacts. Lazy or tiered production is
+  Open (live_evolution.md 3.1), not built.
+- **D5.2:** a candidate that cannot be compiled or admitted changes nothing;
+  the run ends with `AdmissionRejected`, which `catch` cannot see.
+- One instruction table shared as metadata (`shear/instructions.py`); no new
+  VM instructions (#115).
+- Cells: content carry-over only. Program-driven cell migration is not
+  planned; no program needs it yet.
 
 ## Plan-owned files
 
-- `docs/reference_model.md`: §2 and §5 say when a stale reference can arise;
-  new §14 holds the classification, evidence, roles checked, the `ref`
-  premises and the content constraint.
-- `docs/roadmap.md`: the Later item for `ref` values points to §14.
-- `tests/test_reference_version.py` (new, lane `cross-boundary`), three tests
-  over 150 generated states and transformations and the 21 continuity cases:
-  - state and entity determine the version of every produced reference
-    (`State.reference`, `transfer_reference`, `rebind_reference`);
-  - a produced reference never fails the version check in `resolve` or
-    `transfer_reference`, including against an independently rebuilt equal
-    state;
-  - a hand-built reference with another version is stale.
-  These are characterization tests: they pass on `main`. Planted bugs, each
-  caught: transfer keeping the source version, a `StateID` that ignores
-  versions, `make_reference` deriving a wrong version.
-- `tests/lanes.py`: one line.
-- Golden: none declared. Measured against `main`: 55 unchanged, 0 new,
-  0 changed.
+- `docs/live_evolution.md` (new): the contract.
+- `docs/roadmap.md`: D5 and the task-31 status line.
+- `tests/live_support.py` (new): the image program, step tables, oracles.
+- `tests/test_live_evolution.py`, `tests/test_live_artifacts.py` (new, lane
+  `cross-boundary`) and `tests/test_instruction_table.py` (new, lane
+  `language-runtime`): 30 tests.
+- `tests/test_hosted_bootstrap.py`: four task-30 tests that used `quote` as
+  the unsupported kind (live_evolution.md section 8); each says so in a
+  comment.
+- `tests/lanes.py`: three lines.
+- `tests/golden_changes/GH-67.txt`: `programs/compiler`,
+  `programs/bootstrap`, `programs/instrument`.
 
-## Execute (done)
+## Plan revision after two Plan reviews
 
-- Implemented exactly the Plan's steps: the Plan head is recorded above, §14
-  is untouched, and the `CHANGES.md` entry is appended as the Plan wrote it.
-  Nothing under `shear/`, no Plan-owned file and no test expectation changed;
-  the only files Execute touched are `CHANGES.md` and this one. No
-  provisional choices were made, no mutation campaign was run (nothing under
-  `shear/` changes), and no survivor decisions arise.
-- Verification, on the Plan head plus these two files, Python 3.13:
-  - `python3 -m tests.lanes --all`: all eight lanes ok (the longest,
-    `cross-boundary`, 64 s), run on the final tree.
-  - `python3 -m tests.golden --against main` (`main` at `1db6d5e`): 55
-    unchanged, 0 new, 0 changed.
-  - The three planted bugs, in a scratch copy, each make
-    `tests.test_reference_version` fail, and the unplanted copy passes:
-    transfer keeping the source version (76 failures, 75 errors); a `StateID`
-    that ignores versions (9, 9); `make_reference` deriving a wrong version
-    (33, 312).
-- Not checked: issue #59 itself (GitHub issue reads were refused in this
-  session); the contract was taken from this file and the roadmap entry.
+The owner relayed two reviews of the first Plan head (`82a6a69`). Each
+finding was checked against the repository.
 
-Execute does not certify the audit. If its argument is wrong, return to Plan.
+Accepted and fixed:
 
-## Findings and Resolve
+- R1 P1: two more task-30 tests,
+  `test_a_program_error_and_a_refusal_both_exit_with_one` and
+  `test_a_seed_needs_the_compiler_functions_and_only_lowerable_ops`,
+  depended on `quote` being unsupported. Both now patch `SUPPORTED_KINDS`.
+  Node mode gets its own kind set, separate from expanded `LOWERED`
+  (section 2.3).
+- R1 P2: problem-carrying `activate`/`trial` forms (`MALFORMED`) are
+  compared with host lowering and run against the host.
+- R1 P2: a trial of the active state itself has the same `StateID`. Sets
+  belong to versions or trials, not to a `StateID`, and `release` says which
+  (sections 4.1, 4.2 and 6; `same_trial`, `SameStateTrial`).
+- R1 P2: reuse sources must be the active version's artifacts, and the tests
+  assert it. The admitted-whole test now uses distinct trial and activation
+  states.
+- R1 P3:
+  - docstrings name the two tests that pass before implementation;
+  - the `extract_function` citation points to `shear/continuity.py`;
+  - reuse rule 2 is called conservative;
+  - section 3.2 no longer promises "no compilation" for runtime-checked
+    rejections;
+  - continuity is said to be inferred;
+  - validation must read the table, and a test deletes an entry to prove it;
+  - measurements get an Execute-owned smoke test;
+  - the lane-time concern is recorded.
+- R2 P1, and R2 P2 on trial cleanup, now tested:
+  - a failure partway through a candidate (`SUPPORTED_KINDS` without `add`);
+  - trial release after a rejected answer and after a crash inside the trial;
+  - a heap count of target artifacts and a holds check after each.
+- R2 P2 (provenance): every chunk the machine opens is recorded at the
+  machine's own chunk boundaries, then compared with host lowering and with
+  the admitted object. The trace check stays as a separate assertion.
+- R2 P2 (table): the minimum metadata is defined (section 5.2), and
+  `operands`, `children` and `linked` are checked against host chunks.
+- R2 P3: the module was split into three test modules plus a support
+  module.
 
-The findings came from a check by the chat that wrote the Plan, not from an
-independent Review: it had no blocking finding, and it checked claims 1 to 4
-below. A fresh Review is still required. Each finding was checked against the
-repository before it was fixed.
+Rebutted:
 
-1. **P3, verified defect: the exercise guard in
-   `test_a_produced_reference_is_never_stale` did not guard.** `transferred`
-   was incremented after a mapping error too, so
-   `assertGreater(transferred, 300)` passed with zero successful transfers.
-   Fixed: it counts only successful transfers (`else:` branch). The first
-   Resolve also lowered the bound to 100 without a reason; round 2 restored
-   the Plan's 300 (the count is 456). With every transfer planted to raise
-   `MissingEntityMapping` the test now fails (0 not greater than 300);
-   before, it passed.
-2. **P3, documentation drift: §14's cache-key bullet.** Bytecode chunks are
-   stored on the `Value` (`value.__dict__["_chunk"]`, `bytecode.py`), not
-   keyed by `VersionID`; native code keyed by `VersionID` is Open
-   (activation_model.md §10); hosted artifacts key on `(entity, version)`.
-   Fixed: the bullet says caches are tied to a value or to its version, never
-   to a reference. The conclusion is unchanged.
-3. **P3, documentation drift: §14's offline-validation bullet.** It cited §3,
-   but checking one value against `(EntityID, VersionID)` is not resolution
-   across states. Fixed: no caller does it today; with partially loaded
-   states (premise 3) it would become a role.
+- R1 P3, "`SUPPORTED_KINDS` is a superset of `NODE_KINDS`": `invalid` is in
+  `NODE_KINDS`, so the sets are equal once the five kinds are added. Section
+  2.3 now says so.
 
-### Round 2: independent Review of `9f73957`
+## Second revision, after a third and a fourth Plan review
 
-It accepted the audit and its claims 1 to 4, reproduced the three planted
-bugs, and found one defect and three drifts, all P3. Each was checked
-against the repository before it was fixed.
+The owner relayed two reviews of `f11706d`. One accepted it with two P3
+notes; the other requested changes. Each finding was checked.
 
-1. **Verified defect: the bound in `test_a_produced_reference_is_never_stale`
-   was lowered from 300 to 100 without a reason.** With 456 successes, a
-   transfer that fails for two entities in three (about 150 successes) would
-   pass at 100 and fail at 300. Fixed: restored to 300 (commit `6b665a3`). The
-   earlier suggestion of 100 rested on a count of 219; the measured count is
-   456.
-2. **Drift: §14 said `Runtime.keep` and the activation transfer "use the
-   state and the entity".** `keep` calls `State.resolve` and activation
-   calls `transfer_reference`, and both read the version. Fixed: they reach
-   it only through those two checks; `mapped_entities` uses the state and the
-   entity.
-3. **Drift: the test docstring said the module fails if resolution against
-   another state is allowed.** Planted in `State.resolve` (check removed),
-   `test_reference_version` still passed and `test_references` caught it.
-   Fixed: the docstring names only the premises the module pins.
-4. **Drift: an unwrapped 118-character line opening §14's Open part with a
-   sentence fragment**, from the Plan commit. Fixed: a full sentence,
-   wrapped.
+Accepted and fixed:
 
-Resolve changed two Plan-owned files in total: `tests/test_reference_version.py`
-(round 1 finding 1: counting only successful transfers; round 2: the
-docstring) and `docs/reference_model.md` §14 (wording only). The
-classification, the owner's D22 choice, the test's assertions about versions
-and everything under `shear/` are unchanged. Review must diff these two files
-from the Plan head: against the Plan's test the net change is the `else:` on
-the transfer counter and the docstring.
+- P2, error precedence: a compilation failure could have masked
+  `activation_rejected`. Language rejections now take precedence. A
+  candidate is compiled only after the runtime's own checks accept it
+  (section 3.2). `bound_first` plus
+  `test_a_language_rejection_wins_over_a_compilation_failure` witness it.
+- P2, two loaded versions with one `StateID`: confirmed on the host
+  (`same_activate`). The API is now per version: `retained_versions()` and
+  `admitted(version)` (sections 4.1 and 6). A test checks that both loaded
+  versions own separate records.
+- P2, direct `bytecode.lower`: `no_host_lowering` now forbids it too.
+- P2, same-state trial ownership: `observed_chunks` records the version of
+  the frame that opened each chunk. It wraps `_open`, `_open_closure` and
+  `_child_chunk`, since `_chunk_for` sees only a state. Every opened chunk
+  must be the admitted object of its own version's set, a trial's included.
+  The same-state trial test checks that the trial's records are separate
+  from the active set's, and that the chunks are shared.
+- P3, partial failure: the injected failure now refuses the produced chunk
+  at admission (`LEN` removed from the table). `grow` makes `len` the only
+  new node kind, so the test requires a `produce` event before the failure.
+- Test-side references to versions and artifacts are dropped before every
+  heap count, so the orphan check cannot be inflated by the tests.
 
-Verification after the second Resolve, Python 3.13, on the final tree: all
-eight lanes ok (`python3 -m tests.lanes --all`), and `python3 -m tests.golden
---against main` gives 55 unchanged, 0 new, 0 changed. No mutation campaign:
-nothing under `shear/` changes.
+On the P3 notes of the accepting review:
+
+- The stand-in table check was local, and the script is not on the branch.
+  Treat it as a sanity check of the tests, not as evidence about any
+  implementation.
+- The shared-record hypothesis is now settled by the tests: separate
+  admission records with a shared chunk are required (sections 4.2 and 4.3).
+
+## Combined review of `51c9612`
+
+The review approved the plan after one fix, and both points below were
+checked.
+
+- P2, verified test defect, fixed: in
+  `test_a_trial_of_the_active_state_has_its_own_set`, the loop variable
+  `artifact` kept a released trial record alive, so `assert_no_orphans`
+  would fail on a correct implementation. The cleanup now also deletes
+  `artifact` and `chunk`. The same was done for `artifact` in
+  `test_two_loaded_versions_of_one_state_have_separate_sets`. That one held
+  an active record, so it was harmless there, but the cleanup is now
+  uniform.
+- P3, Execute and Review checkpoint (no Plan change): candidate
+  compilation and admission must finish before `Runtime.activate` mutates
+  any live runtime state, not merely before `_active` changes. That means
+  before `kept._move(new)`, before `self._versions`, `self._active` and
+  `self._history` are assigned, and before `_retire_if_unused`. The same
+  holds in `Runtime.trial` before the isolated runtime is returned for
+  execution.
+- The earlier request to require a successful admission before an injected
+  failure was withdrawn. The `produce` requirement in
+  `test_a_failure_partway_through_a_candidate_leaves_nothing` stays: the
+  injection refuses an already produced chunk, so a `produce` event comes
+  first in every compilation order.
+
+## Fix after Execute's report (owner-relayed)
+
+- Verified defect in a Plan-owned test, fixed:
+  `Lifetime.test_repeated_updates_release_retired_versions` called
+  `upgrade(1, 2, 2 + m)`, but `handle(2)` is 3 on the initial image, so the
+  m-th update answers `3 + m`. The host oracle reproduced the failure
+  (`'wrong' != 'installed'`). The test now uses `3 + m` and checks every
+  step against a host runtime, as `drive` does. Its expectations were the
+  only ones in the module not checked against the host.
+- Every other hard-coded expectation in `tests/test_live_artifacts.py` was
+  rechecked on the host and holds: `migrate`, `try_wrong`, `try_crash`,
+  `same_trial`, `same_activate`, `upgrade(10, 2, 13)` and `bound_first`.
+- Execute rebases onto the new Plan head; no other Plan-owned file changed.
+
+## State of the tests on the Plan head (Python 3.13)
+
+- The three new modules: 30 tests. All fail or error against the task-30
+  route except two, which check the declared sets and the host oracle:
+  `test_every_corpus_example_is_claimed` and
+  `test_the_oracle_catches_what_the_route_must_not`.
+- Every hand-written expectation holds on ordinary host execution.
+- The table tests passed a local check against a stand-in table built from
+  `validation.py`'s own facts, and caught three planted table bugs. The
+  stand-in is not on the branch, so this is not evidence.
+- `tests.test_hosted_bootstrap`: one failure,
+  `test_every_node_kind_is_lowered`. The three other changed tests pass.
+- `python3 -m tests.lanes --all`: only `language-runtime` (the table tests)
+  and `cross-boundary` fail, as intended.
+- `python3 -m tests.golden --against main`: 55 unchanged. The three
+  declarations fail until the compiler changes, as intended.
+- `tests.test_docs`: passes.
+
+## Execute contract
+
+Implement live_evolution.md. Suggested order:
+
+1. `shear/instructions.py` and validation reading it when it validates; the
+   VM generator reads operand positions from it only where it already
+   encodes them.
+2. Node-mode lowering of `quote`, `unquote`, `function`, `activate`, `trial`
+   in `compiler_source.py` (with a node-mode kind set), descriptors and
+   validation; expanded mode unchanged. Regenerate the seed manifest
+   (`seed_cli --write`).
+3. Candidate handling:
+   - artifact sets owned by versions and trials;
+   - candidate compilation at `activate`/`trial`, as a separate compiler run
+     (section 3.3);
+   - the reuse rule (4.3);
+   - trial sets (4.2) and release at retirement (4.1);
+   - cleanup after a failed attempt, and language rejections before any
+     compilation (3.2); compilation and admission finish before
+     `Runtime.activate` mutates any live state (`kept._move(new)` included)
+     and before `Runtime.trial` returns the isolated runtime;
+   - sets owned by `Version` objects, `retained_versions`,
+     `admitted(version)`, the `reuse`/`release` events and
+     `TraceEvent.source_artifact_id`.
+4. Measurements (section 7) in `diagnostics.py` and `hosted_bootstrap.md`,
+   with a smoke test.
+5. Docs: `hosted_bootstrap.md` (implementation), `bootstrap.md` (matrix note:
+   node mode covers every kind), `activation_model.md` sections 10 and 12
+   (derived artifacts per version, reuse rule), and the `CHANGES.md` entry.
+
+Execute may choose the following, and marks each Provisional:
+
+- the hook mechanism between the machine or runtime and the session. No new
+  public name may appear in the golden API modules: `shear`, `shear.lang`,
+  `shear.syntax`, `shear.bytecode` and `shear.machine`;
+- the names of the table's fields beyond `operands`, `children` and
+  `linked`;
+- the diagnostics layout.
+
+The tests observe chunks by wrapping `machine._open`,
+`machine._open_closure` and `machine._child_chunk`, as task 30's tests wrap
+`machine._open`. Keep those three as the machine's chunk boundaries.
+
+Execute must not:
+
+- change Plan-owned files or expectations;
+- let a candidate become active, or run in a trial, before every code node
+  is admitted;
+- make `AdmissionRejected` catchable;
+- reuse on host-API activations or from trial sets;
+- add VM instructions;
+- change expanded-mode output.
+
+If any of these proves necessary, return to Plan.
+
+Also required:
+
+- mutation-catalog re-review for `compiler_source.py`, the changed
+  `hosted_bootstrap` modules and `shear/instructions.py` (a target or a
+  justified omission), run in CI by workflow dispatch, not locally;
+- golden declarations that match exactly; a mismatch goes back to Plan;
+- all lanes passing (`python3 -m tests.lanes --all`), with the time of
+  `cross-boundary` recorded.
+
+`CHANGES.md` entry (Execute appends, adjusting facts it changed):
+
+    ## Task 31: live evolution on the hosted route (GH-67)
+
+    A running image changes itself on route B. The SHEAR compiler lowers
+    every node kind; candidates built by `activate` and `trial` are compiled
+    by the image's retained compiler and admitted whole before they run or
+    become active (D5); unchanged nodes reuse their artifacts; a version owns
+    its artifacts and releases them when it retires. All 29 corpus examples
+    and the live-image scenarios run on admitted artifacts and agree with
+    ordinary host execution. One instruction table is shared as metadata by
+    admission, the machine's tests and the SHEAR-written VM. Update latency
+    and retention are measured in hosted_bootstrap.md.
+
+## Execute notes
+
+- Rebased onto Plan head `3d58684` (the lifetime test fix). All lanes pass
+  (`python3 -m tests.lanes --all`); `cross-boundary` took 151 s (two lanes at a time).
+- Mutation: `shear/instructions.py` is now a target, `live_diagnostics.py`
+  an omission; survivors of `machine.py`, `runtime.py` and `examples/vm.py`
+  were re-reviewed (unchanged sites) and repinned. The campaign for the
+  changed targets still has to run in CI by workflow dispatch.
+- Resolve (first review, `45c4446`): finding 1 fixed (the target releases the
+  sets of versions that retired outside a run whenever it is asked about
+  sets or starts a run; `LateRetirementTests`, failing on the old code);
+  finding 2: the measurements in hosted_bootstrap.md 4.1 are rerun at a clean
+  tree, revision `7f39921`; finding 3: trial-rejected updates added next to
+  the injected, renamed "refused" ones. Finding 4 (reuse rule 4 has no
+  witness, so removing it passes every test) stays a hypothesis; finding 5
+  is follow-up issue #116 (reuse cost).
+- Resolve (second review, `2b65be2`): the P3 is fixed. `prepare()` drops each
+  production record after its admission, as candidate compilation does;
+  `ConsumedEvidenceTests` fails on the old code. Still open: the mutation
+  campaign in CI and a fresh Review against `d76708f`.
+- Provisional choices are listed in hosted_bootstrap.md section 6.
+
+## Second implementation review (`e037104`), and Plan's amendment
+
+Two reviews of `e037104` agreed that findings 1 to 3 are resolved, CI is
+green on `e037104`, and #116 covers the reuse cost. They differed on two
+points.
+
+- Deferred reclamation of a version that retires outside a run. The owner
+  accepted it on 2026-10-12. Plan recorded it as a Provisional exception in
+  live_evolution.md section 4.1, so it is no longer a deviation. Eager
+  release waits until a real host-held workload needs it.
+- P3, verified (pre-existing, now longer-lived): `HostedTarget.prepare()`
+  keeps its `_Production` records, with their chunks, in `_productions`
+  after admission. The candidate path deletes them, but prepare does not.
+  On the image, 228 records stay alive after the prepared version has
+  retired, for the target's whole life. The fix for Resolve is small: drop
+  each prepare-time production once it is admitted, as the candidate path
+  does, leaving the public `produce`/`admit` pair as it is. A regression
+  test should count the records after the prepared version retires. Not
+  blocking.
+
+Still open before Publish: the mutation campaign by workflow dispatch, and a
+fresh Review.
 
 ## Claims Review must verify independently
 
-1. `StateID` covers every entity's `VersionID`: `_state_content` takes all
-   values, `StateID` cannot be supplied, and no path builds a `State`
-   without deriving it.
-2. Production code reads `Reference.version` only in `State.resolve` and
-   `transfer_reference`; the language (`lang`, `bytecode`, `machine`) never
-   constructs a `Reference`, `VersionID` or `StateID` value.
-3. The tests' oracle is independent: expected versions come from the
-   states' values, not from the references under test, and the transfer
-   route is actually exercised (the corpus yields results for 20 of 21
-   cases).
-4. §14's content constraint is correct, including that a cell's declared
-   initial content is state content and its current content is not.
+live_evolution.md section 9, claims 1 to 7.
 
-## Limitations and notes
+## Plan head
 
-- The argument assumes SHA-256 has no collisions, as state identity does.
-- The version oracle in the tests uses `version_id_for`, the function the
-  producers use, and `rebuilt()` shares the original `Value` objects, so the
-  "independently rebuilt" state does not re-derive any version. The tests pin
-  the dependence of the version on state and entity, not the hash function.
-- `tests/test_references.py::test_version_fast_path_for_exact_value`
-  compares two states with equal content, so one `StateID`; it shows no
-  cross-state use. Left unchanged (owner's test); rename only if the owner
-  wants.
-- Hosted-bootstrap descriptors carry `(state_id, node, version)` with the
-  same redundancy inside one pinned state; their artifact key
-  `(entity, version)` is deliberate for reuse across activations (task 31).
-  Out of scope: they are not `Reference`.
-- CI fails on the commit between adding the test module and its lane entry;
-  it passes once both are on the branch.
-
-## Next action
-
-The owner merges PR #114, which closes #59, after the `tests` job is green
-on its head. It was green on `7e6c1fb` (Python 3.14, run 38237083952) before
-the roadmap and handoff commits that Publish added; those two commits touch
-only `docs/roadmap.md` and this file. No follow-up issues: the reviews' only
-limitations (the test oracle shares `version_id_for`; the reference form is
-decided with the `ref` design, roadmap Later) are recorded here and in §14.
+`d76708ffbbd970ceed380d231ace0859a4d4fac1`
+("GH-67 Change live_evolution.md to record the accepted deferred reclamation";
+section 4.1 only). Earlier Plan heads: `82a6a69`, `f11706d`, `51c9612`,
+`fc006f4`, `3d58684`. Review diffs the Plan-owned files from this one.

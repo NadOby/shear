@@ -664,5 +664,166 @@ class CommandTests(unittest.TestCase):
         )
 
 
+class LiveDiagnosticsTests(unittest.TestCase):
+    """The live evolution measurements (live_evolution.md section 7) run once
+    with one repeat; no number is asserted, only that they ran and left
+    nothing patched."""
+
+    def test_the_live_measurements_run_once_and_restore_what_they_wrap(self):
+        from shear.hosted_bootstrap import live_diagnostics
+        from shear.hosted_bootstrap.target import HostedTarget
+        from shear.instructions import INSTRUCTIONS
+        from shear.runtime import Runtime as Rt
+
+        wrapped = (
+            Rt.activate, HostedTarget.candidate, HostedTarget._produce,
+            HostedTarget._admit, HostedTarget._reuse,
+            machine._define_for_operation, dict(INSTRUCTIONS),
+        )
+
+        result = live_diagnostics.measure(1, (2,), 1)
+
+        self.assertEqual(
+            wrapped,
+            (
+                Rt.activate, HostedTarget.candidate, HostedTarget._produce,
+                HostedTarget._admit, HostedTarget._reuse,
+                machine._define_for_operation, dict(INSTRUCTIONS),
+            ),
+        )
+
+        updates = result["updates"]
+        valid = updates["valid"]
+        trial = updates["trial_rejected"]
+        refused = updates["refused"]
+
+        for record in (valid, trial, refused):
+            for phase in live_diagnostics.PHASES:
+                self.assertEqual(len(record[phase]["observations"]), 1)
+
+        self.assertEqual(len(valid["first_call_s"]["observations"]), 1)
+        self.assertNotIn("first_call_s", trial)
+        self.assertNotIn("first_call_s", refused)
+
+        # Only the changed nodes are compiled; every other node is reused.
+        for record in (valid, trial):
+            self.assertGreater(record["produced"][0], 0)
+            self.assertGreater(record["reused"][0], 0)
+
+        # The injected failure refuses every reused chunk that has ADD too.
+        self.assertEqual(refused["reused"], [0])
+
+        # One loaded version and one retained set after every kind, and a
+        # rejected trial adds no artifacts to the set that is retained.
+        for record in (valid, trial, refused):
+            self.assertEqual(record["loaded_versions"], [1])
+            self.assertEqual(record["retained_sets"], [1])
+
+        self.assertEqual(trial["artifacts"], valid["artifacts"])
+        self.assertEqual(result["peak_memory"]["retained_sets"], 1)
+        self.assertEqual(list(result["scaling_functions"]), ["8"])
+
+
+class LateRetirementTests(unittest.TestCase):
+    """A version can retire outside a run, when the host releases the hold
+    that kept it (live_evolution.md section 4.1): the target releases its
+    artifact set the next time it is asked about sets or starts a run."""
+
+    def setUp(self):
+        from tests.live_support import H, image_state
+
+        self.entry = H
+        self.runtime = Runtime(image_state())
+        self.session = HostedSession(self.runtime)
+        self.session.prepare(compiler_generation=1)
+        self.old = self.runtime.active
+        held = self.runtime.enter(H("part"))
+        self.assertIsNone(
+            self.session.run(H("move"), may_activate=True)
+        )
+        self.assertEqual(len(self.runtime.versions), 2)
+        self.assertEqual(len(self.session.retained_versions()), 2)
+        held.release()
+        self.assertEqual(len(self.runtime.versions), 1)
+
+    def released(self):
+        return [
+            event.target_state_id for event in self.session.trace()
+            if event.kind == "release" and event.detail == "retired"
+        ]
+
+    def test_a_run_releases_the_set_of_a_version_that_retired(self):
+        self.assertEqual(self.session.run(self.entry("whole"), 5), 11)
+
+        # Seen in the trace, before anything asks about the sets.
+        self.assertEqual(self.released(), [self.old.state.id])
+        self.assertEqual(
+            self.session.retained_versions(), frozenset(self.runtime.versions),
+        )
+
+    def test_asking_for_the_artifacts_of_a_retired_version_releases_them(self):
+        with self.assertRaises(AdmissionRejected):
+            self.session.admitted(self.old)
+
+        self.assertEqual(
+            self.session.retained_versions(), frozenset(self.runtime.versions),
+        )
+        self.assertEqual(self.released(), [self.old.state.id])
+
+
+class ConsumedEvidenceTests(unittest.TestCase):
+    """Preparing consumes its production records: they do not outlive the
+    admission they authorized, however long the session runs on
+    (live_evolution.md section 4.1). The public ``produce`` and ``admit``
+    keep their evidence for the caller."""
+
+    @staticmethod
+    def productions():
+        import gc
+
+        from shear.hosted_bootstrap.target import _Production
+
+        gc.collect()
+
+        return [o for o in gc.get_objects() if isinstance(o, _Production)]
+
+    def test_prepare_retains_no_production_record(self):
+        from tests.live_support import H, image_state
+
+        runtime = Runtime(image_state())
+        session = HostedSession(runtime)
+        before = len(self.productions())
+        session.prepare(compiler_generation=1)
+
+        self.assertEqual(len(self.productions()), before)
+
+        # Updates compile candidates and retire versions; none leaves any.
+        self.assertEqual(
+            session.run(H("upgrade"), 10, 2, 13, may_activate=True),
+            "installed",
+        )
+        self.assertEqual(session.run(H("handle"), 1), 12)
+        self.assertEqual(len(runtime.versions), 1)
+        self.assertEqual(len(self.productions()), before)
+
+    def test_the_public_produce_and_admit_keep_the_callers_evidence(self):
+        from tests.live_support import H, image_state
+
+        runtime = Runtime(image_state())
+        session = HostedSession(runtime)
+        session.prepare(compiler_generation=1)
+        state = runtime.active.state
+        node = next(
+            n for n in state.owned_subtree(H("handle")) - {H("handle")}
+        )
+        before = len(self.productions())
+
+        chunk, evidence = session.produce(node)
+
+        self.assertEqual(len(self.productions()), before + 1)
+        session.admit(node, state.values[node].version_id, chunk, evidence)
+        self.assertEqual(len(self.productions()), before + 1)
+
+
 if __name__ == "__main__":
     unittest.main()

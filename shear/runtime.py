@@ -20,13 +20,22 @@ against the staged content of an activation or trial run.
 Activation (activation_model.md) switches the runtime to the destination of a
 transformation result. Everything is staged first and the switch is atomic:
 a rejected activation leaves the runtime unchanged.
+
+A host can follow versions with a ``VersionListener`` for the length of a
+run (``listening``): it is told of a candidate version after the runtime has
+staged and accepted it and before anything changes, so it can refuse it by
+raising; of a version that retires; and of the end of a trial. The hosted
+route (docs/live_evolution.md) uses it to compile and admit a candidate before
+the switch or the trial. A runtime with no listener behaves as before.
 """
 
 from __future__ import annotations
 
+import contextlib
+from contextvars import ContextVar
 from dataclasses import dataclass
 from types import MappingProxyType
-from typing import Any, Callable, Mapping
+from typing import Any, Callable, Iterator, Mapping, Protocol
 
 from .canonical import canonicalize
 from .cells import CellDeclaration, cells_of
@@ -47,6 +56,48 @@ from .transforms import (
     rebase,
     transfer_reference,
 )
+
+
+class VersionListener(Protocol):
+    """What a host attaches to follow versions (see ``listening``)."""
+
+    def candidate(
+        self,
+        runtime: "Runtime",
+        version: "Version",
+        how: str,
+    ) -> None:
+        """``version`` is the staged, accepted destination of an
+        ``"activate"`` or a ``"trial"`` of ``runtime``. Nothing has changed
+        yet: an exception raised here leaves the runtime as it was."""
+
+    def retired(self, runtime: "Runtime", version: "Version") -> None:
+        """``version`` was removed from ``runtime``'s loaded versions."""
+
+    def trial_ended(self, runtime: "Runtime", version: "Version") -> None:
+        """The run of a trial ``runtime`` ended, whether it returned or
+        failed; ``version`` is its version."""
+
+
+# The listener of the current run, if any. A context variable, so that a run
+# nested in another (the hosted route's compiler runs) can leave it.
+_LISTENER: ContextVar[VersionListener | None] = ContextVar(
+    "shear_version_listener",
+    default=None,
+)
+
+
+@contextlib.contextmanager
+def listening(listener: VersionListener | None) -> Iterator[None]:
+    """Attach ``listener`` to every runtime for the duration of the block, or
+    detach the current one with None."""
+
+    token = _LISTENER.set(listener)
+
+    try:
+        yield
+    finally:
+        _LISTENER.reset(token)
 
 
 class CellError(ValueError):
@@ -404,6 +455,10 @@ class Runtime:
         self._versions.remove(version)
         version._cells.clear()
         version._retired = True
+        listener = _LISTENER.get()
+
+        if listener is not None:
+            listener.retired(self, version)
 
     def _active_cell(self, cell: EntityID) -> None:
         if not self._active.state.contains(cell):
@@ -512,6 +567,11 @@ class Runtime:
 
         new = Version(result.destination, contents)
         new._runtime = self
+        listener = _LISTENER.get()
+
+        if listener is not None:
+            # Everything is staged and accepted; nothing has changed yet.
+            listener.candidate(self, new, "activate")
 
         for kept, reference in references:
             kept._reference = reference
@@ -550,11 +610,26 @@ class Runtime:
         contents = self._stage_cells(result, available, trial_context)
         self._check_staged_relations(result, contents, trial_context)
 
-        return Runtime._isolated(
+        isolated = Runtime._isolated(
             result.destination,
             contents,
             trial_context,
         )
+        listener = _LISTENER.get()
+
+        if listener is not None:
+            listener.candidate(self, isolated.active, "trial")
+
+        return isolated
+
+    def end_trial(self) -> None:
+        """Tell the listener that the run of this trial, a runtime that
+        ``trial`` returned, is over. Nothing else changes."""
+
+        listener = _LISTENER.get()
+
+        if listener is not None:
+            listener.trial_ended(self, self._active)
 
     @classmethod
     def _isolated(

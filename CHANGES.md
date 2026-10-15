@@ -1935,3 +1935,19 @@ golden records or historical measurements changed.
   state and entity determine the version and that only a hand-built
   reference is stale. Three planted bugs are each caught. No golden
   change.
+
+
+### Live evolution on the hosted route (task 31, GH-67)
+
+A running image changes itself on route B. The SHEAR compiler lowers
+every node kind; candidates built by `activate` and `trial` are compiled
+by the image's retained compiler and admitted whole before they run or
+become active (D5); unchanged nodes reuse their artifacts. A version owns
+its artifacts. Retirement during a run releases them immediately; when
+a host-held version retires outside a run, the session releases its
+artifacts at the next run or query (docs/live_evolution.md section 4.1).
+All 29 corpus examples and the live-image scenarios run on admitted
+artifacts and agree with ordinary host execution. One instruction table
+is shared as metadata by admission, the machine's tests and the
+SHEAR-written VM. Update latency and retention are measured in
+hosted_bootstrap.md.

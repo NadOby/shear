@@ -17,7 +17,7 @@ from .. import machine
 from ..examples.compiler_source import COMPILE_NODE
 from ..identity import EntityID, StateID, VersionID
 from ..lang import LanguageError
-from ..runtime import Runtime
+from ..runtime import Runtime, listening
 from ..state import State
 from .artifacts import COMPILER, Artifact, ArtifactSet, artifact_id
 from .descriptors import Descriptor, decode_chunk, describe
@@ -187,12 +187,15 @@ class CompilerChain:
         before = self._runtime.active.state
 
         try:
-            returned = machine.run(
-                self._runtime,
-                COMPILE_NODE,
-                descriptor.value,
-                resolver=artifacts.resolver(),
-            )
+            # The compiler's runtime is its own: a run that happens inside a
+            # target's activation does not report to the target's listener.
+            with listening(None):
+                returned = machine.run(
+                    self._runtime,
+                    COMPILE_NODE,
+                    descriptor.value,
+                    resolver=artifacts.resolver(),
+                )
         except LanguageError as exc:
             raise AdmissionRejected(
                 f"the SHEAR compiler failed: {exc}"

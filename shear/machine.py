@@ -30,7 +30,10 @@ _RUN: ContextVar[object | None] = ContextVar("shear_run", default=None)
 # to chunk. None, the default, lowers on demand and caches on the node's value
 # (bytecode.chunk_of). A caller that must run only artifacts it has admitted
 # passes ``resolver`` to :func:`run`; the resolver then replaces lowering and
-# its value cache completely, for every node the run opens.
+# its value cache completely, for every node the run opens. Two loaded
+# versions can have one state, so a resolver that has a ``for_version``
+# method is asked ``for_version(version, entity, owner)`` instead, with the
+# version of the frame that opens the node.
 ChunkResolver = Callable[[Any, EntityID, EntityID], bytecode.Chunk]
 _RESOLVER: ContextVar[ChunkResolver | None] = ContextVar(
     "shear_chunk_resolver",
@@ -39,16 +42,21 @@ _RESOLVER: ContextVar[ChunkResolver | None] = ContextVar(
 
 
 def _chunk_for(
-    state: Any,
+    version: Any,
     entity: EntityID,
     owner: EntityID,
 ) -> bytecode.Chunk:
     resolver = _RESOLVER.get()
 
     if resolver is not None:
-        return resolver(state, entity, owner)
+        scoped = getattr(resolver, "for_version", None)
 
-    return bytecode.chunk_of(state, entity, owner)
+        if scoped is not None:
+            return scoped(version, entity, owner)
+
+        return resolver(version.state, entity, owner)
+
+    return bytecode.chunk_of(version.state, entity, owner)
 
 
 class _Raised(LanguageError):
@@ -419,14 +427,8 @@ def _child_chunk(
     entity: EntityID,
     function: EntityID,
 ) -> bytecode.Chunk:
-    resolver = _RESOLVER.get()
-
-    if resolver is not None:
-        return resolver(
-            activation.hold.version.state,
-            entity,
-            function,
-        )
+    if _RESOLVER.get() is not None:
+        return _chunk_for(activation.hold.version, entity, function)
 
     value = activation.values.get(entity)
     child = (
@@ -520,7 +522,7 @@ def _open(
 
     try:
         chunk = _chunk_for(
-            state,
+            activation.hold.version,
             definition.body,
             entity,
         )
@@ -647,7 +649,7 @@ def _open_closure(
 
     try:
         chunk = _chunk_for(
-            state,
+            activation.hold.version,
             closure.body,
             closure.owner,
         )
@@ -1715,15 +1717,18 @@ def _execute(
                         )
                         raise
 
-                    stack.append(
-                        _execute(
+                    try:
+                        answer = _execute(
                             candidate,
                             False,
                             target,
                             arguments,
                             run_token,
                         )
-                    )
+                    finally:
+                        candidate.end_trial()
+
+                    stack.append(answer)
 
                 elif op == "FAIL":
                     detail = stack.pop()

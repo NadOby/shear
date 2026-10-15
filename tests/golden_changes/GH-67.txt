@@ -1,0 +1,7 @@
+# GH-67: the unified SHEAR compiler lowers quote, unquote, function,
+# activate and trial in node mode (docs/live_evolution.md section 2.3).
+# Compiler-containing examples acquire changed canonical compiler code.
+# Existing behavioral expectations and unrelated records remain protected.
+programs/compiler
+programs/bootstrap
+programs/instrument

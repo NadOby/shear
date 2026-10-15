@@ -11,6 +11,7 @@ catalog_targets = [
     "shear/examples/self_hosting.py",
     "shear/examples/vm.py",
     "shear/fold.py",
+    "shear/hosted_bootstrap/target.py",
     "shear/identity.py",
     "shear/lang.py",
     "shear/machine.py",
