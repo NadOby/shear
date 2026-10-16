@@ -26,6 +26,7 @@ from tests.constraint_function_oracle import (
     VIO,
     Vector,
     all_fixed_vectors,
+    generated_budget_vector,
     generated_vector,
 )
 
@@ -72,8 +73,6 @@ class CandidateIsolationTests(unittest.TestCase):
         self.assertEqual(seen, [SAT_CASE.expression])
 
     def test_grader_retains_expected_answer_privately(self) -> None:
-        # Same candidate input, deliberately different expected answers.
-        # Only the grader sees the difference.
         control = Vector("correct", ("external", "sat"), 0, SAT)
         poisoned = Vector("poisoned", ("external", "sat"), 0, VIO)
 
@@ -147,17 +146,43 @@ class AcceptanceVectorTests(unittest.TestCase):
         )
         self.assertTrue(all(seed is None for _, seed in cases))
 
-    def test_generated_seeds_are_preserved(self) -> None:
-        cases = acceptance_vectors((7, 3, 7))
-        generated = cases[-3:]
+    def test_both_generated_families_are_included(self) -> None:
+        seeds = (7, 3, 7)
+        cases = acceptance_vectors(seeds)
+        fixed_count = len(all_fixed_vectors())
+        generated = cases[fixed_count:]
+
+        self.assertEqual(len(generated), 2 * len(seeds))
+
+        logical = generated[:len(seeds)]
+        budgeted = generated[len(seeds):]
+
+        self.assertEqual(
+            logical,
+            tuple(
+                (generated_vector(seed), seed)
+                for seed in seeds
+            ),
+        )
+        self.assertEqual(
+            budgeted,
+            tuple(
+                (generated_budget_vector(seed), seed)
+                for seed in seeds
+            ),
+        )
+        self.assertTrue(
+            all(vector.budget is not None for vector, _ in budgeted)
+        )
+
+    def test_seed_iterator_is_not_consumed_twice(self) -> None:
+        seeds = iter((2, 5))
+        generated = acceptance_vectors(seeds)[len(all_fixed_vectors()):]
 
         self.assertEqual(
             tuple(seed for _, seed in generated),
-            (7, 3, 7),
+            (2, 5, 2, 5),
         )
-        self.assertEqual(generated[0][0], generated_vector(7))
-        self.assertEqual(generated[1][0], generated_vector(3))
-        self.assertEqual(generated[2][0], generated_vector(7))
 
     def test_no_cases_cannot_pass(self) -> None:
         report = grade(
@@ -320,11 +345,22 @@ class AcceptanceReportingTests(unittest.TestCase):
                 generated_seeds=(13,),
             )
 
-        self.assertEqual(report.checked, 1)
-        self.assertEqual(report.failures[0].seed, 13)
+        self.assertEqual(report.checked, 2)
+        self.assertEqual(len(report.failures), 2)
         self.assertEqual(
-            report.failures[0].replay,
-            "SHEAR_SEED=13",
+            [failure.seed for failure in report.failures],
+            [13, 13],
+        )
+        self.assertEqual(
+            {failure.replay for failure in report.failures},
+            {"SHEAR_SEED=13"},
+        )
+        self.assertEqual(
+            {failure.name for failure in report.failures},
+            {
+                generated_vector(13).name,
+                generated_budget_vector(13).name,
+            },
         )
 
     def test_failure_summary_is_deterministic(self) -> None:
