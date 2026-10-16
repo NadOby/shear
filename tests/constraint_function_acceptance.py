@@ -3,6 +3,9 @@
 The oracle is frozen independently of candidate implementations.
 Execute supplies an adapter to a real SHEAR execution path.
 
+Candidate adapters receive inputs only. Expected outcomes remain
+inside the grader, never in the adapter argument.
+
 A passing vector report is necessary but not sufficient for adoption:
 boundary integration, effects, source-path independence and mechanism
 elimination require separate evidence and independent Review.
@@ -10,8 +13,9 @@ elimination require separate evidence and independent Review.
 
 from __future__ import annotations
 
+from copy import deepcopy
 from dataclasses import dataclass
-from typing import Callable, Iterable
+from typing import Any, Callable, Iterable
 
 from tests.constraint_function_oracle import (
     Vector,
@@ -20,9 +24,21 @@ from tests.constraint_function_oracle import (
 )
 
 
-# A candidate must use ordinary SHEAR computation, not the dedicated
-# constraint evaluator hidden behind a function-looking wrapper.
 ROUTES = frozenset(("callable", "interpreted", "compiled"))
+
+
+@dataclass(frozen=True)
+class CandidateInput:
+    """Only information the candidate is authorized to receive.
+
+    Neither the expected result, fixture name nor replay seed is
+    available to a candidate through this interface.
+    """
+
+    expression: tuple[Any, ...]
+    subject: Any
+    budget: int | None
+    externals: tuple[tuple[str, str], ...]
 
 
 @dataclass(frozen=True)
@@ -59,13 +75,30 @@ class Report:
         return self.checked > 0 and not self.failures
 
 
-Candidate = Callable[[Vector], Observation]
+Candidate = Callable[[CandidateInput], Observation]
+
+
+def candidate_input(vector: Vector) -> CandidateInput:
+    """Construct a detached input without any oracle expectation.
+
+    Deep copies also prevent an adapter from modifying a frozen
+    fixture's mutable subject or nested expression values.
+    """
+    return CandidateInput(
+        expression=deepcopy(vector.expression),
+        subject=deepcopy(vector.subject),
+        budget=vector.budget,
+        externals=deepcopy(vector.externals),
+    )
 
 
 def acceptance_vectors(
     generated_seeds: Iterable[int] = range(100),
 ) -> tuple[tuple[Vector, int | None], ...]:
-    """Freeze case order and retain seeds for exact replay."""
+    """Private-to-grading fixture data, including expected results.
+
+    Do not pass these Vector objects into candidate adapters.
+    """
     fixed = tuple(
         (vector, None)
         for vector in all_fixed_vectors()
@@ -82,13 +115,14 @@ def assess(
     evaluate: Candidate,
     generated_seeds: Iterable[int] = range(100),
 ) -> Report:
-    """Grade every fixed and generated vector without silent skips.
+    """Grade all cases while keeping expectations out of adapters.
 
-    An adapter must run the candidate implementation, returning its
-    observed semantic outcome and measured route evidence.
+    An adapter receives only CandidateInput and must execute the
+    candidate implementation. Unsupported operations and unexpected
+    exceptions are failures, not equivalent to Unknown.
 
-    Unexpected exceptions and unsupported operations are failures,
-    not equivalent to Unknown.
+    Route and fallback fields are claims requiring independent
+    instrumentation and execution-path audit.
     """
     if not name:
         raise ValueError("candidate name must not be empty")
@@ -97,8 +131,10 @@ def assess(
     cases = acceptance_vectors(generated_seeds)
 
     for vector, seed in cases:
+        inputs = candidate_input(vector)
+
         try:
-            observed = evaluate(vector)
+            observed = evaluate(inputs)
         except Exception as exc:
             failures.append(Failure(
                 vector.name,
@@ -183,17 +219,16 @@ def summarize(report: Report) -> str:
     return "\n".join(lines)
 
 
-# Execute obligations beyond this unit-vector harness:
+# Additional Execute obligations:
 #
-# 1. Supply a separate adapter for each attempted design A, B or C.
-# 2. Run existing corpora through every newly introduced execution layer.
-# 3. Exercise all boundary witnesses in constraint_function_oracle.py.
-# 4. Test initial load, writes, activation, trial and owned-subtree roles.
-# 5. Preserve host-failure provenance, catch distinctions and atomicity.
-# 6. Test effects, versions, budgets and non-termination separately.
-# 7. Prove incumbent_calls with instrumentation, not self-report alone.
-# 8. Audit the complete call path for hidden Python evaluator fallback.
-# 9. Record mechanism removals and additions against the frozen ledger.
-# 10. Declare adopt or kill without weakening Plan-owned expectations.
+# 1. Supply separate candidate adapters for the attempted designs.
+# 2. Exercise the frozen candidate-facing boundary contract.
+# 3. Run existing corpora through every new execution layer.
+# 4. Preserve admission, atomicity, host failures and effects.
+# 5. Test versions, budgets and non-termination separately.
+# 6. Instrument incumbent calls independently of adapter reports.
+# 7. Audit complete execution paths for hidden Python fallbacks.
+# 8. Count retained, removed and added fixed mechanisms.
+# 9. Record the observed predictions and adopt-or-kill verdict.
 #
-# A PASS here does not establish any of obligations 2–10.
+# A semantic vector PASS does not establish these obligations.
