@@ -1,152 +1,36 @@
-
 # Handoff
 
-Read `CLAUDE.md`, the Workflow section and Task 24 in
-`docs/roadmap.md`, issue #56, and both Task 24 experiment specifications.
-Verify this checkpoint against GitHub before relying on it.
+Read `CLAUDE.md`, the Workflow and Task 24 sections of `docs/roadmap.md`, issue #56, and the Task 24 specifications. Verify this checkpoint independently against the repository.
 
 ## Current state
 
 - Task: 24 – constraints as functions.
-- Issue: GH-56, https://github.com/NadOby/shear/issues/56.
+- Issue: GH-56 – https://github.com/NadOby/shear/issues/56.
 - Branch: `task/24-constraints-as-functions`.
-- Role: Plan – revised following independent Plan Review.
+- Role: Plan – corrections committed; awaiting independent Plan Review.
 - Baseline main: `697b2d73b538ad38b57f12beffd7724fda64a871`.
-- Frozen revised Plan head: `a2c5205a40ea03169c0fa4933e6bfc4f5c2319a1`.
-- The next commit changes only this handoff.
-- Original Plan head `e2f87fa` is superseded.
-- Next role: independent Plan Review, then Execute only if accepted.
-- No production implementation or experimental candidate exists.
-- No adopt-or-kill verdict has been reached.
-- No golden records or production semantics have changed.
+- Revised frozen Plan head: `97e429787a22e2f76ef142713535e0c74fc4ae9a`.
+- This handoff must be committed alone, after the Plan-owned files.
+- No production implementation, experimental candidate, or adopt-or-kill result exists.
+- No golden changes or normative language changes are authorized.
 
-## Goal
+The earlier Plan checkpoints `e2f87fa` and `a2c5205` are superseded. Execute must use the revised frozen Plan head above, subject to independent Review approval.
 
-Determine experimentally whether evaluating semantic constraints
-through ordinary SHEAR functions preserves the current semantics
-while strictly reducing independent fixed mechanisms.
+## Goal and decision rule
 
-The null hypothesis is that no candidate satisfies both conditions.
+Test whether evaluating canonical semantic constraints through ordinary SHEAR functions preserves the incumbent observable semantics while strictly reducing independently fixed mechanisms. The null hypothesis predicts that no candidate will meet both conditions. A negative experimental result is valid.
 
-A negative result is a valid completed experiment.
+Adoption requires all of the following:
 
-## Independent Plan Review and corrections
+1. Complete independent semantic-vector and boundary acceptance, plus remaining T1–T9 obligations and applicable corpora.
+2. Genuine ordinary-function execution without hidden incumbent evaluator fallback or unauthorized effects.
+3. A scored hypothetical migrated-production architecture with independently verified mechanism removals R exceeding additions A; prototype avoidance alone earns no R credit.
+4. At most one generic external-authority boundary and one generic execution budget, with no retained duplicate constraint evaluator.
+5. No unapproved change to canonical identity, three-valued logic, budgets, runtime admission, failure provenance, public language semantics, or golden records.
 
-The independent review of the original Plan head `e2f87fa`
-requested changes for three blocking acceptance weaknesses,
-one mechanism-accounting ambiguity and one runner cleanup.
+The competing designs remain S (incumbent control), A (callable constraint values), B (ordinary-function interpreter), and C (constraint data compiled to ordinary functions). B and C are the primary bounded experiments. Predictions P1–P7 and the counting rules are unchanged.
 
-### P1 – Candidate access to expected results
-
-Resolved in the Plan interface.
-
-`tests/constraint_function_acceptance.py` now passes
-`CandidateInput`, containing only:
-
-- expression;
-- subject;
-- constraint-node budget;
-- external configuration.
-
-Expected results, fixture names and replay seeds remain in
-the grader, not in the candidate input.
-
-The harness makes detached copies of mutable inputs.
-Regression tests check isolation and independent grading.
-
-This prevents direct use of `vector.expected` through the
-candidate interface. It is not proof against malicious
-introspection of the test framework; independent execution-path
-inspection remains mandatory.
-
-### P2 – Incomplete semantic fixtures
-
-Expanded the independent oracle.
-
-Fixed candidate-facing cases now include:
-
-- All 15 canonical semantic kinds.
-- All existing constraint primitives.
-- Complete binary strong-Kleene AND/OR combinations.
-- All three NOT outcomes and empty compositions.
-- Canonical duplicate and operand-order cases.
-- Explicit node-budget and short-circuit cases.
-
-Each generated seed produces:
-
-1. An unbudgeted logical tree.
-2. A budget-sensitive primitive/composite case.
-
-`KindSample` represents semantic record kinds symbolically.
-Candidate adapters must materialize genuine semantic values.
-
-The oracle imports no production SHEAR semantics.
-The incumbent control tests compare observations against its
-independently specified expectations.
-
-### P2 – Missing candidate integration contract
-
-Added Plan-owned candidate boundary acceptance:
-
-- `tests/constraint_function_boundary_acceptance.py`
-- `tests/test_constraint_function_boundary_acceptance.py`
-
-Fourteen frozen scenarios cover:
-
-- External failure and language catch.
-- Missing external evaluators.
-- Initial loading and rejected writes.
-- Relation constraint rejection.
-- Activation and trial rejection.
-- Owned-subtree subjects.
-- Constraint identity and evaluation context.
-- Call-depth and tail-recursion distinctions.
-- Unauthorized effects.
-- Version-independent constraint identity.
-
-Execute supplies the `BoundaryCandidate` adapter and executes
-these scripts through actual candidate runtime/language paths.
-
-Expected observations belong to Plan. Unsupported scripts,
-exceptions, invalid routes and mismatches fail grading.
-Passing a subset is not a complete boundary pass.
-
-The boundary protocol and its test doubles are not themselves
-evidence of a working candidate. Independent Review must verify
-that the adapter implements the prescribed transitions faithfully
-rather than fabricating observation fields.
-
-### P2 – Mechanism-accounting counterfactual
-
-Clarified in
-`docs/spikes/constraints_as_functions_mechanisms.md` section 6.
-
-Two distinct boundaries are required:
-
-1. Isolated candidate execution path – evidence that incumbent
-   mechanisms are used, duplicated, avoided or unresolved.
-2. Hypothetical migrated production architecture – the scored
-   counterfactual including all production consumers, required
-   adapters, retained mechanisms and new facilities.
-
-Only verified counterfactual removals receive R credit.
-All additions necessary in the same migrated architecture
-contribute to A.
-
-Bypassing incumbent code in an isolated prototype does not
-by itself count as removal.
-
-Unresolved removals receive zero credit.
-
-### P3 – Unrelated runner edit
-
-Resolved.
-
-`tests/lanes.py` registers the new boundary test module in
-`core-model` and restores the original single unpacking of
-`future.result()`.
-
-## Frozen Plan-owned files
+## Plan-owned files
 
 Specifications:
 
@@ -159,138 +43,86 @@ Independent oracle and candidate-facing graders:
 - `tests/constraint_function_acceptance.py`
 - `tests/constraint_function_boundary_acceptance.py`
 
-Acceptance and regression tests:
+Acceptance and control tests:
 
 - `tests/test_constraint_function_oracle.py`
 - `tests/test_constraint_function_acceptance.py`
 - `tests/test_constraint_function_boundaries.py`
 - `tests/test_constraint_function_boundary_acceptance.py`
 
-Test registration:
+Lane registration:
 
 - `tests/lanes.py`
 
-These files are Plan-owned as of the frozen revised Plan head.
-Execute must not silently change their expectations.
+These files are Plan-owned as of the revised frozen Plan head. Execute must not silently change expectations, scripts, contracts, or specifications.
 
-## Competing designs
+## Review history and corrections
 
-S – Incumbent dedicated evaluator, serving as control.
+The earlier review found candidate expectation leakage, incomplete semantic fixtures, missing executable candidate boundary acceptance, ambiguous mechanism accounting, and an unrelated test-runner edit. Corresponding corrections were committed before the previous Plan checkpoint.
 
-A – Directly callable constraint values.
+An independent Plan Review of branch head `6a6b38c` then identified three blocking defects and a formatting issue. The subsequent Plan revisions address them as follows:
 
-B – Canonical constraint data interpreted by ordinary SHEAR
-functions.
+### P1 – Complete boundary-contract qualification
 
-C – Canonical constraint data compiled into ordinary SHEAR
-functions.
+`BoundaryReport.passed` now requires `complete_contract`, the full case count, and no failures. `assess_boundaries` sets `complete_contract` only when the selected cases equal the entire frozen `BOUNDARY_CASES` inventory, including each name, script, expected observation, and order. Diagnostic subsets remain possible but cannot qualify.
 
-The primary bounded experiments are B and C.
+Regression tests exercise the prior 14-duplicate counterexample and altered, omitted, or reordered contract content. Independent Review must verify fail-closed behaviour and look for remaining bypasses.
 
-Assess A using identity and pre-activation execution witnesses
-before investing in a full prototype.
+### P2 – Owned-subtree canonical expectation
 
-Predictions P1–P7 and acceptance requirements T1–T9 are frozen
-in `docs/spikes/constraints_as_functions.md`.
+The `owned_subtree` expected subject is now an independently specified tagged canonical map, including nested `__type__` tags, canonically ordered map entries, and a tagged child `EntityID` key. Grading ignores only the `CanonicalNode` tuple subclass, not tags, ordering, primitive types, or nested content.
 
-## Frozen semantic requirements
+Control tests compare this fixed expectation to the incumbent `canonicalize()` output and reject malformed, untagged, reordered, or type-changed subjects. Independent Review must confirm both the expectation and normalization are correct.
 
-- Canonical constraint identity is independent of evaluation,
-  deployment, versions and execution artifacts.
-- Three-valued results obey strong Kleene logic.
-- Unknown is distinct from violation and execution failure.
-- Primitive semantics, canonical subjects and composite set
-  semantics remain unchanged.
-- Existing constraint-node budget behaviour is preserved.
-- Missing external evaluators yield Unknown.
-- Escaping evaluator exceptions remain host/model failures,
-  not catchable program errors.
-- Only Satisfied permits runtime admission.
-- Rejected operations preserve the relevant live state.
-- Relation subjects preserve ownership and endpoint semantics.
-- Public language semantics and golden records remain unchanged.
+### P2 – Positive runtime admission acceptance
 
-No golden changes are authorized.
+The candidate-facing boundary inventory was extended from 14 to 17 mandatory cases, adding:
 
-## Execute requirements
+- `write_satisfied` – accepted write; live content changes to 7 without changing the active version.
+- `activation_satisfied` – accepted one-to-one widening; active version changes while cell content remains 4.
+- `trial_satisfied` – accepted isolated widening trial; staged trial content is 4, while the main live runtime and active version remain unchanged by the trial.
 
-1. Verify the frozen Plan head and establish baseline results.
-2. Execute the Plan-owned oracle, grader and boundary tests.
-3. Implement isolated candidate designs without silently
-   replacing the production constraint path.
-4. Supply separate semantic and boundary adapters for each
-   candidate, without access to grader expectations.
-5. Execute actual candidate computation for every accepted case.
-6. Test remaining T1–T9 obligations, including successful
-   transitions, malformed inputs, non-termination, continuity,
-   encoding and relevant full corpora.
-7. Independently instrument evaluator fallback, execution
-   routes, authority boundaries and side effects.
-8. Record candidate-path and migrated-architecture ledgers.
-9. Count R and A against the same migrated architecture.
-10. Compare observations with P1–P7 and record adopt or kill.
+The grader now compares frozen live-cell content, trial-cell content, active-version change, and staged-trial version agreement, as applicable. Regression tests reject incorrect positive outcomes and transitions. The experiment specification explicitly requires all 17 cases.
 
-No adapter may silently substitute the incumbent evaluator.
+### P3 – Formatting
 
-A reported zero fallback count is not proof of independence.
-A reported zero side-effect count is not proof of isolation.
+This replacement begins immediately with `# Handoff`, without a leading empty line. No formatting-only edit of Plan-owned files is required.
 
-Execute may add implementation tests and instrumentation, but
-may not weaken Plan-owned expectations to fit candidate results.
+## Other preserved Plan contracts
 
-## Owner decisions reserved
-
-D24-1 – Constraint identity versus callable identity.
-
-Recommendation: preserve canonical constraint identity.
-Callable substitution does not authorize a normative change.
-
-D24-2 – Generic execution budget and external boundary.
-
-Recommendation: permit bounded prototypes for measurement.
-Normative language or VM additions require owner approval.
-
-D24-3 – Scope of experimental success.
-
-Recommendation: successful evidence may justify a migration
-proposal, not an automatic production migration.
-
-These decisions remain Provisional.
+- The independent oracle covers all 15 canonical kinds, all existing constraint primitives, complete binary strong-Kleene combinations, and budget-sensitive cases.
+- Candidate input does not expose expected outcomes, names, or replay seeds. Candidate adapters must materialize real semantic values from symbolic kind descriptors.
+- Every generated seed exercises both unbudgeted logical and budget-sensitive families.
+- Mechanism scoring uses the hypothetical migrated production architecture, not just the isolated prototype execution path. Retained production consumers, adapters, and new facilities must all be included.
+- `tests/lanes.py` registers all four Task 24 ordinary test modules in `core-model` and restores the single `future.result()` tuple unpacking.
+- Plan-owned test doubles validate graders but are not evidence of a candidate implementation. Claimed execution routes, zero fallback calls, and effect isolation require independent instrumentation.
 
 ## Verification status
 
-Verified against GitHub:
+Verified through read-only GitHub inspection:
 
-- The revised Plan head exists at `a2c5205`.
-- The Plan Review corrections are committed.
-- `tests/lanes.py` registers the new test module and restores
-  the single tuple unpacking.
-- Current main remains at baseline `697b2d7`.
+- Plan specifications, grader, and regression changes are committed through `97e4297`.
+- The boundary contract contains 17 scenarios and the test inventory expects 17.
+- The revised experiment specification describes all 17 scenarios and their qualification requirements.
+- The frozen Plan head above exists and precedes this handoff-only commit.
 
 Not verified:
 
-- Complete Task 24 ordinary CI.
-- Successful execution of the expanded acceptance suite.
-- Mutation-test results for this Plan revision.
-- Any experimental candidate or mechanism-removal claim.
+- Green ordinary CI for the branch; no workflow checks were returned by the available query.
+- Execution of the full repository test suite or new boundary regressions.
+- Mutation testing for the revised Plan.
+- Any experimental candidate's behaviour or a genuine mechanism reduction.
 
-At the time of handoff preparation, the commit-status and
-pull-request workflow queries returned no reported checks.
-Do not interpret this as green CI.
+Do not infer test success from the presence of regression tests or from an empty checks result.
 
-The revised Plan requires another independent review before
-Execute. Review must specifically inspect the correctness
-and completeness of the new fixture expectations and the
-candidate boundary protocol.
+## Independent Review obligations
 
-## Next step
+Review in a fresh context, read-only. Check the branch history and all Plan-owned files against main. In particular:
 
-Commit this handoff alone, leaving all Plan-owned files
-unchanged.
+1. Reproduce the 14-duplicate bypass attempt and other full-contract tampering tests.
+2. Verify the exact canonical owned-subtree shape against the actual incumbent boundary, not merely against fixture expectations.
+3. Confirm successful write, activation, and trial scripts represent executable runtime transitions and the frozen observations exclude incorrect rejection or state changes.
+4. Check candidate-input isolation, generated budgets, semantic oracle independence, mechanism-accounting consistency, lane registration, and any available CI.
+5. Distinguish verified defects from limitations and hypotheses; classify remaining findings by severity and give a Plan → Execute verdict.
 
-Then conduct an independent, read-only Plan Review against
-the revised frozen Plan head `a2c5205`.
-
-If the revised Plan is accepted, start Execute in a separate
-fresh chat. Do not Execute merely because this handoff says
-the corrections were made.
+Do not treat this handoff as evidence or begin Execute before independent Plan approval. If approved, start Execute in a separate fresh chat from Plan head `97e429787a22e2f76ef142713535e0c74fc4ae9a`.
