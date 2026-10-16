@@ -70,10 +70,15 @@ class BoundaryReport:
     candidate: str
     checked: int
     failures: tuple[BoundaryFailure, ...]
+    complete_contract: bool = False
 
     @property
     def passed(self) -> bool:
-        return self.checked == len(BOUNDARY_CASES) and not self.failures
+        return (
+            self.complete_contract
+            and self.checked == len(BOUNDARY_CASES)
+            and not self.failures
+        )
 
 
 def _case(
@@ -322,13 +327,23 @@ def assess_boundaries(
     """Grade candidate execution against Plan-owned expected outcomes.
 
     Case names and expected fields never enter the adapter argument.
-    No case may be skipped. Exceptions and unsupported scripts fail.
+
+    Subsets can be run for diagnosis, but only the exact frozen
+    inventory, including the original scripts and expectations in
+    their original order, qualifies as a full acceptance run.
+
+    Exceptions and unsupported scripts fail.
     """
     if not name:
         raise ValueError("candidate name must not be empty")
 
     failures: list[BoundaryFailure] = []
     selected = tuple(cases)
+
+    # Dataclass equality checks the name, input script and every
+    # expected field. Replacing, duplicating, omitting, reordering
+    # or modifying even one case invalidates full qualification.
+    complete_contract = selected == BOUNDARY_CASES
 
     for case in selected:
         try:
@@ -375,7 +390,8 @@ def assess_boundaries(
                 ))
 
     return BoundaryReport(
-        name,
-        len(selected),
-        tuple(failures),
-)
+        candidate=name,
+        checked=len(selected),
+        failures=tuple(failures),
+        complete_contract=complete_contract,
+    )
