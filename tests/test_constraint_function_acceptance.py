@@ -6,15 +6,18 @@ constraint evaluator. Test doubles do not constitute experiment evidence.
 
 from __future__ import annotations
 
+from dataclasses import fields
 import unittest
 from unittest.mock import patch
 
 from tests.constraint_function_acceptance import (
+    CandidateInput,
     Failure,
     Observation,
     Report,
     acceptance_vectors,
     assess,
+    candidate_input,
     summarize,
 )
 from tests.constraint_function_oracle import (
@@ -41,6 +44,99 @@ def grade(cases: tuple[Vector, ...], evaluate) -> Report:
         return assess("harness-test", evaluate, generated_seeds=())
 
 
+class CandidateIsolationTests(unittest.TestCase):
+    def test_input_schema_excludes_oracle_and_fixture_metadata(
+        self,
+    ) -> None:
+        self.assertEqual(
+            tuple(field.name for field in fields(CandidateInput)),
+            ("expression", "subject", "budget", "externals"),
+        )
+
+    def test_candidate_cannot_read_expected_answer(self) -> None:
+        seen = []
+
+        def evaluate(case: CandidateInput) -> Observation:
+            self.assertIsInstance(case, CandidateInput)
+            self.assertNotIsInstance(case, Vector)
+
+            for name in ("expected", "name", "seed"):
+                self.assertFalse(hasattr(case, name))
+
+            seen.append(case.expression)
+            return Observation(SAT, "compiled", 0)
+
+        report = grade((SAT_CASE,), evaluate)
+
+        self.assertTrue(report.vector_passed)
+        self.assertEqual(seen, [SAT_CASE.expression])
+
+    def test_grader_retains_expected_answer_privately(self) -> None:
+        # Same candidate input, deliberately different expected answers.
+        # Only the grader sees the difference.
+        control = Vector("correct", ("external", "sat"), 0, SAT)
+        poisoned = Vector("poisoned", ("external", "sat"), 0, VIO)
+
+        inputs = []
+
+        def evaluate(case: CandidateInput) -> Observation:
+            inputs.append(case)
+            return Observation(SAT, "compiled", 0)
+
+        report = grade((control, poisoned), evaluate)
+
+        self.assertEqual(inputs[0], inputs[1])
+        self.assertEqual(report.checked, 2)
+        self.assertEqual(len(report.failures), 1)
+        self.assertEqual(report.failures[0].name, "poisoned")
+        self.assertEqual(report.failures[0].expected, VIO)
+
+    def test_mutating_candidate_inputs_cannot_change_oracle(
+        self,
+    ) -> None:
+        vector = Vector(
+            "mutable",
+            ("one_of", ({"a": [1]},)),
+            {"value": [2]},
+            SAT,
+        )
+
+        first = candidate_input(vector)
+        first.subject["value"].append(3)
+        first.expression[1][0]["a"].append(4)
+
+        second = candidate_input(vector)
+
+        self.assertEqual(second.subject, {"value": [2]})
+        self.assertEqual(
+            second.expression,
+            ("one_of", ({"a": [1]},)),
+        )
+        self.assertEqual(vector.subject, {"value": [2]})
+        self.assertEqual(vector.expected, SAT)
+
+    def test_budget_and_externals_reach_adapter(self) -> None:
+        vector = Vector(
+            "context",
+            ("external", "probe"),
+            7,
+            UNK,
+            budget=2,
+            externals=(("probe", UNK),),
+        )
+        seen = []
+
+        def evaluate(case: CandidateInput) -> Observation:
+            seen.append(case)
+            return Observation(UNK, "interpreted", 0)
+
+        report = grade((vector,), evaluate)
+
+        self.assertTrue(report.vector_passed)
+        self.assertEqual(seen[0].budget, 2)
+        self.assertEqual(seen[0].externals, (("probe", UNK),))
+
+
 class AcceptanceVectorTests(unittest.TestCase):
     def test_fixed_cases_are_not_omitted(self) -> None:
         cases = acceptance_vectors(())
@@ -64,7 +160,10 @@ class AcceptanceVectorTests(unittest.TestCase):
         self.assertEqual(generated[2][0], generated_vector(7))
 
     def test_no_cases_cannot_pass(self) -> None:
-        report = grade((), lambda _: Observation(SAT, "compiled", 0))
+        report = grade(
+            (),
+            lambda _: Observation(SAT, "compiled", 0),
+        )
 
         self.assertEqual(report.checked, 0)
         self.assertFalse(report.vector_passed)
@@ -74,10 +173,16 @@ class AcceptanceFailureTests(unittest.TestCase):
     def test_all_three_outcomes_can_be_accepted(self) -> None:
         cases = (SAT_CASE, VIO_CASE, UNK_CASE)
         seen = []
+        by_external = {
+            "sat": SAT,
+            "vio": VIO,
+            "unk": UNK,
+        }
 
-        def evaluate(vector: Vector) -> Observation:
-            seen.append(vector.name)
-            return Observation(vector.expected, "interpreted", 0)
+        def evaluate(case: CandidateInput) -> Observation:
+            seen.append(case.expression)
+            result = by_external[case.expression[1]]
+            return Observation(result, "interpreted", 0)
 
         report = grade(cases, evaluate)
 
@@ -85,7 +190,7 @@ class AcceptanceFailureTests(unittest.TestCase):
         self.assertEqual(report.checked, 3)
         self.assertEqual(
             seen,
-            ["sat_case", "vio_case", "unk_case"],
+            [case.expression for case in cases],
         )
 
     def test_wrong_result_is_not_silently_accepted(self) -> None:
@@ -173,16 +278,19 @@ class AcceptanceFailureTests(unittest.TestCase):
     ) -> None:
         seen = []
 
-        def evaluate(vector: Vector) -> Observation:
-            seen.append(vector.name)
-            if vector.name == "sat_case":
+        def evaluate(case: CandidateInput) -> Observation:
+            seen.append(case.expression)
+            if case.expression == SAT_CASE.expression:
                 raise RuntimeError("candidate failure")
-            return Observation(vector.expected, "compiled", 0)
+            return Observation(VIO, "compiled", 0)
 
         report = grade((SAT_CASE, VIO_CASE), evaluate)
 
         self.assertEqual(report.checked, 2)
-        self.assertEqual(seen, ["sat_case", "vio_case"])
+        self.assertEqual(
+            seen,
+            [SAT_CASE.expression, VIO_CASE.expression],
+        )
         self.assertEqual(len(report.failures), 1)
         self.assertEqual(
             report.failures[0].actual,
@@ -191,7 +299,11 @@ class AcceptanceFailureTests(unittest.TestCase):
 
     def test_empty_candidate_name_is_rejected(self) -> None:
         with self.assertRaises(ValueError):
-            assess("", lambda _: Observation(SAT, "compiled", 0), ())
+            assess(
+                "",
+                lambda _: Observation(SAT, "compiled", 0),
+                (),
+            )
 
 
 class AcceptanceReportingTests(unittest.TestCase):
@@ -202,7 +314,9 @@ class AcceptanceReportingTests(unittest.TestCase):
         ):
             report = assess(
                 "candidate-b",
-                lambda _: Observation("invalid", "interpreted", 0),
+                lambda _: Observation(
+                    "invalid", "interpreted", 0
+                ),
                 generated_seeds=(13,),
             )
 
