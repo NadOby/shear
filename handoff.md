@@ -1,7 +1,8 @@
+
 # Handoff
 
 Read `CLAUDE.md`, the Workflow section and Task 24 in
-`docs/roadmap.md`, issue #56, and the two experiment documents.
+`docs/roadmap.md`, issue #56, and both Task 24 experiment specifications.
 Verify this checkpoint against GitHub before relying on it.
 
 ## Current state
@@ -9,219 +10,287 @@ Verify this checkpoint against GitHub before relying on it.
 - Task: 24 – constraints as functions.
 - Issue: GH-56, https://github.com/NadOby/shear/issues/56.
 - Branch: `task/24-constraints-as-functions`.
-- Role: Plan – prepared for independent execution.
+- Role: Plan – revised following independent Plan Review.
 - Baseline main: `697b2d73b538ad38b57f12beffd7724fda64a871`.
-- Plan head: `e2f87fa07d37ca3b7d3ceca8b0c8cb28a3abcaa6`.
-- The next commit updates only this handoff.
+- Frozen revised Plan head: `a2c5205a40ea03169c0fa4933e6bfc4f5c2319a1`.
+- The next commit changes only this handoff.
+- Original Plan head `e2f87fa` is superseded.
+- Next role: independent Plan Review, then Execute only if accepted.
 - No production implementation or experimental candidate exists.
 - No adopt-or-kill verdict has been reached.
-- Ordinary CI and mutation results are not yet verified for this branch.
-- The user has not requested Execute yet.
+- No golden records or production semantics have changed.
 
-## Goal and decision rule
+## Goal
 
-Determine whether expressing semantic constraints through ordinary
-SHEAR functions strictly reduces the number of independent fixed
-mechanisms while preserving observable semantics.
+Determine experimentally whether evaluating semantic constraints
+through ordinary SHEAR functions preserves the current semantics
+while strictly reducing independent fixed mechanisms.
 
-The null hypothesis is that no candidate achieves both requirements.
+The null hypothesis is that no candidate satisfies both conditions.
 
-Adopt only if:
+A negative result is a valid completed experiment.
 
-1. Independent semantic and boundary acceptance passes.
-2. The complete execution path has no hidden incumbent fallback.
-3. Independently verified removed mechanisms outnumber additions.
-4. No more than one generic external-authority boundary and one
-   generic execution budget remain.
-5. No unapproved normative language changes are required.
+## Independent Plan Review and corrections
 
-Otherwise record kill and retain the existing constraint evaluator.
+The independent review of the original Plan head `e2f87fa`
+requested changes for three blocking acceptance weaknesses,
+one mechanism-accounting ambiguity and one runner cleanup.
 
-A valid negative result completes the experiment.
+### P1 – Candidate access to expected results
 
-## Plan-owned specifications
+Resolved in the Plan interface.
+
+`tests/constraint_function_acceptance.py` now passes
+`CandidateInput`, containing only:
+
+- expression;
+- subject;
+- constraint-node budget;
+- external configuration.
+
+Expected results, fixture names and replay seeds remain in
+the grader, not in the candidate input.
+
+The harness makes detached copies of mutable inputs.
+Regression tests check isolation and independent grading.
+
+This prevents direct use of `vector.expected` through the
+candidate interface. It is not proof against malicious
+introspection of the test framework; independent execution-path
+inspection remains mandatory.
+
+### P2 – Incomplete semantic fixtures
+
+Expanded the independent oracle.
+
+Fixed candidate-facing cases now include:
+
+- All 15 canonical semantic kinds.
+- All existing constraint primitives.
+- Complete binary strong-Kleene AND/OR combinations.
+- All three NOT outcomes and empty compositions.
+- Canonical duplicate and operand-order cases.
+- Explicit node-budget and short-circuit cases.
+
+Each generated seed produces:
+
+1. An unbudgeted logical tree.
+2. A budget-sensitive primitive/composite case.
+
+`KindSample` represents semantic record kinds symbolically.
+Candidate adapters must materialize genuine semantic values.
+
+The oracle imports no production SHEAR semantics.
+The incumbent control tests compare observations against its
+independently specified expectations.
+
+### P2 – Missing candidate integration contract
+
+Added Plan-owned candidate boundary acceptance:
+
+- `tests/constraint_function_boundary_acceptance.py`
+- `tests/test_constraint_function_boundary_acceptance.py`
+
+Fourteen frozen scenarios cover:
+
+- External failure and language catch.
+- Missing external evaluators.
+- Initial loading and rejected writes.
+- Relation constraint rejection.
+- Activation and trial rejection.
+- Owned-subtree subjects.
+- Constraint identity and evaluation context.
+- Call-depth and tail-recursion distinctions.
+- Unauthorized effects.
+- Version-independent constraint identity.
+
+Execute supplies the `BoundaryCandidate` adapter and executes
+these scripts through actual candidate runtime/language paths.
+
+Expected observations belong to Plan. Unsupported scripts,
+exceptions, invalid routes and mismatches fail grading.
+Passing a subset is not a complete boundary pass.
+
+The boundary protocol and its test doubles are not themselves
+evidence of a working candidate. Independent Review must verify
+that the adapter implements the prescribed transitions faithfully
+rather than fabricating observation fields.
+
+### P2 – Mechanism-accounting counterfactual
+
+Clarified in
+`docs/spikes/constraints_as_functions_mechanisms.md` section 6.
+
+Two distinct boundaries are required:
+
+1. Isolated candidate execution path – evidence that incumbent
+   mechanisms are used, duplicated, avoided or unresolved.
+2. Hypothetical migrated production architecture – the scored
+   counterfactual including all production consumers, required
+   adapters, retained mechanisms and new facilities.
+
+Only verified counterfactual removals receive R credit.
+All additions necessary in the same migrated architecture
+contribute to A.
+
+Bypassing incumbent code in an isolated prototype does not
+by itself count as removal.
+
+Unresolved removals receive zero credit.
+
+### P3 – Unrelated runner edit
+
+Resolved.
+
+`tests/lanes.py` registers the new boundary test module in
+`core-model` and restores the original single unpacking of
+`future.result()`.
+
+## Frozen Plan-owned files
+
+Specifications:
 
 - `docs/spikes/constraints_as_functions.md`
-  - Competing designs A, B, C and incumbent S.
-  - Pre-registered falsifiable predictions P1–P7.
-  - Semantic invariants, acceptance matrix T1–T9.
-  - Experiment procedure, kill criterion and reserved decisions.
-
 - `docs/spikes/constraints_as_functions_mechanisms.md`
-  - Independent-mechanism accounting.
-  - Baseline M1–M4, retained requirements N1–N5.
-  - Existing generic facilities G1–G5.
-  - Required implementation-site evidence and accounting ledger.
 
-Both are Provisional experiment specifications, not a change
-to existing Decided language semantics.
-
-## Plan-owned test infrastructure
+Independent oracle and candidate-facing graders:
 
 - `tests/constraint_function_oracle.py`
-  - Independently fixed primitive and budget cases.
-  - Mathematical strong-Kleene oracle.
-  - Deterministic generated trees and shrinking.
-  - Runtime-boundary witness inventory.
-
 - `tests/constraint_function_acceptance.py`
-  - Candidate adapter and vector acceptance harness.
-  - Explicit reporting of semantic mismatches, unsupported routes,
-    fallback calls and reproducible generated failures.
-  - A passing vector report does not establish full adoption.
+- `tests/constraint_function_boundary_acceptance.py`
 
-## Plan-owned acceptance tests
+Acceptance and regression tests:
 
 - `tests/test_constraint_function_oracle.py`
-  - Mathematical truth-table properties, fixed vectors and
-    independently generated expectations against the control.
-
 - `tests/test_constraint_function_acceptance.py`
-  - Harness validation using test doubles, including failure
-    propagation, fallback detection and replay reporting.
-
 - `tests/test_constraint_function_boundaries.py`
-  - Unknown during load, write, relation checking, activation
-    and trial; state preservation, owned-subtree subjects,
-    budget boundaries and identity independence.
+- `tests/test_constraint_function_boundary_acceptance.py`
+
+Test registration:
 
 - `tests/lanes.py`
-  - All three test modules assigned to `core-model`.
 
-Existing acceptance coverage also includes:
-`tests/test_constraints.py`,
-`tests/test_constraint_relations.py`,
-`tests/test_runtime.py`, and
-`tests/test_error_handling.py`.
-
-The complete existing corpora must be run through any newly
-introduced computation layer. Green incumbent tests alone do not
-qualify a candidate.
-
-## Frozen invariants
-
-- Constraint values have canonical identity independent of
-  evaluation resources, installed functions and versions.
-- Three-valued results obey strong Kleene composition.
-- Unknown is neither Violated nor execution failure.
-- Existing primitive behaviour, canonical subject handling,
-  set composition and constraint-node budgets remain unchanged.
-- Missing External evaluators yield Unknown.
-- Escaping evaluator exceptions remain model failures and are
-  not converted into catchable program errors.
-- Only Satisfied permits admission.
-- Rejected writes, activation and trial preserve live state.
-- Relation subjects include required endpoints and owned subtrees.
-- State, version, reference and public language semantics remain
-  unchanged.
-
-No golden changes are planned or authorized.
+These files are Plan-owned as of the frozen revised Plan head.
+Execute must not silently change their expectations.
 
 ## Competing designs
 
-S – retain the existing constraint evaluator as control.
+S – Incumbent dedicated evaluator, serving as control.
 
-A – directly callable constraint values; must first resolve
-canonical identity and pre-activation evaluation without
-special-case machinery.
+A – Directly callable constraint values.
 
-B – retain canonical constraint data and interpret it using
-ordinary SHEAR functions.
+B – Canonical constraint data interpreted by ordinary SHEAR
+functions.
 
-C – compile canonical constraint data to ordinary functions,
-accounting for translation, artifact lifetimes and admission.
+C – Canonical constraint data compiled into ordinary SHEAR
+functions.
 
-Primary bounded implementation experiments are B and C.
-Assess A with concrete identity and execution witnesses before
-investing in a full prototype.
+The primary bounded experiments are B and C.
 
-## Execution procedure
+Assess A using identity and pre-activation execution witnesses
+before investing in a full prototype.
 
-1. Verify the frozen Plan head and run the new acceptance tests.
-2. Establish baseline control results and mechanism sites.
-3. Implement isolated, bounded candidates; do not silently
-   redirect the production constraint path.
-4. Connect each candidate to the frozen acceptance harness.
-5. Run independent vectors and adversarial boundary scenarios.
-6. Test the existing corpora through any new execution layer.
-7. Measure execution routes and independently establish that
-   no dedicated evaluator fallback was used.
-8. Record removed, retained, added and shared mechanisms.
-9. Compare observations to pre-registered predictions P1–P7.
-10. Record adopt or kill, including failures and counterexamples.
+Predictions P1–P7 and acceptance requirements T1–T9 are frozen
+in `docs/spikes/constraints_as_functions.md`.
 
-Do not repair candidate failures by weakening Plan-owned
-expectations or changing the normative semantic contract.
+## Frozen semantic requirements
 
-If the experiment needs new language semantics, return to Plan
-and the owner before implementing them.
+- Canonical constraint identity is independent of evaluation,
+  deployment, versions and execution artifacts.
+- Three-valued results obey strong Kleene logic.
+- Unknown is distinct from violation and execution failure.
+- Primitive semantics, canonical subjects and composite set
+  semantics remain unchanged.
+- Existing constraint-node budget behaviour is preserved.
+- Missing external evaluators yield Unknown.
+- Escaping evaluator exceptions remain host/model failures,
+  not catchable program errors.
+- Only Satisfied permits runtime admission.
+- Rejected operations preserve the relevant live state.
+- Relation subjects preserve ownership and endpoint semantics.
+- Public language semantics and golden records remain unchanged.
 
-## Decisions reserved for the owner
+No golden changes are authorized.
 
-D24-1 – Canonical constraint values versus function identity.
+## Execute requirements
+
+1. Verify the frozen Plan head and establish baseline results.
+2. Execute the Plan-owned oracle, grader and boundary tests.
+3. Implement isolated candidate designs without silently
+   replacing the production constraint path.
+4. Supply separate semantic and boundary adapters for each
+   candidate, without access to grader expectations.
+5. Execute actual candidate computation for every accepted case.
+6. Test remaining T1–T9 obligations, including successful
+   transitions, malformed inputs, non-termination, continuity,
+   encoding and relevant full corpora.
+7. Independently instrument evaluator fallback, execution
+   routes, authority boundaries and side effects.
+8. Record candidate-path and migrated-architecture ledgers.
+9. Count R and A against the same migrated architecture.
+10. Compare observations with P1–P7 and record adopt or kill.
+
+No adapter may silently substitute the incumbent evaluator.
+
+A reported zero fallback count is not proof of independence.
+A reported zero side-effect count is not proof of isolation.
+
+Execute may add implementation tests and instrumentation, but
+may not weaken Plan-owned expectations to fit candidate results.
+
+## Owner decisions reserved
+
+D24-1 – Constraint identity versus callable identity.
 
 Recommendation: preserve canonical constraint identity.
-Do not make callable identity normative in Execute.
+Callable substitution does not authorize a normative change.
 
 D24-2 – Generic execution budget and external boundary.
 
-Recommendation: allow bounded experimental prototypes,
-but require explicit owner approval before normative VM
-or language additions.
+Recommendation: permit bounded prototypes for measurement.
+Normative language or VM additions require owner approval.
 
-D24-3 – Meaning of an experimental success.
+D24-3 – Scope of experimental success.
 
-Recommendation: success authorizes an adoption recommendation,
-not an automatic production migration.
+Recommendation: successful evidence may justify a migration
+proposal, not an automatic production migration.
 
-These remain Provisional recommendations. Execute cannot decide
-a material normative language change alone.
+These decisions remain Provisional.
 
-## Verification status and gaps
+## Verification status
 
-GitHub commits and Plan file contents were checked individually
-during preparation.
+Verified against GitHub:
 
-No Task 24 candidate implementation has been executed.
-No experimental claim is verified.
-No complete CI result has been established for this branch.
+- The revised Plan head exists at `a2c5205`.
+- The Plan Review corrections are committed.
+- `tests/lanes.py` registers the new test module and restores
+  the single tuple unpacking.
+- Current main remains at baseline `697b2d7`.
 
-The Plan boundary tests pin representative incumbent behaviour.
-Candidate-specific integration and adversarial effects tests,
-including initial-load execution, version coupling, escaping
-exceptions under catch, non-termination and isolation, must be
-completed and assessed before an adoption verdict.
+Not verified:
 
-The candidate adapter's reported incumbent-call count is not
-itself proof of independence. Review must inspect and instrument
-the actual execution path.
+- Complete Task 24 ordinary CI.
+- Successful execution of the expanded acceptance suite.
+- Mutation-test results for this Plan revision.
+- Any experimental candidate or mechanism-removal claim.
 
-A nonblocking test-runner cleanup remains: `tests/lanes.py`
-calls `future.result()` twice for the same completed future.
-It is functionally equivalent, but Review may request restoring
-the single tuple unpacking.
+At the time of handoff preparation, the commit-status and
+pull-request workflow queries returned no reported checks.
+Do not interpret this as green CI.
 
-## Independent Review obligations
-
-Verify independently:
-
-1. Every P1–P7 prediction is assessed against observed evidence.
-2. Frozen expectations are independent of the candidate code.
-3. No hidden Python evaluator or special environment substitutes
-   for genuinely ordinary function execution.
-4. Runtime admission, effects, budgets, host failures and
-   canonical identities preserve the recorded semantics.
-5. Every claimed mechanism removal is real and independently
-   counted; additions include generic mechanisms and adapters.
-6. No golden records or public behaviour were changed silently.
-7. CI, corpora, replayable failures and relevant mutation
-   evidence support the reported results.
-8. The adopt-or-kill decision follows the frozen criteria.
+The revised Plan requires another independent review before
+Execute. Review must specifically inspect the correctness
+and completeness of the new fixture expectations and the
+candidate boundary protocol.
 
 ## Next step
 
-Plan stops here. Do not Execute without a separate instruction.
+Commit this handoff alone, leaving all Plan-owned files
+unchanged.
 
-Start the later Execute role in a fresh chat from the frozen
-Plan head identified above, using this handoff as a checkpoint
-rather than as verification evidence.
+Then conduct an independent, read-only Plan Review against
+the revised frozen Plan head `a2c5205`.
+
+If the revised Plan is accepted, start Execute in a separate
+fresh chat. Do not Execute merely because this handoff says
+the corrections were made.
