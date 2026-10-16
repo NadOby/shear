@@ -20,6 +20,7 @@ from typing import Any, Callable, Iterable
 from tests.constraint_function_oracle import (
     Vector,
     all_fixed_vectors,
+    generated_budget_vector,
     generated_vector,
 )
 
@@ -79,11 +80,7 @@ Candidate = Callable[[CandidateInput], Observation]
 
 
 def candidate_input(vector: Vector) -> CandidateInput:
-    """Construct a detached input without any oracle expectation.
-
-    Deep copies also prevent an adapter from modifying a frozen
-    fixture's mutable subject or nested expression values.
-    """
+    """Construct detached input without any oracle expectation."""
     return CandidateInput(
         expression=deepcopy(vector.expression),
         subject=deepcopy(vector.subject),
@@ -95,19 +92,33 @@ def candidate_input(vector: Vector) -> CandidateInput:
 def acceptance_vectors(
     generated_seeds: Iterable[int] = range(100),
 ) -> tuple[tuple[Vector, int | None], ...]:
-    """Private-to-grading fixture data, including expected results.
+    """Return fixed and both generated families for private grading.
 
-    Do not pass these Vector objects into candidate adapters.
+    Fixed cases cover all kinds, primitives, logical operators,
+    deduplication, short circuits and explicit budgets.
+
+    For each seed, require an unbudgeted logical tree and a
+    budget-sensitive primitive/composite case. The seed is retained
+    for replay but is never passed to the candidate adapter.
     """
     fixed = tuple(
         (vector, None)
         for vector in all_fixed_vectors()
     )
+
+    seeds = tuple(generated_seeds)
+
     generated = tuple(
         (generated_vector(seed), seed)
-        for seed in generated_seeds
+        for seed in seeds
     )
-    return fixed + generated
+
+    budgeted = tuple(
+        (generated_budget_vector(seed), seed)
+        for seed in seeds
+    )
+
+    return fixed + generated + budgeted
 
 
 def assess(
@@ -117,9 +128,9 @@ def assess(
 ) -> Report:
     """Grade all cases while keeping expectations out of adapters.
 
-    An adapter receives only CandidateInput and must execute the
-    candidate implementation. Unsupported operations and unexpected
-    exceptions are failures, not equivalent to Unknown.
+    The adapter must execute the candidate implementation and return
+    an Observation. Unsupported operations and unexpected exceptions
+    are failures, never equivalent to Unknown.
 
     Route and fallback fields are claims requiring independent
     instrumentation and execution-path audit.
