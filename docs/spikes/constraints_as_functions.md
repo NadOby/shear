@@ -3,6 +3,7 @@
 **Status: Provisional – Plan pre-registration.**
 
 Issue: GH-56. Baseline: main at `697b2d7`.
+
 This document fixes the experiment's designs, predictions, discriminators and decision rule before implementation. It records no experimental result.
 
 ## 1. Question and null hypothesis
@@ -124,9 +125,20 @@ Count every new fixed mechanism, including:
 
 A generic mechanism counts as one only if it genuinely serves ordinary computation with the same rules, rather than being a constraint-specific mechanism under a generic name.
 
-The ledger must identify each proposed removal by its old implementation site and each addition by its new implementation site. It must show that removed mechanisms are actually absent, not hidden behind wrappers.
+The accounting has two distinct boundaries, specified in `docs/spikes/constraints_as_functions_mechanisms.md` section 6:
 
-Let R be removed independent mechanisms and A be added independent mechanisms. Adoption requires R > A, with no surviving duplicate evaluator. At most one generic external-authority boundary and one generic execution budget are allowed by the roadmap. This allowance is not automatic evidence of reduction.
+1. **Isolated candidate execution path.** Determine which incumbent mechanisms are used, duplicated, avoided or unresolved. Avoidance demonstrates possible removal but earns no removal credit by itself.
+2. **Hypothetical migrated production architecture.** Account for all existing production consumers, retained mechanisms, replacements, compatibility adapters and newly required generic facilities. This is the scored counterfactual.
+
+The migration must be specified concretely enough for independent verification, even though Execute must not replace the production implementation during the experiment.
+
+A removal is credited only when that rule would genuinely cease to operate in the complete migrated architecture. Any surviving consumer or equivalent separately enforced replacement must be accounted for.
+
+All additions necessary for the same migration are counted, even if they are not part of an isolated prototype.
+
+The ledger must identify implementation and call sites for both removals and additions. An unresolved removal receives zero credit. Ordinary existing generic facilities reused without new fixed rules receive zero added cost.
+
+Let R be verified removed independent mechanisms and A be added independent mechanisms, both in the same migrated architecture. Adoption requires R > A, with no surviving duplicate evaluator. At most one generic external-authority boundary and one generic execution budget are allowed by the roadmap. This allowance is not automatic evidence of reduction.
 
 Record secondary costs separately: new instruction count, production branches, adapters, source size, execution time, memory, compilation and integration costs. Performance cannot substitute for the mechanism criterion.
 
@@ -134,7 +146,22 @@ Record secondary costs separately: new instruction count, production branches, a
 
 The primary acceptance oracle must not compute expected answers by importing or calling the incumbent constraint evaluator.
 
-Use fixed, independently reasoned fixtures for primitives, evaluation order, budgets and admission transitions.
+Plan-owned files:
+
+- `tests/constraint_function_oracle.py` – expected results, fixed vectors, independent strong-Kleene mathematics, generated cases and symbolic semantic-kind descriptors.
+- `tests/constraint_function_acceptance.py` – candidate-facing input isolation and semantic grading.
+- `tests/test_constraint_function_oracle.py` – control comparison and fixture validation.
+- `tests/test_constraint_function_acceptance.py` – grader regression tests.
+
+The fixed candidate-facing fixtures contain:
+
+- All 15 currently canonical semantic kinds, including record kinds represented independently by `KindSample`.
+- Existing primitives, boundary values and type-sensitive cases.
+- Every binary AND and OR truth-table combination, all three NOT cases and empty compositions.
+- Canonical repetition, operand-order and deduplication witnesses.
+- Node-budget exhaustion, short-circuit precedence and sufficient-budget cases.
+
+`KindSample` is descriptive input. Each execution adapter must materialize a genuine semantic value of the specified kind. The expected answer must not be derived from that materialization.
 
 For strong Kleene logic, independently represent each result as a set of possible Boolean outcomes:
 
@@ -144,7 +171,25 @@ For strong Kleene logic, independently represent each result as a set of possibl
 
 Apply Boolean operators pointwise to those sets. This provides an oracle independent of the evaluator's branching implementation.
 
-Include deterministic generated trees, fixed seeds and reproducible shrinking or minimal counterexamples.
+For each generated seed, candidate acceptance includes both:
+
+1. An unbudgeted, deterministically generated logical tree.
+2. A budget-sensitive combination of primitives and composite constraints.
+
+Generated cases retain reproducible seeds. The unbudgeted tree family has a deterministic shrinker. Generated budget fixtures are pinned by independently specified complete evaluation costs and outcomes.
+
+The candidate callback receives only `CandidateInput`:
+
+- expression;
+- subject;
+- budget;
+- external configuration.
+
+It does not receive the oracle expectation, fixture name or replay seed. The grader retains those independently.
+
+A passing `Report.vector_passed` establishes only that the adapter returned acceptable semantic observations and declared an approved execution route. Reported execution-route and incumbent-call fields are not independent proof of those claims.
+
+A candidate must execute real computation, not inspect test fixtures, call the control oracle or return known answers. Independent instrumentation and path inspection remain mandatory.
 
 Comparison with the existing `Constraint.evaluate` implementation is secondary differential evidence, not the primary oracle.
 
@@ -172,19 +217,63 @@ T8. All existing semantic and language corpora through the affected boundary; un
 
 T9. Adversarial candidate functions attempting effects, accessing mutable state or depending on their deployment version.
 
-The candidate must distinguish unsupported functionality from incorrect results. A fallback to the existing dedicated evaluator cannot count as candidate success.
+### 7.1 Candidate-facing integration contract
+
+The Plan-owned executable boundary contract is:
+
+`tests/constraint_function_boundary_acceptance.py`
+
+Its grader regression tests are:
+
+`tests/test_constraint_function_boundary_acceptance.py`
+
+The contract contains 14 named candidate-facing scenarios corresponding to the frozen boundary witness inventory. They include:
+
+- escaping host exceptions and the language `catch` boundary;
+- missing External evaluators;
+- rejected initial content, writes and relation checks;
+- rejected activation and trial with unchanged live state;
+- owned-subtree canonical subjects;
+- canonical identity independent of evaluation context;
+- call-depth and tail-recursion behaviour;
+- unauthorized effects during constraint evaluation;
+- constraint identity across version changes.
+
+Each `BoundaryCase` specifies input operations and an independently frozen `BoundaryExpected`.
+
+Execute supplies a `BoundaryCandidate` adapter accepting only `BoundaryInput`, containing the operation script. It must execute the candidate through the corresponding runtime or language boundary and return a `BoundaryObservation`.
+
+The adapter may not inspect expected observations, redefine the script's meaning, replace runtime transitions with direct predicate calls or use the incumbent evaluator as fallback.
+
+`assess_boundaries` compares all specified observation fields, including status, semantic outcomes, state preservation, catch behaviour, side effects, canonical subjects and identity. Unsupported scripts, exceptions and wrong execution routes fail grading.
+
+A complete boundary report must pass. A passing subset does not qualify as full acceptance.
+
+The grader's declared route and fallback count remain subject to independent instrumentation, just as in the semantic-vector harness.
+
+### 7.2 Additional required evidence
+
+The two candidate-facing graders are necessary but not sufficient.
+
+Execute must also demonstrate every remaining T1–T9 obligation not completely exercised by the frozen cases, including malformed-input handling, round-trip encoding, successful transitions, rename continuity, non-terminating externals and existing full corpora.
+
+Such evidence must be checked against the existing normative specifications and Plan-owned expected behaviour. Execute may add implementation tests and instrumentation, but cannot weaken or replace Plan-owned expectations.
 
 A newly introduced general computation layer must run the existing corpora through that layer; the incumbent remaining green is not sufficient.
 
+The candidate must distinguish unsupported functionality from incorrect results. A fallback to the existing dedicated evaluator cannot count as candidate success.
+
 ## 8. Experiment procedure
 
-1. Freeze this contract, fixtures, oracle and mechanism-count taxonomy in the Plan head.
+1. Freeze this contract, fixtures, candidate-facing acceptance infrastructure and mechanism-count taxonomy in the revised Plan head.
 2. Obtain a control run on the current baseline using the existing tests and a documented mechanism ledger.
 3. Implement bounded isolated versions of B and C, without changing the production constraint path. Evaluate A with explicit identity and execution witnesses; implement it only if those obstacles are resolved within the declared boundary.
-4. Run all applicable fixtures for each design, preserving failures and counterexamples rather than modifying expectations.
-5. Independently audit every claimed removed or added mechanism. Inspect the full execution path for Python fallback, duplicated dispatch, special-case handling and forbidden effects.
-6. Compare results with the frozen predictions and classify every mismatch by semantics, missing capability, implementation defect or resource limit.
-7. Record adopt or kill with the evidence and exact mechanism ledger. If none qualifies, retain the existing architecture.
+4. Connect each candidate to the frozen semantic-vector and boundary graders. Run every mandatory case without weakening, replacing or silently skipping expectations.
+5. Run remaining T1–T9 checks and all applicable corpora through the candidate computation layer. Record failures, unsupported operations and counterexamples.
+6. Independently instrument evaluator fallbacks, authorization boundaries and effect isolation. Inspect full execution paths, not just adapter-reported metadata.
+7. Record the isolated-path ledger and the complete migrated-production counterfactual. Audit each proposed removed, retained, added or shared mechanism.
+8. Compare observations with the frozen predictions and classify every mismatch by semantics, missing capability, implementation defect or resource limit.
+9. Record adopt or kill with the evidence and exact mechanism ledger. If none qualifies, retain the existing architecture.
 
 The bounded experiment must not grow into an unrestricted implementation project. If a candidate needs undeclared language semantics, change the Plan before continuing it.
 
@@ -208,14 +297,14 @@ All other implementation choices are Provisional within these boundaries.
 
 ## 10. Plan and Review responsibilities
 
-Plan owns this pre-registration, the independent fixtures and acceptance tests, test-lane registration and any explicitly necessary golden declarations.
+Plan owns this pre-registration, the independent fixtures, semantic and boundary acceptance contracts, their regression tests, test-lane registration and any explicitly necessary golden declarations.
 
 The intended golden-change set is empty. No `tests/golden_changes/GH-56.txt` is required unless the owner explicitly authorizes an identified semantic change through Plan.
 
-Execute owns experimental candidate implementations, reproducible observations and the actual mechanism ledger. It must not change Plan-owned expectations or specifications. It must record whether a failure is an implementation defect or evidence against a design.
+Execute owns experimental candidate implementations, candidate-specific integration adapters, reproducible observations and the actual mechanism ledger. It must not change Plan-owned expectations or specifications. It must record whether a failure is an implementation defect or evidence against a design.
 
-Review independently reproduces the key semantic counterexamples, verifies oracle independence, checks that removed mechanisms really disappeared, audits the mechanism count, and checks the final verdict against the frozen criteria.
+Review independently reproduces key semantic and integration counterexamples, verifies oracle independence, checks execution routes and side effects, audits the complete migration mechanism count and checks the final verdict against frozen criteria.
 
 The outcome is not assumed. Preserve the existing implementation if the experiment is killed. Document discovered architectural questions as separate follow-ups instead of enlarging Task 24.
 
-After the Plan files are committed, the final Plan commit is pinned in `handoff.md`. Execute starts from that exact commit, not from this provisional document alone.
+After the Plan corrections are committed and reviewed, the revised final Plan commit is pinned in `handoff.md`. Execute must start from that revised Plan head, not the obsolete `e2f87fa` checkpoint.
