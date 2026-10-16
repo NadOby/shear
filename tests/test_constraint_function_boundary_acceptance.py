@@ -47,11 +47,28 @@ def case_named(name: str) -> BoundaryCase:
 
 class BoundaryInventoryTests(unittest.TestCase):
     def test_every_registered_witness_has_a_script(self) -> None:
+        original_count = len(BOUNDARIES)
+
         self.assertEqual(
-            tuple(case.name for case in BOUNDARY_CASES),
+            tuple(
+                case.name
+                for case in BOUNDARY_CASES[:original_count]
+            ),
             tuple(witness.name for witness in BOUNDARIES),
         )
-        self.assertEqual(len(BOUNDARY_CASES), 14)
+        self.assertEqual(original_count, 14)
+        self.assertEqual(
+            tuple(
+                case.name
+                for case in BOUNDARY_CASES[original_count:]
+            ),
+            (
+                "write_satisfied",
+                "activation_satisfied",
+                "trial_satisfied",
+            ),
+        )
+        self.assertEqual(len(BOUNDARY_CASES), 17)
         self.assertEqual(
             len({case.name for case in BOUNDARY_CASES}),
             len(BOUNDARY_CASES),
@@ -131,6 +148,76 @@ class BoundaryInventoryTests(unittest.TestCase):
         self.assertEqual(
             version.results,
             ("satisfied", "satisfied"),
+        )
+
+    def test_successful_write_expectations(self) -> None:
+        case = case_named("write_satisfied")
+        expected = case.expected
+
+        self.assertEqual(
+            case.input.script,
+            (
+                ("load_cell", "c", ("int_range", 0, 10), 0),
+                ("write", "c", 7),
+            ),
+        )
+        self.assertEqual(expected.status, "completed")
+        self.assertEqual(expected.results, ("satisfied",))
+        self.assertIs(expected.state_unchanged, False)
+        self.assertEqual(expected.live_cells, (("c", 7),))
+        self.assertIs(expected.active_version_changed, False)
+        self.assertIsNone(expected.trial_cells)
+
+    def test_successful_activation_expectations(self) -> None:
+        case = case_named("activation_satisfied")
+        expected = case.expected
+
+        self.assertEqual(
+            case.input.script,
+            (
+                ("load_cell", "c", ("int_range", 0, 10), 0),
+                ("write", "c", 4),
+                (
+                    "activate_constraint",
+                    "c",
+                    ("int_range", 0, 100),
+                    "preserve_content",
+                ),
+            ),
+        )
+        self.assertEqual(expected.status, "completed")
+        self.assertEqual(expected.results, ("satisfied",))
+        self.assertIs(expected.state_unchanged, False)
+        self.assertEqual(expected.live_cells, (("c", 4),))
+        self.assertIs(expected.active_version_changed, True)
+        self.assertIsNone(expected.trial_cells)
+
+    def test_successful_trial_expectations(self) -> None:
+        case = case_named("trial_satisfied")
+        expected = case.expected
+
+        self.assertEqual(
+            case.input.script,
+            (
+                ("load_cell", "c", ("int_range", 0, 10), 0),
+                ("write", "c", 4),
+                (
+                    "trial_constraint",
+                    "c",
+                    ("int_range", 0, 100),
+                    "preserve_content",
+                ),
+            ),
+        )
+        self.assertEqual(expected.status, "completed")
+        self.assertEqual(expected.results, ("satisfied",))
+        self.assertIs(expected.state_unchanged, True)
+        self.assertEqual(expected.live_cells, (("c", 4),))
+        self.assertEqual(expected.trial_cells, (("c", 4),))
+        self.assertIs(expected.active_version_changed, False)
+        self.assertIs(
+            expected.trial_version_matches_staged,
+            True,
         )
 
     def test_owned_subtree_matches_reference_canonical_form(
@@ -384,6 +471,10 @@ class BoundaryGraderTests(unittest.TestCase):
             "effect_count": 1,
             "observed_subject": ("unexpected",),
             "identity_preserved": False,
+            "live_cells": (("c", 1),),
+            "trial_cells": (("c", 1),),
+            "active_version_changed": True,
+            "trial_version_matches_staged": True,
         }
 
         for field, wrong in wrong_values.items():
@@ -401,6 +492,44 @@ class BoundaryGraderTests(unittest.TestCase):
                     field,
                     [failure.field for failure in report.failures],
                 )
+
+    def test_incorrect_positive_transitions_are_rejected(
+        self,
+    ) -> None:
+        corruptions = (
+            ("write_satisfied", "status", "cell_rejected"),
+            ("write_satisfied", "live_cells", (("c", 0),)),
+            ("write_satisfied", "active_version_changed", True),
+            ("activation_satisfied", "status", "activation_rejected"),
+            ("activation_satisfied", "live_cells", (("c", 0),)),
+            ("activation_satisfied", "active_version_changed", False),
+            ("trial_satisfied", "status", "activation_rejected"),
+            ("trial_satisfied", "live_cells", (("c", 0),)),
+            ("trial_satisfied", "trial_cells", (("c", 0),)),
+            ("trial_satisfied", "active_version_changed", True),
+            ("trial_satisfied", "trial_version_matches_staged", False),
+            ("trial_satisfied", "state_unchanged", False),
+        )
+
+        for name, field, wrong in corruptions:
+            with self.subTest(name=name, field=field):
+                case = case_named(name)
+                candidate_result = replace(
+                    observation(case.expected),
+                    **{field: wrong},
+                )
+                report = assess_boundaries(
+                    "positive-negative-control",
+                    lambda _: candidate_result,
+                    (case,),
+                )
+
+                self.assertEqual(report.checked, 1)
+                self.assertIn(
+                    field,
+                    [failure.field for failure in report.failures],
+                )
+                self.assertFalse(report.passed)
 
     def test_wrong_execution_route_is_rejected(self) -> None:
         case = BOUNDARY_CASES[0]
