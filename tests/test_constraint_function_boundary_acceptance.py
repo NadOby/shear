@@ -1,4 +1,3 @@
-
 """Regression tests for Task 24 candidate boundary acceptance.
 
 These tests validate the Plan-owned grader with test doubles.
@@ -10,6 +9,7 @@ from __future__ import annotations
 from dataclasses import fields, replace
 import unittest
 
+from shear import EntityID, canonicalize
 from tests.constraint_function_boundary_acceptance import (
     BOUNDARY_CASES,
     BoundaryCase,
@@ -133,6 +133,87 @@ class BoundaryInventoryTests(unittest.TestCase):
             ("satisfied", "satisfied"),
         )
 
+    def test_owned_subtree_matches_reference_canonical_form(
+        self,
+    ) -> None:
+        case = case_named("owned_subtree")
+        raw_subject = {
+            "root": {
+                "value": 1,
+                "owned": {EntityID("child"): 2},
+            },
+        }
+        actual = canonicalize(raw_subject)
+
+        self.assertEqual(
+            tuple(actual)[:2],
+            ("__type__", "map"),
+        )
+
+        report = assess_boundaries(
+            "canonical-control",
+            lambda _: replace(
+                observation(case.expected),
+                observed_subject=actual,
+            ),
+            (case,),
+        )
+
+        self.assertEqual(report.failures, ())
+
+    def test_owned_subtree_rejects_malformed_canonical_subjects(
+        self,
+    ) -> None:
+        case = case_named("owned_subtree")
+        frozen = case.expected.observed_subject
+        nested_entries = frozen[2][0][1][2]
+
+        reversed_entries = (
+            "__type__", "map", (
+                (
+                    "root",
+                    ("__type__", "map", nested_entries[::-1]),
+                ),
+            ),
+        )
+
+        malformed = {
+            "untagged": {
+                "root": {
+                    "value": 1,
+                    "owned": {EntityID("child"): 2},
+                },
+            },
+            "reordered": reversed_entries,
+            "bool_instead_of_int": canonicalize({
+                "root": {
+                    "value": True,
+                    "owned": {EntityID("child"): 2},
+                },
+            }),
+            "string_instead_of_entity_id": canonicalize({
+                "root": {
+                    "value": 1,
+                    "owned": {"child": 2},
+                },
+            }),
+        }
+
+        for name, subject in malformed.items():
+            with self.subTest(name=name):
+                report = assess_boundaries(
+                    "canonical-negative-control",
+                    lambda _: replace(
+                        observation(case.expected),
+                        observed_subject=subject,
+                    ),
+                    (case,),
+                )
+                self.assertIn(
+                    "observed_subject",
+                    [failure.field for failure in report.failures],
+                )
+
     def test_scripts_are_detached_from_the_frozen_cases(
         self,
     ) -> None:
@@ -205,8 +286,6 @@ class BoundaryGraderTests(unittest.TestCase):
         self.assertFalse(report.passed)
 
     def test_duplicate_cases_cannot_qualify(self) -> None:
-        # Original P1 counterexample: correct count, all expected
-        # observations, but thirteen mandatory cases omitted.
         first = BOUNDARY_CASES[0]
         duplicates = (first,) * len(BOUNDARY_CASES)
 
