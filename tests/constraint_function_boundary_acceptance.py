@@ -1,15 +1,11 @@
-
 """Plan-owned candidate-facing boundary acceptance for Task 24.
 
-A script specifies setup and operations. The expected observation is
-stored separately and is never passed to a candidate adapter.
+Scripts specify setup and operations. Expected observations are stored
+separately and are never passed to candidate adapters.
 
-Execute supplies implementations of the scripts using each candidate
-and the affected runtime/language entry points. Adapters do not select
-which outcomes are acceptable.
-
-This harness grades observations; independent Review must also
-instrument execution routes, authority boundaries and side effects.
+Execute supplies adapters that exercise the candidate through actual
+runtime and language boundaries. Independent Review must instrument
+execution routes, incumbent fallback and effects.
 """
 
 from __future__ import annotations
@@ -36,6 +32,10 @@ class BoundaryExpected:
     effect_count: int = 0
     observed_subject: Any = None
     identity_preserved: bool | None = None
+    live_cells: tuple[tuple[str, Any], ...] | None = None
+    trial_cells: tuple[tuple[str, Any], ...] | None = None
+    active_version_changed: bool | None = None
+    trial_version_matches_staged: bool | None = None
 
 
 @dataclass(frozen=True)
@@ -47,6 +47,10 @@ class BoundaryObservation:
     effect_count: int = 0
     observed_subject: Any = None
     identity_preserved: bool | None = None
+    live_cells: tuple[tuple[str, Any], ...] | None = None
+    trial_cells: tuple[tuple[str, Any], ...] | None = None
+    active_version_changed: bool | None = None
+    trial_version_matches_staged: bool | None = None
     route: str = ""
     incumbent_calls: int = 0
 
@@ -93,44 +97,57 @@ def _case(
     effect_count: int = 0,
     observed_subject: Any = None,
     identity_preserved: bool | None = None,
+    live_cells: tuple[tuple[str, Any], ...] | None = None,
+    trial_cells: tuple[tuple[str, Any], ...] | None = None,
+    active_version_changed: bool | None = None,
+    trial_version_matches_staged: bool | None = None,
 ) -> BoundaryCase:
     return BoundaryCase(
         name,
         BoundaryInput(script),
         BoundaryExpected(
-            status,
-            results,
-            state_unchanged,
-            caught,
-            effect_count,
-            observed_subject,
-            identity_preserved,
+            status=status,
+            results=results,
+            state_unchanged=state_unchanged,
+            caught=caught,
+            effect_count=effect_count,
+            observed_subject=observed_subject,
+            identity_preserved=identity_preserved,
+            live_cells=live_cells,
+            trial_cells=trial_cells,
+            active_version_changed=active_version_changed,
+            trial_version_matches_staged=trial_version_matches_staged,
         ),
     )
 
 
 # Script conventions:
 #
-# - Script entity names identify EntityID values with those exact strings.
-# - load_cell/load_graph create a runtime, checking initial constraints.
-# - write, activate_constraint and trial_constraint use the public
-#   runtime boundaries, never a direct Constraint.evaluate substitute.
-# - run_catch runs an ordinary SHEAR function containing catch.
-# - An external table maps canonical subjects to outcomes; "raise"
-#   means an escaping host exception rather than a semantic Unknown.
-# - record_subject captures the canonical subject seen by the external.
-# - effect_count counts unauthorized side effects originating from
-#   constraint computation, not legitimate setup operations.
-# - state_unchanged compares live state before and after the final
-#   requested action; for rejected initial load, it means no runtime
-#   version became active.
-# - identity_preserved compares canonical semantic identity, not
-#   Python object identity or derived executable artifact identity.
-# - A limit result and a host exception are not semantic verdicts.
+# - Script entity names denote EntityID values with those exact strings.
+# - load_cell/load_graph check initial content before admitting a runtime.
+# - write, activate_constraint and trial_constraint invoke the actual
+#   candidate-integrated runtime boundaries, not direct predicates.
+# - preserve_content means one-to-one continuation of the existing cell.
+# - run_catch executes a SHEAR function containing language catch.
+# - External tables map canonical subjects to outcomes or host failures.
+# - record_subject captures the canonical subject passed to an external.
+# - results records semantic observations in script operation order.
+# - state_unchanged compares the live runtime before and after the
+#   final operation; it includes active version and live cell content.
+# - live_cells contains the named live cell content after that operation.
+# - trial_cells contains content in the newly staged trial runtime,
+#   never content inferred from the main runtime alone.
+# - active_version_changed compares active versions immediately before
+#   and after the final operation. Writes and trials must not switch it.
+# - trial_version_matches_staged checks the trial's admitted destination
+#   state against the actual transformation destination.
+# - effect_count excludes legitimate setup operations and counts only
+#   unauthorized side effects originating in candidate evaluation.
+# - identity_preserved concerns semantic identity, not artifact identity.
+# - A host failure or execution limit is not a semantic verdict.
 #
-# These rules define the frozen adapter protocol. An implementation
-# incapable of executing a script reports unsupported and fails.
-# It must not silently fall back to the incumbent evaluator.
+# Candidate adapters receive scripts but never expected observations.
+# They must report unsupported operations rather than silently fall back.
 
 
 BOUNDARY_CASES = (
@@ -244,12 +261,8 @@ BOUNDARY_CASES = (
         ),
         "completed",
         results=("satisfied",),
-        # Independently frozen canonical subject:
-        # canonical map {"root": {"value": 1,
-        #                         "owned": {EntityID("child"): 2}}}.
-        # The outer and nested map tags are semantic content.
-        # CanonicalNode is a tuple subclass; comparison below
-        # disregards only that implementation-specific subclass.
+        # Independently specified canonical form of:
+        # {"root": {"value": 1, "owned": {EntityID("child"): 2}}}
         observed_subject=(
             "__type__", "map", (
                 (
@@ -328,27 +341,73 @@ BOUNDARY_CASES = (
         results=("satisfied", "satisfied"),
         identity_preserved=True,
     ),
+    _case(
+        "write_satisfied",
+        (
+            ("load_cell", "c", ("int_range", 0, 10), 0),
+            ("write", "c", 7),
+        ),
+        "completed",
+        results=("satisfied",),
+        state_unchanged=False,
+        live_cells=(("c", 7),),
+        active_version_changed=False,
+    ),
+    _case(
+        "activation_satisfied",
+        (
+            ("load_cell", "c", ("int_range", 0, 10), 0),
+            ("write", "c", 4),
+            ("activate_constraint", "c",
+             ("int_range", 0, 100), "preserve_content"),
+        ),
+        "completed",
+        results=("satisfied",),
+        state_unchanged=False,
+        live_cells=(("c", 4),),
+        active_version_changed=True,
+    ),
+    _case(
+        "trial_satisfied",
+        (
+            ("load_cell", "c", ("int_range", 0, 10), 0),
+            ("write", "c", 4),
+            ("trial_constraint", "c",
+             ("int_range", 0, 100), "preserve_content"),
+        ),
+        "completed",
+        results=("satisfied",),
+        state_unchanged=True,
+        live_cells=(("c", 4),),
+        trial_cells=(("c", 4),),
+        active_version_changed=False,
+        trial_version_matches_staged=True,
+    ),
 )
 
 
-# Every originally registered boundary witness must now be executable.
-assert tuple(case.name for case in BOUNDARY_CASES) == tuple(
-    witness.name for witness in BOUNDARIES
+# The original 14 witnesses remain intact. The three positive
+# admission cases extend, rather than replace, their inventory.
+assert tuple(
+    case.name for case in BOUNDARY_CASES[:len(BOUNDARIES)]
+) == tuple(witness.name for witness in BOUNDARIES)
+assert tuple(case.name for case in BOUNDARY_CASES[len(BOUNDARIES):]) == (
+    "write_satisfied",
+    "activation_satisfied",
+    "trial_satisfied",
 )
+assert len({case.name for case in BOUNDARY_CASES}) == len(BOUNDARY_CASES)
 
 
 BoundaryCandidate = Callable[[BoundaryInput], BoundaryObservation]
 
 
 def _canonical_subject_tree(value: Any) -> tuple[Any, ...]:
-    """Normalize tagged canonical tuples without production imports.
+    """Normalize tagged tuples without production canonicalization.
 
-    CanonicalNode is a subclass of tuple. Its subclass identity
-    does not contribute to canonical semantic content.
-
-    Retain every tag, entry, ordering and primitive type.
-    In particular, bool and int must not compare as equal.
-    Untagged maps are not silently canonicalized here.
+    CanonicalNode is a tuple subclass. Preserve the complete
+    tagged structure, ordering and primitive types while ignoring
+    only that subclass distinction.
     """
     if isinstance(value, tuple):
         return (
@@ -363,15 +422,11 @@ def assess_boundaries(
     evaluate: BoundaryCandidate,
     cases: Iterable[BoundaryCase] = BOUNDARY_CASES,
 ) -> BoundaryReport:
-    """Grade candidate execution against Plan-owned expected outcomes.
+    """Grade candidate execution against frozen expected outcomes.
 
-    Case names and expected fields never enter the adapter argument.
-
-    Subsets can be run for diagnosis, but only the exact frozen
-    inventory, including the original scripts and expectations in
-    their original order, qualifies as a full acceptance run.
-
-    Exceptions and unsupported scripts fail.
+    Diagnostic subsets are allowed, but cannot qualify.
+    Complete qualification requires the exact frozen inventory,
+    including scripts, expectations, names and order.
     """
     if not name:
         raise ValueError("candidate name must not be empty")
@@ -417,10 +472,6 @@ def assess_boundaries(
             actual = getattr(observed, field.name)
 
             if field.name == "observed_subject" and expected is not None:
-                # Compare canonical tagged content, not the private
-                # CanonicalNode tuple subclass used by the reference
-                # model. Never canonicalize the actual using the
-                # incumbent implementation.
                 matches = (
                     _canonical_subject_tree(actual)
                     == _canonical_subject_tree(expected)
