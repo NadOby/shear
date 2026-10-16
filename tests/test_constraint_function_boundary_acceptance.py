@@ -1,3 +1,4 @@
+
 """Regression tests for Task 24 candidate boundary acceptance.
 
 These tests validate the Plan-owned grader with test doubles.
@@ -97,6 +98,7 @@ class BoundaryInventoryTests(unittest.TestCase):
 
         self.assertEqual(report.checked, 1)
         self.assertEqual(report.failures, ())
+        self.assertFalse(report.complete_contract)
         self.assertEqual(seen, [BOUNDARY_CASES[0].input.script])
 
     def test_frozen_rejection_outcomes(self) -> None:
@@ -148,6 +150,7 @@ class BoundaryInventoryTests(unittest.TestCase):
         report = assess_boundaries("test-double", candidate, (case,))
 
         self.assertEqual(report.failures, ())
+        self.assertFalse(report.passed)
         self.assertEqual(mutable, {"values": [1]})
         self.assertEqual(
             case.input.script[0][1],
@@ -169,6 +172,7 @@ class BoundaryGraderTests(unittest.TestCase):
         report = assess_boundaries("test-double", candidate)
 
         self.assertTrue(report.passed)
+        self.assertTrue(report.complete_contract)
         self.assertEqual(report.checked, len(BOUNDARY_CASES))
         self.assertEqual(report.failures, ())
         self.assertEqual(
@@ -186,6 +190,7 @@ class BoundaryGraderTests(unittest.TestCase):
 
         self.assertEqual(report.checked, 1)
         self.assertEqual(report.failures, ())
+        self.assertFalse(report.complete_contract)
         self.assertFalse(report.passed)
 
     def test_empty_contract_cannot_pass(self) -> None:
@@ -196,6 +201,97 @@ class BoundaryGraderTests(unittest.TestCase):
         )
 
         self.assertEqual(report.checked, 0)
+        self.assertFalse(report.complete_contract)
+        self.assertFalse(report.passed)
+
+    def test_duplicate_cases_cannot_qualify(self) -> None:
+        # Original P1 counterexample: correct count, all expected
+        # observations, but thirteen mandatory cases omitted.
+        first = BOUNDARY_CASES[0]
+        duplicates = (first,) * len(BOUNDARY_CASES)
+
+        report = assess_boundaries(
+            "test-double",
+            lambda _: observation(first.expected),
+            duplicates,
+        )
+
+        self.assertEqual(report.checked, len(BOUNDARY_CASES))
+        self.assertEqual(report.failures, ())
+        self.assertFalse(report.complete_contract)
+        self.assertFalse(report.passed)
+
+    def test_reordered_cases_cannot_qualify(self) -> None:
+        reordered = BOUNDARY_CASES[::-1]
+        expected = iter(case.expected for case in reordered)
+
+        report = assess_boundaries(
+            "test-double",
+            lambda _: observation(next(expected)),
+            reordered,
+        )
+
+        self.assertEqual(report.checked, len(BOUNDARY_CASES))
+        self.assertEqual(report.failures, ())
+        self.assertFalse(report.complete_contract)
+        self.assertFalse(report.passed)
+
+    def test_modified_scripts_cannot_qualify(self) -> None:
+        first = BOUNDARY_CASES[0]
+        changed = replace(
+            first,
+            input=BoundaryInput(
+                first.input.script + (("extra_step",),)
+            ),
+        )
+        selected = (changed,) + BOUNDARY_CASES[1:]
+        expected = iter(case.expected for case in selected)
+
+        report = assess_boundaries(
+            "test-double",
+            lambda _: observation(next(expected)),
+            selected,
+        )
+
+        self.assertEqual(report.checked, len(BOUNDARY_CASES))
+        self.assertEqual(report.failures, ())
+        self.assertFalse(report.complete_contract)
+        self.assertFalse(report.passed)
+
+    def test_modified_expectations_cannot_qualify(self) -> None:
+        first = BOUNDARY_CASES[0]
+        changed = replace(
+            first,
+            expected=replace(first.expected, status="completed"),
+        )
+        selected = (changed,) + BOUNDARY_CASES[1:]
+        expected = iter(case.expected for case in selected)
+
+        report = assess_boundaries(
+            "test-double",
+            lambda _: observation(next(expected)),
+            selected,
+        )
+
+        self.assertEqual(report.checked, len(BOUNDARY_CASES))
+        self.assertEqual(report.failures, ())
+        self.assertFalse(report.complete_contract)
+        self.assertFalse(report.passed)
+
+    def test_modified_names_cannot_qualify(self) -> None:
+        first = BOUNDARY_CASES[0]
+        changed = replace(first, name="renamed")
+        selected = (changed,) + BOUNDARY_CASES[1:]
+        expected = iter(case.expected for case in selected)
+
+        report = assess_boundaries(
+            "test-double",
+            lambda _: observation(next(expected)),
+            selected,
+        )
+
+        self.assertEqual(report.failures, ())
+        self.assertFalse(report.complete_contract)
         self.assertFalse(report.passed)
 
     def test_every_expected_field_is_checked(self) -> None:
