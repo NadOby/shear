@@ -23,7 +23,8 @@ mechanism. Ordinary functions implementing constraint logic are
 not themselves new fixed mechanisms.
 
 Record mechanisms as removed, retained, added or shared.
-A claimed removal requires an execution-path audit.
+A claimed removal requires an execution-path audit and the
+migration counterfactual in section 6.
 
 ## 2. Existing constraint-specific mechanisms
 
@@ -170,21 +171,150 @@ Record:
 Compilation does not count as mechanism removal when a
 constraint-specific dispatcher remains necessary.
 
-## 6. Ledger format for Execute
+## 6. Two accounting boundaries and the migration counterfactual
+
+### 6.1 Isolated candidate path – evidence, not the score
+
+Execute initially develops candidates alongside the production
+constraint evaluator. Therefore the current repository will
+still contain M1–M4 during the experiment.
+
+For each candidate, identify its complete isolated execution
+path, including translation, construction, evaluation, runtime
+admission and failure handling.
+
+Classify each baseline mechanism on that path as:
+
+- **Used:** the candidate invokes the incumbent rule.
+- **Duplicated:** an independently operating equivalent exists.
+- **Avoided:** the candidate path demonstrably does not use it.
+- **Unresolved:** its use or absence cannot be established.
+
+Avoiding M1–M4 in an isolated prototype is necessary evidence,
+but does not itself constitute a production mechanism removal.
+
+Do not award R for a mechanism merely because a test adapter
+does not call it, or because an experimental code path bypasses
+it while the production architecture still requires it.
+
+### 6.2 Hypothetical migrated production architecture – scored
+
+The adoption score compares two architectures serving the
+same complete obligations:
+
+- **Control:** production architecture at baseline `697b2d7`,
+  with M1–M4 and the N/G requirements.
+- **Migration:** the fully specified architecture that would
+  replace the incumbent evaluator with the tested candidate,
+  while preserving the existing public interfaces, semantics,
+  admission paths, identity and other users of these facilities.
+
+The migration need not be implemented in production during
+this experiment. It must, however, be specified concretely
+enough for an independent reviewer to establish which fixed
+mechanisms would remain, disappear or be added.
+
+For every proposed removal:
+
+1. Identify the original implementation sites and all known
+   production call sites and consumers.
+2. Explain how each consumer would be served after migration.
+3. Identify the exact old rules that can cease operating,
+   including any dispatch, budget, lookup or provenance state.
+4. Identify all replacements, bridges and initialization paths.
+5. Verify the corresponding behaviour using candidate-facing
+   semantic and boundary acceptance evidence.
+6. Confirm that no other supported production path still needs
+   the allegedly removed independent mechanism.
+7. Record whether this is verified, disproved or unresolved.
+
+A counterfactual removal receives credit only when the complete
+migration argument is auditable and supported by passing
+candidate evidence. An illustrative deletion plan, a diagram
+alone, or absence from the isolated path is insufficient.
+
+If other production consumers would still require the original
+mechanism, classify it as retained. If a migration-specific
+replacement enforces an equivalent rule independently, count
+that replacement under additions; do not silently treat it as
+an unchanged generic facility.
+
+If the counterfactual cannot be verified, give the mechanism
+zero removal credit. Do not assume an optimistic migration.
+
+### 6.3 Additions and shared mechanisms
+
+Count additions in the same migrated architecture, not just
+inside the candidate's evaluator function.
+
+Include all new fixed rules needed for:
+
+- existing public runtime and language interfaces;
+- canonical data-to-function translation and caching;
+- evaluation before a runtime or version becomes active;
+- invocation, authorization and external callbacks;
+- generic or specialized fuel accounting;
+- host-failure separation from catchable program failures;
+- effect isolation and state preservation;
+- version dependence and artifact lifetime;
+- canonical content inspection and reconstruction;
+- compatibility adapters for remaining production consumers.
+
+An adapter is not automatically one independent mechanism.
+Count the fixed rule it introduces, not each wrapper or class.
+Equally, a small adapter is not free if it enforces a new rule.
+
+An existing G-series facility is shared at zero added cost
+only if the migration reuses its present fixed rules unchanged.
+A general-purpose extension introducing independent fixed
+semantics must be counted under additions.
+
+A baseline rule relocated into an independently operating
+replacement cannot be claimed as a free removal.
+
+The same migration counterfactual must be used for R and A.
+Do not score removals assuming a fully migrated architecture
+while scoring additions from an isolated prototype.
+
+### 6.4 Required accounting evidence
+
+For each M-series mechanism, provide:
+
+| Field | Required evidence |
+| --- | --- |
+| Baseline | Rule and current implementation/call sites |
+| Candidate path | Used, duplicated, avoided or unresolved |
+| Migrated consumers | Where every incumbent caller would go |
+| Migration disposition | Removed, retained, shared or unresolved |
+| Replacement | Exact fixed rules and implementation sites |
+| Confidence | Verified, disproved or unresolved |
+| Removal credit | One only when verified; otherwise zero |
+
+For each added mechanism, provide its migrated consumers,
+fixed rule, planned implementation sites, evidence that it
+is genuinely new, and whether it is generic or specialized.
+
+The migration analysis is falsifiable: one surviving production
+consumer of the old rule, or one uncounted replacement rule,
+invalidates the corresponding accounting claim.
+
+## 7. Result ledger for Execute
 
 For each candidate, record:
 
 | Field | Required evidence |
 | --- | --- |
 | Baseline | Existing sites and rules |
-| Removed | Rule absent from complete execution path |
-| Retained | Existing rule still independently enforced |
-| Added | New fixed rule and implementation site |
-| Shared | Existing general-purpose rule, unchanged |
-| R | Number of verified removed mechanisms |
-| A | Number of verified added mechanisms |
+| Candidate path | Complete call path and incumbent use |
+| Migrated architecture | Proposed full replacement and call sites |
+| Removed | Verified counterfactual removal, not mere bypass |
+| Retained | Rules still independently enforced after migration |
+| Added | All new fixed rules needed by the migration |
+| Shared | Existing generic rules reused without extension |
+| R | Number of verified migrated-architecture removals |
+| A | Number of migrated-architecture additions |
 | Net | R minus A |
-| Semantics | Independent acceptance results |
+| Semantics | Independent candidate acceptance results |
 | Result | Adopt or kill, with explanation |
 
 Do not compute R from planned deletions or A from file counts.
@@ -192,17 +322,22 @@ Do not compute R from planned deletions or A from file counts.
 Shared rules count neither as removals nor additions unless
 their implementations genuinely change.
 
-## 7. Decision rule
+Report unresolved entries explicitly. They receive no removal
+credit; missing evidence must not produce a favorable net score.
+
+## 8. Decision rule
 
 A candidate qualifies only when:
 
 1. Every mandatory semantic and boundary discriminator passes.
-2. No production evaluator fallback masks an unsupported case.
-3. Every claimed removal is confirmed by independent inspection.
-4. R is strictly greater than A.
-5. There is at most one generic external-authority boundary and
+2. No incumbent evaluator fallback masks an unsupported case.
+3. Every claimed removal is verified in the migrated-production
+   counterfactual, not merely absent from the isolated prototype.
+4. All additions required by that same counterfactual are counted.
+5. R is strictly greater than A.
+6. There is at most one generic external-authority boundary and
    at most one generic execution budget.
-6. The candidate introduces no unapproved normative language change.
+7. The candidate introduces no unapproved normative language change.
 
 An unresolved mechanism is not counted as removed.
 
@@ -213,13 +348,14 @@ If no candidate qualifies, record **kill** and retain the existing
 architecture. The experiment is successful as evidence even when
 the proposed replacement is rejected.
 
-## 8. Evidence status
+## 9. Evidence status
 
 The baseline implementation sites above have been inspected.
 
 No candidate implementation, mechanism elimination or experimental
 result is claimed by this Plan document.
 
-Execute must populate a result ledger after implementing bounded
-candidates. Review independently validates the sites, counts,
-semantic evidence and adopt-or-kill conclusion.
+Execute must populate the candidate-path and migrated-architecture
+ledgers after implementing bounded candidates. Review independently
+validates the sites, counts, semantic evidence and adopt-or-kill
+conclusion.
