@@ -24,6 +24,7 @@ LANES: dict[str, tuple[str, ...]] = {
         "test_cells",
         "test_constraint_function_acceptance",
         "test_constraint_function_boundaries",
+        "test_constraint_function_boundary_acceptance",
         "test_constraint_function_oracle",
         "test_constraint_relations",
         "test_constraints",
@@ -246,8 +247,7 @@ def run_all(
         # the job times out does not hide the output of the others.
         for future in as_completed(pending):
             lane = pending[future]
-            code, output = future.result()[0:2]
-            seconds = future.result()[2]
+            code, output, seconds = future.result()
             finished[lane] = (code, output, seconds)
             status = "ok" if code == 0 else "FAILED"
             if grouped and code == 0:
