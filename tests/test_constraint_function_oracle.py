@@ -1,7 +1,8 @@
 """Validate Task 24's independent oracle against fixed semantic facts.
 
-The expected results come from constraint_function_oracle, never
-from the production evaluator being tested.
+Expected results originate in constraint_function_oracle, never from
+the production evaluator being tested. The control adapter constructs
+subjects and constraints but does not calculate expected results.
 """
 
 from __future__ import annotations
@@ -9,6 +10,14 @@ from __future__ import annotations
 from itertools import product
 import unittest
 
+from shear import (
+    CellDeclaration,
+    EntityID,
+    Relation,
+    StateID,
+    VersionID,
+)
+from shear.closures import Closure
 from shear.constraints import (
     AllOf,
     AnyOf,
@@ -19,23 +28,30 @@ from shear.constraints import (
     External,
     IntRange,
     IsKind,
+    KINDS,
     Length,
     Not,
     OneOf,
     Role,
+    kind_of,
 )
 from tests.constraint_function_oracle import (
     BOUNDARIES,
     BUDGETS,
     CONSTANTS,
+    KIND_SAMPLES,
+    KIND_VECTORS,
+    LOGICAL,
     PRIMITIVES,
     RESULTS,
     SAT,
     UNK,
     VIO,
+    KindSample,
     all_fixed_vectors,
     conjunction,
     disjunction,
+    generated_budget_vector,
     generated_vector,
     negate,
     shrink_tree,
@@ -44,12 +60,37 @@ from tests.constraint_function_oracle import (
 from tests.generation import seeds
 
 
-def build(expression: tuple) -> Constraint:
-    """Translate a frozen fixture into the public constraint API.
+def materialize(subject):
+    """Turn a symbolic kind descriptor into a semantic record.
 
-    This bridge constructs inputs only. It does not derive expectations
-    or share logic with candidate implementations.
+    This is a control adapter, not part of the independent oracle.
+    Candidate adapters must implement their own appropriate conversion.
     """
+    if not isinstance(subject, KindSample):
+        return subject
+
+    samples = {
+        "entity_id": lambda: EntityID("kind.sample"),
+        "version_id": lambda: VersionID("kind.sample"),
+        "state_id": lambda: StateID("kind.sample"),
+        "cell": lambda: CellDeclaration(IsKind("int"), 0),
+        "constraint": lambda: IntRange(0, 1),
+        "relation": lambda: Relation(
+            "sample", {"subject": EntityID("kind.sample")}
+        ),
+        "closure": lambda: Closure(
+            EntityID("owner"), EntityID("body"), (), ()
+        ),
+    }
+
+    if subject.kind not in samples:
+        raise ValueError(f"unknown symbolic kind: {subject.kind}")
+
+    return samples[subject.kind]()
+
+
+def build(expression: tuple) -> Constraint:
+    """Translate descriptive expression input into public constraint API."""
     name, *args = expression
 
     if name == "is_kind":
@@ -85,7 +126,7 @@ def evaluate_control(vector) -> str:
         for name, result in vector.externals
     }
     return build(vector.expression).evaluate(
-        vector.subject,
+        materialize(vector.subject),
         EvaluationContext(externals, vector.budget),
     ).value
 
@@ -167,11 +208,48 @@ class FrozenVectorTests(unittest.TestCase):
 
         self.assertEqual(len(names), len(set(names)))
         self.assertEqual(len(CONSTANTS), 3)
+        self.assertEqual(len(KIND_SAMPLES), 15)
         self.assertGreater(len(PRIMITIVES), 25)
-        self.assertGreater(len(BUDGETS), 15)
+        self.assertGreaterEqual(len(LOGICAL), 30)
+        self.assertGreater(len(BUDGETS), 20)
+        self.assertEqual(
+            len(vectors),
+            len(KIND_VECTORS)
+            + len(PRIMITIVES)
+            + len(LOGICAL)
+            + len(BUDGETS),
+        )
+
+    def test_all_canonical_kinds_are_frozen(self) -> None:
+        expected_kinds = {
+            kind for kind, _subject in KIND_SAMPLES
+        }
+        self.assertEqual(expected_kinds, set(KINDS))
+        self.assertEqual(
+            {vector.expression[1] for vector in KIND_VECTORS},
+            expected_kinds,
+        )
+
+        for kind, subject in KIND_SAMPLES:
+            with self.subTest(kind=kind):
+                self.assertEqual(kind_of(materialize(subject)), kind)
+
+    def test_kind_fixtures_match_control(self) -> None:
+        for vector in KIND_VECTORS:
+            with self.subTest(vector=vector.name):
+                self.assertEqual(
+                    evaluate_control(vector), vector.expected
+                )
 
     def test_primitive_fixtures_match_control(self) -> None:
         for vector in PRIMITIVES:
+            with self.subTest(vector=vector.name):
+                self.assertEqual(
+                    evaluate_control(vector), vector.expected
+                )
+
+    def test_complete_operator_matrix_matches_control(self) -> None:
+        for vector in LOGICAL:
             with self.subTest(vector=vector.name):
                 self.assertEqual(
                     evaluate_control(vector), vector.expected
@@ -203,9 +281,7 @@ class FrozenVectorTests(unittest.TestCase):
             External("z_sat"),
         ).evaluate(0, context)
 
-        self.assertEqual(
-            result, ConstraintResult.VIOLATED
-        )
+        self.assertEqual(result, ConstraintResult.VIOLATED)
 
         context = EvaluationContext(
             {
@@ -223,9 +299,7 @@ class FrozenVectorTests(unittest.TestCase):
             External("z_vio"),
         ).evaluate(0, context)
 
-        self.assertEqual(
-            result, ConstraintResult.SATISFIED
-        )
+        self.assertEqual(result, ConstraintResult.SATISFIED)
 
     def test_missing_external_is_not_false(self) -> None:
         self.assertEqual(
@@ -266,6 +340,15 @@ class GeneratedOracleTests(unittest.TestCase):
                     vector.expected,
                 )
 
+    def test_generated_budget_cases_match_control(self) -> None:
+        for seed in seeds(100):
+            with self.subTest(seed=seed):
+                vector = generated_budget_vector(seed)
+                self.assertEqual(
+                    evaluate_control(vector),
+                    vector.expected,
+                )
+
     def test_generated_expected_result_is_reproducible(
         self,
     ) -> None:
@@ -278,6 +361,32 @@ class GeneratedOracleTests(unittest.TestCase):
                     truth_of(first.expression),
                     first.expected,
                 )
+
+                budget_first = generated_budget_vector(seed)
+                budget_second = generated_budget_vector(seed)
+                self.assertEqual(budget_first, budget_second)
+
+    def test_generated_budget_cases_use_primitive_combinations(
+        self,
+    ) -> None:
+        cases = tuple(
+            generated_budget_vector(seed)
+            for seed in range(200)
+        )
+
+        self.assertTrue(all(case.budget is not None for case in cases))
+        self.assertTrue(any(case.expected == SAT for case in cases))
+        self.assertTrue(any(case.expected == VIO for case in cases))
+        self.assertTrue(any(case.expected == UNK for case in cases))
+        self.assertTrue(
+            any(case.expression[0] == "all_of" for case in cases)
+        )
+        self.assertTrue(
+            any(case.expression[0] == "any_of" for case in cases)
+        )
+        self.assertTrue(
+            any(case.expression[0] == "not" for case in cases)
+        )
 
     def test_shrinker_finds_a_smaller_counterexample(
         self,
