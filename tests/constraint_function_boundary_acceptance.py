@@ -1,3 +1,4 @@
+
 """Plan-owned candidate-facing boundary acceptance for Task 24.
 
 A script specifies setup and operations. The expected observation is
@@ -110,6 +111,7 @@ def _case(
 
 # Script conventions:
 #
+# - Script entity names identify EntityID values with those exact strings.
 # - load_cell/load_graph create a runtime, checking initial constraints.
 # - write, activate_constraint and trial_constraint use the public
 #   runtime boundaries, never a direct Constraint.evaluate substitute.
@@ -242,11 +244,30 @@ BOUNDARY_CASES = (
         ),
         "completed",
         results=("satisfied",),
+        # Independently frozen canonical subject:
+        # canonical map {"root": {"value": 1,
+        #                         "owned": {EntityID("child"): 2}}}.
+        # The outer and nested map tags are semantic content.
+        # CanonicalNode is a tuple subclass; comparison below
+        # disregards only that implementation-specific subclass.
         observed_subject=(
-            ("root", (
-                ("value", 1),
-                ("owned", (("child", 2),)),
-            )),
+            "__type__", "map", (
+                (
+                    "root",
+                    ("__type__", "map", (
+                        (
+                            "owned",
+                            ("__type__", "map", (
+                                (
+                                    ("__type__", "entity_id", "child"),
+                                    2,
+                                ),
+                            )),
+                        ),
+                        ("value", 1),
+                    )),
+                ),
+            ),
         ),
     ),
     _case(
@@ -319,6 +340,24 @@ assert tuple(case.name for case in BOUNDARY_CASES) == tuple(
 BoundaryCandidate = Callable[[BoundaryInput], BoundaryObservation]
 
 
+def _canonical_subject_tree(value: Any) -> tuple[Any, ...]:
+    """Normalize tagged canonical tuples without production imports.
+
+    CanonicalNode is a subclass of tuple. Its subclass identity
+    does not contribute to canonical semantic content.
+
+    Retain every tag, entry, ordering and primitive type.
+    In particular, bool and int must not compare as equal.
+    Untagged maps are not silently canonicalized here.
+    """
+    if isinstance(value, tuple):
+        return (
+            "tuple",
+            tuple(_canonical_subject_tree(item) for item in value),
+        )
+    return (type(value).__name__, value)
+
+
 def assess_boundaries(
     name: str,
     evaluate: BoundaryCandidate,
@@ -339,10 +378,6 @@ def assess_boundaries(
 
     failures: list[BoundaryFailure] = []
     selected = tuple(cases)
-
-    # Dataclass equality checks the name, input script and every
-    # expected field. Replacing, duplicating, omitting, reordering
-    # or modifying even one case invalidates full qualification.
     complete_contract = selected == BOUNDARY_CASES
 
     for case in selected:
@@ -381,7 +416,22 @@ def assess_boundaries(
             expected = getattr(case.expected, field.name)
             actual = getattr(observed, field.name)
 
-            if type(actual) is not type(expected) or actual != expected:
+            if field.name == "observed_subject" and expected is not None:
+                # Compare canonical tagged content, not the private
+                # CanonicalNode tuple subclass used by the reference
+                # model. Never canonicalize the actual using the
+                # incumbent implementation.
+                matches = (
+                    _canonical_subject_tree(actual)
+                    == _canonical_subject_tree(expected)
+                )
+            else:
+                matches = (
+                    type(actual) is type(expected)
+                    and actual == expected
+                )
+
+            if not matches:
                 failures.append(BoundaryFailure(
                     case.name,
                     field.name,
