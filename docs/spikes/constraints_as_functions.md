@@ -227,7 +227,12 @@ Its grader regression tests are:
 
 `tests/test_constraint_function_boundary_acceptance.py`
 
-The contract contains 14 named candidate-facing scenarios corresponding to the frozen boundary witness inventory. They include:
+The contract contains **17 mandatory candidate-facing scenarios**:
+
+- The original 14 frozen boundary witnesses, retaining their names, scripts and expected behaviours.
+- Three additional successful admission cases: `write_satisfied`, `activation_satisfied` and `trial_satisfied`.
+
+The original boundary witnesses cover:
 
 - escaping host exceptions and the language `catch` boundary;
 - missing External evaluators;
@@ -239,23 +244,39 @@ The contract contains 14 named candidate-facing scenarios corresponding to the f
 - unauthorized effects during constraint evaluation;
 - constraint identity across version changes.
 
+The `owned_subtree` expectation is the exact tagged canonical representation of a relation subject containing an owned child. Comparison preserves the tags, nesting, map-entry ordering and primitive types. Only the reference model's `CanonicalNode` tuple-subclass distinction is ignored. The expected representation is specified independently rather than computed from the incumbent canonicalizer during grading.
+
+The three successful admission scenarios additionally require:
+
+1. **`write_satisfied`** – A cell initially containing `0` and constrained to the integer range 0–10 accepts a write of `7`. The operation completes with Satisfied, live content becomes `7`, the active version does not change, and the live runtime state changes through cell content.
+
+2. **`activation_satisfied`** – A cell constrained to the integer range 0–10 is written with `4`. A one-to-one activation widens its constraint to 0–100 while preserving content. The activation completes with Satisfied, the active version changes, and live content remains `4`.
+
+3. **`trial_satisfied`** – The same initial cell and content are used with an isolated trial of the widened constraint. The trial completes with Satisfied, the main runtime remains unchanged by the trial, its active version does not change, and the trial's new runtime contains `4` under the staged destination state.
+
 Each `BoundaryCase` specifies input operations and an independently frozen `BoundaryExpected`.
+
+For successful admissions, the expected observations additionally pin `live_cells`, `trial_cells`, `active_version_changed` and `trial_version_matches_staged`, as applicable.
+
+`state_unchanged` compares the live runtime state immediately before and after the final requested operation, including live cell content and active version. Therefore a successful write changes live state without changing the active version, whereas a successful trial leaves the main runtime unchanged.
 
 Execute supplies a `BoundaryCandidate` adapter accepting only `BoundaryInput`, containing the operation script. It must execute the candidate through the corresponding runtime or language boundary and return a `BoundaryObservation`.
 
 The adapter may not inspect expected observations, redefine the script's meaning, replace runtime transitions with direct predicate calls or use the incumbent evaluator as fallback.
 
-`assess_boundaries` compares all specified observation fields, including status, semantic outcomes, state preservation, catch behaviour, side effects, canonical subjects and identity. Unsupported scripts, exceptions and wrong execution routes fail grading.
+`assess_boundaries` compares every frozen expected observation field, including status, semantic outcomes, state preservation, live and trial contents, version transitions, catch behaviour, side effects, canonical subjects and identity.
 
-A complete boundary report must pass. A passing subset does not qualify as full acceptance.
+Unsupported scripts, exceptions, wrong execution routes, incumbent fallback and any observation mismatch fail grading.
 
-The grader's declared route and fallback count remain subject to independent instrumentation, just as in the semantic-vector harness.
+**Full acceptance requires the complete frozen inventory**, including all 17 original case names, scripts, expected observations and their order. A subset, duplicated cases, reordered cases or altered expectations cannot produce a full acceptance pass even if their individual observations match.
+
+The grader's declared route and fallback count remain subject to independent instrumentation, just as in the semantic-vector harness. A passing report is not, by itself, evidence of genuine candidate execution.
 
 ### 7.2 Additional required evidence
 
 The two candidate-facing graders are necessary but not sufficient.
 
-Execute must also demonstrate every remaining T1–T9 obligation not completely exercised by the frozen cases, including malformed-input handling, round-trip encoding, successful transitions, rename continuity, non-terminating externals and existing full corpora.
+Execute must also demonstrate every remaining T1–T9 obligation not completely exercised by the frozen cases, including malformed-input handling, round-trip encoding, rename continuity, non-terminating externals, further successful transitions beyond the three pinned cases and existing full corpora.
 
 Such evidence must be checked against the existing normative specifications and Plan-owned expected behaviour. Execute may add implementation tests and instrumentation, but cannot weaken or replace Plan-owned expectations.
 
