@@ -22,6 +22,8 @@ LANES: dict[str, tuple[str, ...]] = {
     "core-model": (
         "test_canonical",
         "test_cells",
+        "test_constraint_function_acceptance",
+        "test_constraint_function_boundaries",
         "test_constraint_function_oracle",
         "test_constraint_relations",
         "test_constraints",
@@ -278,17 +280,12 @@ def main(argv: list[str] | None = None) -> int:
             "usage: python -m tests.lanes <lane> | --all",
             file=sys.stderr,
         )
-        print(
-            "lanes: " + ", ".join(sorted(LANES)),
-            file=sys.stderr,
-        )
         return 2
 
     try:
         suite = suite_for(args[0])
     except RuntimeError as exc:
-        print(str(exc), file=sys.stderr,
-        )
+        print(str(exc), file=sys.stderr)
         return 2
 
     result = unittest.TextTestRunner(
