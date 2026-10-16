@@ -246,7 +246,8 @@ def run_all(
         # the job times out does not hide the output of the others.
         for future in as_completed(pending):
             lane = pending[future]
-            code, output, seconds = future.result()
+            code, output = future.result()[0:2]
+            seconds = future.result()[2]
             finished[lane] = (code, output, seconds)
             status = "ok" if code == 0 else "FAILED"
             if grouped and code == 0:
@@ -278,6 +279,10 @@ def main(argv: list[str] | None = None) -> int:
     if len(args) != 1:
         print(
             "usage: python -m tests.lanes <lane> | --all",
+            file=sys.stderr,
+        )
+        print(
+            "lanes: " + ", ".join(sorted(LANES)),
             file=sys.stderr,
         )
         return 2
