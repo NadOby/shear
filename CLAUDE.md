@@ -37,14 +37,24 @@ holds one spec per concept; `CHANGES.md` is the architectural log.
 
 - Work follows `docs/roadmap.md`: its task order, and the five task roles
   its Workflow section defines: Plan, Execute, Review, Resolve and Publish.
+  These are responsibilities, not mandatory separate chats.
   "Plan task N", "Execute task N", "Review task N", "Resolve task N" and
-  "Publish task N" are sufficient instructions, because the roadmap defines
-  each role's contract; read it when given one.
-- Plan, Execute and Review normally run in separate fresh chats. The context
-  or model that implemented a change is never its sole certifier: Review is
-  independent of Execute, and fixes for its findings belong to Resolve, not
-  to Review. A different model family can add independence but is optional;
-  role separation and fresh context are mandatory.
+  "Publish task N" remain sufficient instructions; read the roadmap's
+  contracts when given one.
+- Execute may be skipped when Plan already contains the complete deliverable
+  and no substantive implementation remains. Resolve is needed only when
+  Review findings require changes. Publish may run in the same context as
+  Execute or Plan, or be performed by the owner, after independent Review
+  accepts the final deliverable; no separate Publish chat is required.
+- Review always uses a fresh independent context, read-only for the
+  deliverable. The context that prepared a change, during Plan or Execute,
+  is never its sole certifier. Resolve is performed by an execution-capable
+  context, not by Review; substantive changes after an accepted Review
+  require another independent Review. A different model family can add
+  independence but is optional.
+- Skipping a stage never weakens frozen terminal acceptance, ownership of
+  Plan specifications and tests, applicable CI checks or decisions reserved
+  for the owner. Do not create no-op work solely to satisfy a role name.
 - No background agents.
 - No role may assume write access to GitHub or the repository. A role without
   it delivers its output in its reply (findings, `handoff.md` text, issue or
