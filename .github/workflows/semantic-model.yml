@@ -93,6 +93,9 @@ jobs:
       - name: Run every lane, one process per lane
         run: python -m tests.lanes --all
 
+      - name: Run Task 24 experimental probes
+        run: python -m unittest discover -s tests -t . -p 'constraint_function_*_probe.py' -v
+
       - name: Compare golden records with the base
         env:
           EVENT: ${{ github.event_name }}

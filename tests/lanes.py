@@ -1,4 +1,3 @@
-
 """Semantic partitions of the ordinary deterministic test suite.
 
 CI runs every lane in one job, each lane as its own process
@@ -23,6 +22,10 @@ LANES: dict[str, tuple[str, ...]] = {
     "core-model": (
         "test_canonical",
         "test_cells",
+        "test_constraint_function_acceptance",
+        "test_constraint_function_boundaries",
+        "test_constraint_function_boundary_acceptance",
+        "test_constraint_function_oracle",
         "test_constraint_relations",
         "test_constraints",
         "test_evaluators",
@@ -247,7 +250,6 @@ def run_all(
             code, output, seconds = future.result()
             finished[lane] = (code, output, seconds)
             status = "ok" if code == 0 else "FAILED"
-
             if grouped and code == 0:
                 print(f"::group::{lane} ({status})")
                 print(output, end="")

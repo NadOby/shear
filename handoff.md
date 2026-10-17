@@ -1,344 +1,300 @@
 # Handoff
 
-Read `CLAUDE.md`, the Workflow section of `docs/roadmap.md`, roadmap task 31
-and D5, issue #67 and `docs/live_evolution.md`. Verify this checkpoint
-against GitHub and the repository before relying on it.
+Read `CLAUDE.md`, the Workflow and Task 24 sections of
+`docs/roadmap.md`, issue #56, both frozen Task 24 specifications,
+and `docs/spikes/constraints_as_functions_execute.md`.
+
+Verify every claim against GitHub. This handoff is a checkpoint,
+not independent evidence.
 
 ## Current state
 
-- Issue: #67 (`task`), roadmap task 31, live evolution on the hosted
-  bootstrap route. Branch: `task/31-live-evolution`, originally from
-  `main` at `4ed6e14`.
-- Role: Resolve following independent implementation Review. The review
-  of `23d390a` accepted the implementation with one nonblocking P3
-  changelog correction, subsequently resolved.
-- Plan-owned acceptance tests, specifications and golden declarations
-  were unchanged in that review. Plan head is recorded below.
-- Full mutation campaign: workflow-dispatch run `38414508331`, commit
-  `f68e3a9`, 16 shards, 4,212 mutations: 4,042 killed, 152 classified
-  survivors, 18 timeouts, zero unclassified survivors. Reviewed
-  survivors were revalidated.
-- Of the 12 previously unclassified survivors, ten were killed by new
-  regressions and two `_reuse()` returns were classified equivalent.
-  The remaining timeouts are not counted as kills.
-- Commit `23d390a` added a G0 caching and generation-identity regression
-  targeting two compiler-generation timeouts. Their targeted mutation
-  replay has not yet been verified; this test postdates the campaign.
-- Ordinary CI passed on `23d390a` (run `38425454911`) and on the
-  changelog correction `5a3b6f7` (run `38455730847`).
-- Review's P3 documentation drift was corrected: `CHANGES.md` now
-  distinguishes immediate retirement cleanup during a run from cleanup
-  at the next run or query after host-held retirement outside a run,
-  as allowed provisionally by `docs/live_evolution.md` section 4.1.
-  Duplicate changelog text was removed in `7cea8a4`.
-- Before Publish: verify CI for `7cea8a4` (run `38456474960`),
-  verify the two compiler-generation timeout mutations on the final
-  test revision, and independently confirm the final reviewed diff.
-- Follow-ups: #115 (VM instructions), #116 (reuse cost). No unresolved
-  P0–P2 implementation defects were found by the accepted static review.
+- Task: 24 – constraints as functions.
+- Issue: GH-56 – https://github.com/NadOby/shear/issues/56.
+- Branch: `task/24-constraints-as-functions`.
+- Role: Execute complete – independent Review next.
+- Baseline main: `697b2d73b538ad38b57f12beffd7724fda64a871`.
+- Frozen Plan head: `97e429787a22e2f76ef142713535e0c74fc4ae9a`.
+- Execute evidence head: `cac07b092993caab40ef7cd71589115d3e56ba6e`.
+- Proposed result: kill A, B and C; retain S.
+- No production constraint semantics were changed.
+- No normative language changes or golden changes were authorized.
+- No Publish approval has been given.
 
-## Decisions (owner, 2026-10-12)
+This handoff update is the final Execute checkpoint. Its own commit
+will follow the evidence head.
 
-- **D5.1:** a candidate built by a running program is compiled by the
-  image's retained compiler at `activate`/`trial`, after staging and before
-  the switch; unchanged nodes reuse artifacts. Lazy or tiered production is
-  Open (live_evolution.md 3.1), not built.
-- **D5.2:** a candidate that cannot be compiled or admitted changes nothing;
-  the run ends with `AdmissionRejected`, which `catch` cannot see.
-- One instruction table shared as metadata (`shear/instructions.py`); no new
-  VM instructions (#115).
-- Cells: content carry-over only. Program-driven cell migration is not
-  planned; no program needs it yet.
+## Goal and frozen decision rule
 
-## Plan-owned files
+Determine whether semantic constraints can be evaluated through
+ordinary SHEAR functions while preserving observable semantics and
+strictly reducing independent fixed mechanisms.
 
-- `docs/live_evolution.md` (new): the contract.
-- `docs/roadmap.md`: D5 and the task-31 status line.
-- `tests/live_support.py` (new): the image program, step tables, oracles.
-- `tests/test_live_evolution.py`, `tests/test_live_artifacts.py` (new, lane
-  `cross-boundary`) and `tests/test_instruction_table.py` (new, lane
-  `language-runtime`): 30 tests.
-- `tests/test_hosted_bootstrap.py`: four task-30 tests that used `quote` as
-  the unsupported kind (live_evolution.md section 8); each says so in a
-  comment.
-- `tests/lanes.py`: three lines.
-- `tests/golden_changes/GH-67.txt`: `programs/compiler`,
-  `programs/bootstrap`, `programs/instrument`.
+Adoption requires all mandatory semantic and boundary discriminators,
+no hidden incumbent evaluator fallback, correct effect and authority
+boundaries, and a verified migrated-architecture mechanism count
+with R strictly greater than A.
 
-## Plan revision after two Plan reviews
+A negative result is a valid experiment outcome.
 
-The owner relayed two reviews of the first Plan head (`82a6a69`). Each
-finding was checked against the repository.
+The frozen predictions P1–P7, acceptance contracts and counting
+taxonomy remain unchanged.
 
-Accepted and fixed:
+## Frozen Plan-owned files
 
-- R1 P1: two more task-30 tests,
-  `test_a_program_error_and_a_refusal_both_exit_with_one` and
-  `test_a_seed_needs_the_compiler_functions_and_only_lowerable_ops`,
-  depended on `quote` being unsupported. Both now patch `SUPPORTED_KINDS`.
-  Node mode gets its own kind set, separate from expanded `LOWERED`
-  (section 2.3).
-- R1 P2: problem-carrying `activate`/`trial` forms (`MALFORMED`) are
-  compared with host lowering and run against the host.
-- R1 P2: a trial of the active state itself has the same `StateID`. Sets
-  belong to versions or trials, not to a `StateID`, and `release` says which
-  (sections 4.1, 4.2 and 6; `same_trial`, `SameStateTrial`).
-- R1 P2: reuse sources must be the active version's artifacts, and the tests
-  assert it. The admitted-whole test now uses distinct trial and activation
-  states.
-- R1 P3:
-  - docstrings name the two tests that pass before implementation;
-  - the `extract_function` citation points to `shear/continuity.py`;
-  - reuse rule 2 is called conservative;
-  - section 3.2 no longer promises "no compilation" for runtime-checked
-    rejections;
-  - continuity is said to be inferred;
-  - validation must read the table, and a test deletes an entry to prove it;
-  - measurements get an Execute-owned smoke test;
-  - the lane-time concern is recorded.
-- R2 P1, and R2 P2 on trial cleanup, now tested:
-  - a failure partway through a candidate (`SUPPORTED_KINDS` without `add`);
-  - trial release after a rejected answer and after a crash inside the trial;
-  - a heap count of target artifacts and a holds check after each.
-- R2 P2 (provenance): every chunk the machine opens is recorded at the
-  machine's own chunk boundaries, then compared with host lowering and with
-  the admitted object. The trace check stays as a separate assertion.
-- R2 P2 (table): the minimum metadata is defined (section 5.2), and
-  `operands`, `children` and `linked` are checked against host chunks.
-- R2 P3: the module was split into three test modules plus a support
-  module.
+Specifications:
 
-Rebutted:
+- `docs/spikes/constraints_as_functions.md`
+- `docs/spikes/constraints_as_functions_mechanisms.md`
 
-- R1 P3, "`SUPPORTED_KINDS` is a superset of `NODE_KINDS`": `invalid` is in
-  `NODE_KINDS`, so the sets are equal once the five kinds are added. Section
-  2.3 now says so.
+Independent oracle and graders:
 
-## Second revision, after a third and a fourth Plan review
+- `tests/constraint_function_oracle.py`
+- `tests/constraint_function_acceptance.py`
+- `tests/constraint_function_boundary_acceptance.py`
 
-The owner relayed two reviews of `f11706d`. One accepted it with two P3
-notes; the other requested changes. Each finding was checked.
+Regression and acceptance infrastructure:
 
-Accepted and fixed:
+- `tests/test_constraint_function_oracle.py`
+- `tests/test_constraint_function_acceptance.py`
+- `tests/test_constraint_function_boundaries.py`
+- `tests/test_constraint_function_boundary_acceptance.py`
+- `tests/lanes.py`
 
-- P2, error precedence: a compilation failure could have masked
-  `activation_rejected`. Language rejections now take precedence. A
-  candidate is compiled only after the runtime's own checks accept it
-  (section 3.2). `bound_first` plus
-  `test_a_language_rejection_wins_over_a_compilation_failure` witness it.
-- P2, two loaded versions with one `StateID`: confirmed on the host
-  (`same_activate`). The API is now per version: `retained_versions()` and
-  `admitted(version)` (sections 4.1 and 6). A test checks that both loaded
-  versions own separate records.
-- P2, direct `bytecode.lower`: `no_host_lowering` now forbids it too.
-- P2, same-state trial ownership: `observed_chunks` records the version of
-  the frame that opened each chunk. It wraps `_open`, `_open_closure` and
-  `_child_chunk`, since `_chunk_for` sees only a state. Every opened chunk
-  must be the admitted object of its own version's set, a trial's included.
-  The same-state trial test checks that the trial's records are separate
-  from the active set's, and that the chunks are shared.
-- P3, partial failure: the injected failure now refuses the produced chunk
-  at admission (`LEN` removed from the table). `grow` makes `len` the only
-  new node kind, so the test requires a `produce` event before the failure.
-- Test-side references to versions and artifacts are dropped before every
-  heap count, so the orphan check cannot be inflated by the tests.
+The diff from frozen Plan head `97e4297` to Execute head
+`cac07b0` changes none of these files.
 
-On the P3 notes of the accepting review:
+Review must verify this independently.
 
-- The stand-in table check was local, and the script is not on the branch.
-  Treat it as a sanity check of the tests, not as evidence about any
-  implementation.
-- The shared-record hypothesis is now settled by the tests: separate
-  admission records with a shared chunk are required (sections 4.2 and 4.3).
+## Execute-owned changes
 
-## Combined review of `51c9612`
+Experimental probes:
 
-The review approved the plan after one fix, and both points below were
-checked.
+- `tests/constraint_function_a_probe.py`
+- `tests/constraint_function_b_probe.py`
+- `tests/constraint_function_c_probe.py`
+- `tests/constraint_function_disqualification_probe.py`
 
-- P2, verified test defect, fixed: in
-  `test_a_trial_of_the_active_state_has_its_own_set`, the loop variable
-  `artifact` kept a released trial record alive, so `assert_no_orphans`
-  would fail on a correct implementation. The cleanup now also deletes
-  `artifact` and `chunk`. The same was done for `artifact` in
-  `test_two_loaded_versions_of_one_state_have_separate_sets`. That one held
-  an active record, so it was harmless there, but the cleanup is now
-  uniform.
-- P3, Execute and Review checkpoint (no Plan change): candidate
-  compilation and admission must finish before `Runtime.activate` mutates
-  any live runtime state, not merely before `_active` changes. That means
-  before `kept._move(new)`, before `self._versions`, `self._active` and
-  `self._history` are assigned, and before `_retire_if_unused`. The same
-  holds in `Runtime.trial` before the isolated runtime is returned for
-  execution.
-- The earlier request to require a successful admission before an injected
-  failure was withdrawn. The `produce` requirement in
-  `test_a_failure_partway_through_a_candidate_leaves_nothing` stays: the
-  injection refuses an already produced chunk, so a `produce` event comes
-  first in every compilation order.
+Evidence:
 
-## Fix after Execute's report (owner-relayed)
+- `docs/spikes/constraints_as_functions_execute.md`
 
-- Verified defect in a Plan-owned test, fixed:
-  `Lifetime.test_repeated_updates_release_retired_versions` called
-  `upgrade(1, 2, 2 + m)`, but `handle(2)` is 3 on the initial image, so the
-  m-th update answers `3 + m`. The host oracle reproduced the failure
-  (`'wrong' != 'installed'`). The test now uses `3 + m` and checks every
-  step against a host runtime, as `drive` does. Its expectations were the
-  only ones in the module not checked against the host.
-- Every other hard-coded expectation in `tests/test_live_artifacts.py` was
-  rechecked on the host and holds: `migrate`, `try_wrong`, `try_crash`,
-  `same_trial`, `same_activate`, `upgrade(10, 2, 13)` and `bound_first`.
-- Execute rebases onto the new Plan head; no other Plan-owned file changed.
+CI:
 
-## State of the tests on the Plan head (Python 3.13)
+- `.github/workflows/semantic-model.yml`
 
-- The three new modules: 30 tests. All fail or error against the task-30
-  route except two, which check the declared sets and the host oracle:
-  `test_every_corpus_example_is_claimed` and
-  `test_the_oracle_catches_what_the_route_must_not`.
-- Every hand-written expectation holds on ordinary host execution.
-- The table tests passed a local check against a stand-in table built from
-  `validation.py`'s own facts, and caught three planted table bugs. The
-  stand-in is not on the branch, so this is not evidence.
-- `tests.test_hosted_bootstrap`: one failure,
-  `test_every_node_kind_is_lowered`. The three other changed tests pass.
-- `python3 -m tests.lanes --all`: only `language-runtime` (the table tests)
-  and `cross-boundary` fail, as intended.
-- `python3 -m tests.golden --against main`: 55 unchanged. The three
-  declarations fail until the compiler changes, as intended.
-- `tests.test_docs`: passes.
+The CI change adds a separate experimental-probe step using
+`unittest discover`. It does not alter the frozen `tests/lanes.py`.
 
-## Execute contract
+No production SHEAR modules were changed.
 
-Implement live_evolution.md. Suggested order:
+## Candidate A – direct callable substitution
 
-1. `shear/instructions.py` and validation reading it when it validates; the
-   VM generator reads operand positions from it only where it already
-   encodes them.
-2. Node-mode lowering of `quote`, `unquote`, `function`, `activate`, `trial`
-   in `compiler_source.py` (with a node-mode kind set), descriptors and
-   validation; expanded mode unchanged. Regenerate the seed manifest
-   (`seed_cli --write`).
-3. Candidate handling:
-   - artifact sets owned by versions and trials;
-   - candidate compilation at `activate`/`trial`, as a separate compiler run
-     (section 3.3);
-   - the reuse rule (4.3);
-   - trial sets (4.2) and release at retirement (4.1);
-   - cleanup after a failed attempt, and language rejections before any
-     compilation (3.2); compilation and admission finish before
-     `Runtime.activate` mutates any live state (`kept._move(new)` included)
-     and before `Runtime.trial` returns the isolated runtime;
-   - sets owned by `Version` objects, `retained_versions`,
-     `admitted(version)`, the `reuse`/`release` events and
-     `TraceEvent.source_artifact_id`.
-4. Measurements (section 7) in `diagnostics.py` and `hosted_bootstrap.md`,
-   with a smoke test.
-5. Docs: `hosted_bootstrap.md` (implementation), `bootstrap.md` (matrix note:
-   node mode covers every kind), `activation_model.md` sections 10 and 12
-   (derived artifacts per version, reuse rule), and the `CHANGES.md` entry.
+Seven executable witnesses examine canonical identity, callable
+representation, deployment dependence, execution before runtime
+admission, and independence from external evaluator context.
 
-Execute may choose the following, and marks each Provisional:
+Direct callable substitution fails prerequisite compatibility:
+ordinary functions and entity references are not cell constraints,
+callable deployment affects program identity, and ordinary function
+execution requires a loaded runtime.
 
-- the hook mechanism between the machine or runtime and the session. No new
-  public name may appear in the golden API modules: `shear`, `shear.lang`,
-  `shear.syntax`, `shear.bytecode` and `shear.machine`;
-- the names of the table's fields beyond `operands`, `children` and
-  `linked`;
-- the diagnostics layout.
+These observations support P3 and aspects of P5.
 
-The tests observe chunks by wrapping `machine._open`,
-`machine._open_closure` and `machine._child_chunk`, as task 30's tests wrap
-`machine._open`. Keep those three as the machine's chunk boundaries.
+No complete A implementation or boundary adapter was built.
 
-Execute must not:
+Verdict: kill direct callable substitution within the bounded scope.
 
-- change Plan-owned files or expectations;
-- let a candidate become active, or run in a trial, before every code node
-  is admitted;
-- make `AdmissionRejected` catchable;
-- reuse on host-API activations or from trial sets;
-- add VM instructions;
-- change expanded-mode output.
+This is not proof that every conceivable callable design is impossible.
 
-If any of these proves necessary, return to Plan.
+## Candidate B – ordinary-function interpretation
 
-Also required:
+The positive witness executes tuple-form interpretation through a
+genuine SHEAR function and the ordinary VM.
 
-- mutation-catalog re-review for `compiler_source.py`, the changed
-  `hosted_bootstrap` modules and `shear/instructions.py` (a target or a
-  justified omission), run in CI by workflow dispatch, not locally;
-- golden declarations that match exactly; a mismatch goes back to Plan;
-- all lanes passing (`python3 -m tests.lanes --all`), with the time of
-  `cross-boundary` recorded.
+Negative witnesses demonstrate missing canonical-data operations:
 
-`CHANGES.md` entry (Execute appends, adjusting facts it changed):
+- Constraint-field projection.
+- Canonical map and role access.
+- Complete Length semantics.
 
-    ## Task 31: live evolution on the hosted route (GH-67)
+The full frozen semantic grader was invoked with all fixed cases
+and 100 generated seeds from each family.
 
-    A running image changes itself on route B. The SHEAR compiler lowers
-    every node kind; candidates built by `activate` and `trial` are compiled
-    by the image's retained compiler and admitted whole before they run or
-    become active (D5); unchanged nodes reuse their artifacts; a version owns
-    its artifacts and releases them when it retires. All 29 corpus examples
-    and the live-image scenarios run on admitted artifacts and agree with
-    ordinary host execution. One instruction table is shared as metadata by
-    admission, the machine's tests and the SHEAR-written VM. Update latency
-    and retention are measured in hosted_bootstrap.md.
+The bounded B adapter does not pass semantic acceptance.
 
-## Execute notes
+All 17 frozen boundary cases were submitted to the grader.
+Every script was rejected as unsupported because B has no
+candidate-integrated runtime admission path.
 
-- Rebased onto Plan head `3d58684` (the lifetime test fix). All lanes pass
-  (`python3 -m tests.lanes --all`); `cross-boundary` took 151 s (two lanes at a time).
-- Mutation: `shear/instructions.py` is now a target, `live_diagnostics.py`
-  an omission; survivors of `machine.py`, `runtime.py` and `examples/vm.py`
-  were re-reviewed (unchanged sites) and repinned. The campaign for the
-  changed targets still has to run in CI by workflow dispatch.
-- Resolve (first review, `45c4446`): finding 1 fixed (the target releases the
-  sets of versions that retired outside a run whenever it is asked about
-  sets or starts a run; `LateRetirementTests`, failing on the old code);
-  finding 2: the measurements in hosted_bootstrap.md 4.1 are rerun at a clean
-  tree, revision `7f39921`; finding 3: trial-rejected updates added next to
-  the injected, renamed "refused" ones. Finding 4 (reuse rule 4 has no
-  witness, so removing it passes every test) stays a hypothesis; finding 5
-  is follow-up issue #116 (reuse cost).
-- Resolve (second review, `2b65be2`): the P3 is fixed. `prepare()` drops each
-  production record after its admission, as candidate compilation does;
-  `ConsumedEvidenceTests` fails on the old code. Still open: the mutation
-  campaign in CI and a fresh Review against `d76708f`.
-- Provisional choices are listed in hosted_bootstrap.md section 6.
+The boundary scripts were not executed as successful runtime
+transitions. Rejections are disqualification evidence only.
 
-## Second implementation review (`e037104`), and Plan's amendment
+Verdict: kill the bounded B interpreter as a replacement.
 
-Two reviews of `e037104` agreed that findings 1 to 3 are resolved, CI is
-green on `e037104`, and #116 covers the reuse cost. They differed on two
-points.
+## Candidate C – compilation into ordinary functions
 
-- Deferred reclamation of a version that retires outside a run. The owner
-  accepted it on 2026-10-12. Plan recorded it as a Provisional exception in
-  live_evolution.md section 4.1, so it is no longer a deviation. Eager
-  release waits until a real host-held workload needs it.
-- P3, verified (pre-existing, now longer-lived): `HostedTarget.prepare()`
-  keeps its `_Production` records, with their chunks, in `_productions`
-  after admission. The candidate path deletes them, but prepare does not.
-  On the image, 228 records stay alive after the prepared version has
-  retired, for the target's whole life. The fix for Resolve is small: drop
-  each prepare-time production once it is admitted, as the candidate path
-  does, leaving the public `produce`/`admit` pair as it is. A regression
-  test should count the records after the prepared version retires. Not
-  blocking.
+The compiler materializes canonical constraints and emits
+ordinary SHEAR function bodies for:
 
-Still open before Publish: the mutation campaign by workflow dispatch, and a
-fresh Review.
+- OneOf.
+- Not.
+- AllOf.
+- AnyOf.
 
-## Claims Review must verify independently
+These generated bodies execute through the real VM.
 
-live_evolution.md section 9, claims 1 to 7.
+Missing functionality includes required primitives, node-budget
+equivalence, External authority and failure semantics, admission
+integration, and verified effect isolation.
 
-## Plan head
+The full frozen semantic grader was invoked with all fixed cases
+and both default generated families.
 
-`d76708ffbbd970ceed380d231ace0859a4d4fac1`
-("GH-67 Change live_evolution.md to record the accepted deferred reclamation";
-section 4.1 only). Earlier Plan heads: `82a6a69`, `f11706d`, `51c9612`,
-`fc006f4`, `3d58684`. Review diffs the Plan-owned files from this one.
+The bounded C adapter does not pass semantic acceptance.
+
+All 17 frozen boundary scenarios were submitted and rejected as
+unsupported. No candidate-integrated admission transitions ran.
+
+The compiler is a new independent fixed translation mechanism.
+Ordinary execution of its output does not make compilation free.
+
+Verdict: kill the bounded C compiler as a replacement.
+
+## Mechanism accounting
+
+The frozen taxonomy identifies:
+
+- M1 – Dedicated constraint execution and composite dispatch.
+- M2 – Constraint-node budget.
+- M3 – Named External dispatch.
+- M4 – Escaping host-failure provenance.
+
+Verified migrated-production removals:
+
+- A: R = 0.
+- B: R = 0.
+- C: R = 0.
+
+The complete addition counts for hypothetical fully migrated
+architectures remain unresolved.
+
+C demonstrates at least one new fixed translation mechanism.
+B would require additional canonical-data capabilities and
+possibly new generic execution and authority mechanisms.
+
+No prototype replaces all existing production consumers of
+`Constraint.evaluate`, including initial loading, writes,
+relation checks, activation and trial.
+
+A numerical net mechanism score is withheld rather than
+treating unimplemented facilities as zero-cost additions.
+
+The conjunctive adoption rule rejects the candidates independently:
+none passes the mandatory semantic and boundary criteria.
+
+The bounded experiment does not establish a universal lower bound
+on the mechanism cost of all possible future designs.
+
+The full provisional ledger and counterfactual analysis are in
+`docs/spikes/constraints_as_functions_execute.md`.
+
+## Verification
+
+Verified CI runs:
+
+- `38971853124` – B probes and registered lanes passed.
+- `38972471297` – B/C probes passed.
+- `38974323233` – A/B/C probes passed.
+- `38974990376` – full frozen rejection-grader tests passed.
+- `38976315088` – final Execute evidence head passed.
+
+Latest verified CI:
+
+https://github.com/NadOby/shear/actions/runs/38976315088
+
+The latest run completed successfully at `cac07b0`, including:
+
+- Registered semantic lanes.
+- Experimental A/B/C probes.
+- Frozen disqualification tests.
+- Golden-record comparison.
+
+These are passing tests of bounded witnesses and expected failures,
+not evidence of complete candidate acceptance.
+
+No new mutation campaign specific to these experimental probes
+is claimed.
+
+## Remaining limitations
+
+- No successful candidate-integrated execution of the 17 boundary
+  scenarios.
+- No complete B interpreter or C compiler supporting the entire
+  semantic algebra.
+- No replacement for constraint-node budgeting, named External
+  authority, escaping host-failure provenance or effect isolation.
+- No fully validated migrated-production architecture with exact
+  numerical addition counts.
+- No proof that every possible future function-based architecture
+  would fail the mechanism-reduction criterion.
+
+These are limitations of the negative experiment, not claims of
+successful candidate coverage.
+
+Independent Review must determine whether they are acceptable for
+a bounded kill verdict or constitute unfinished mandatory work.
+
+## Independent Review obligations
+
+Review Task 24 in a fresh context, read-only.
+
+1. Fetch the current branch and main. Read the frozen Plan, issue,
+   specifications, Execute evidence, CLAUDE.md and roadmap.
+2. Verify the Plan head and all Execute diffs. Confirm that no
+   Plan-owned expectations, scripts or golden declarations changed.
+3. Independently examine the A identity and bootstrap witnesses.
+   Determine whether the claimed obstacles actually follow.
+4. Inspect B's real VM path and canonical-data negative witnesses.
+   Distinguish missing capability from implementation defects.
+5. Inspect C's generated functions, canonical construction,
+   normalization and actual execution route.
+6. Verify that the full frozen semantic campaign was invoked and
+   that the recorded failures are genuine, not hidden successes.
+7. Verify the complete 17-case boundary inventory. Confirm that
+   script rejection is not misrepresented as boundary equivalence.
+8. Audit incumbent fallback, generated result claims, unauthorized
+   effects and any hidden use of the dedicated evaluator.
+9. Independently audit M1–M4, production consumers, candidate
+   additions and the migration counterfactual.
+10. Check whether failure of the mandatory criteria justifies
+    terminating the bounded experiment without a complete
+    numerical R-minus-A result.
+11. Review CI, runner registration, reproducibility, documentation
+    consistency and the evidence report's limitations.
+12. Classify findings as verified defects, limitations, hypotheses
+    or documentation drift, with P0–P3 severities for defects.
+
+Explicitly assess whether the proposed kill verdict satisfies the
+frozen Plan, or whether any required experiment was prematurely
+terminated.
+
+Do not modify production code, Plan-owned files or handoff during
+independent Review.
+
+## Next step
+
+Commit this handoff alone.
+
+Then start a fresh chat with:
+
+`Review Task 24 on task/24-constraints-as-functions against frozen
+Plan head 97e4297 and independently verify the proposed kill verdict.
+Read-only. Classify findings by severity and give an Execute → Review
+verdict.`
+
+If Review identifies blocking defects, enter Resolve and repeat
+independent Review.
+
+Do not enter Publish until the independent Review accepts the final
+Task 24 result.
