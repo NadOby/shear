@@ -2000,3 +2000,23 @@ negative and inconclusive experiments.
 - Preserved independent Review, frozen acceptance and historical
   evidence. No production semantics, tests or golden records changed.
   Flexible workflow stages are tracked separately in issue #89.
+
+### Flexible workflow stages (GH-89)
+
+- Clarified the five task roles as responsibilities rather than
+  mandatory separate phases or chats.
+- A Plan containing the complete deliverable may proceed directly
+  to independent Review and Publish, without an empty Execute stage.
+- Execute remains required when substantive implementation or
+  research work remains. Resolve is conditional on Review findings,
+  and corrections require renewed independent Review.
+- Publish may run in the same Plan or Execute context, or through
+  the owner, after independent Review accepts the deliverable.
+  A separate Publish chat is not required.
+- Preserved frozen terminal acceptance, Plan-owned file protection,
+  independent certification, owner-controlled decisions and
+  applicable CI and final-diff verification.
+- Publication-only metadata may be finalized after Review, but
+  substantive post-review changes require another independent Review.
+- Validated the simplified workflow against Task 28 and issue #118.
+  No production semantics, tests or golden records changed.

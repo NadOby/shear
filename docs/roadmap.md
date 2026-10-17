@@ -7,13 +7,21 @@ follows CLAUDE.md.
 
 ## Workflow
 
-**Decided.** Each task passes through five roles: Plan, Execute, Review,
-Resolve and Publish, each normally in its own fresh chat, with no background
-agents. The owner starts a role with "Plan task N", "Execute task N",
+**Decided.** Tasks have five responsibilities: Plan, Execute, Review,
+Resolve and Publish. They are not mandatory separate phases or chats.
+Execute is required when substantive work remains after Plan; Resolve
+is required when Review findings need correction. Publish can be performed
+in the same context as Execute or Plan, or by the owner, once independent
+Review accepts the final deliverable. A fresh, independent Review is
+mandatory; the context that produced a deliverable cannot certify it.
+No background agents.
+
+The owner starts or resumes a role with "Plan task N", "Execute task N",
 "Review task N", "Resolve task N" or "Publish task N"; the contracts below
-make that instruction sufficient. Every role starts by fetching the
-repository and reading CLAUDE.md, this section, the task's roadmap entry and
-`handoff.md`, and ends by recording its state in `handoff.md` and stopping.
+make each instruction sufficient. Every participating context fetches the
+repository and reads CLAUDE.md, this section, the task's roadmap entry
+and `handoff.md`. A handoff records material decisions, state and the next
+action when another context needs them, not empty role transitions.
 `handoff.md` is a checkpoint of claims, not evidence that they hold.
 
 **Decided.** No role may assume write access to GitHub or to the repository.
@@ -32,6 +40,26 @@ status and the discussion. This roadmap remains the order and the task
 definitions, the specifications the design, `CHANGES.md` the log and
 `handoff.md` the checkpoint between chats. Commits and PRs name their issue
 as CLAUDE.md describes.
+
+**Decided.** A Plan that already contains the full proposed deliverable
+may go directly to independent Review, then Publish. State briefly why
+no Execute work remains and name the reviewed commit. This shortcut is
+available for specifications, tests, documentation and other complete
+Plan deliverables, not only files of those types. Do not create no-op
+implementation commits or handoffs to satisfy a role name. If implementation
+or other substantive work remains, Execute must perform it. A skipped
+stage does not relax frozen terminal acceptance, Plan-owned specification,
+test or golden-record integrity, CI obligations or owner-controlled decisions.
+
+**Decided.** Review takes place in a fresh context independent from the
+context that produced the deliverable, whether during Plan or Execute.
+It is read-only for that deliverable. The preparer may Resolve findings,
+but substantive changes after Review require a new independent Review.
+Publish is a finalization action following approval, not a distinct chat
+requirement. Publication-only metadata (a changelog entry, handoff or PR
+description) may be finalized after Review if it does not modify the
+reviewed contract, implementation or evidence. Verify the final diff and
+applicable CI before publishing or merging; do not claim unrun checks passed.
 
 **Decided.** Every research, architecture, performance or implementation
 task must produce an actionable conclusion, including when its bounded
@@ -97,13 +125,17 @@ obtain a preferred result, or retroactively rewrite evidence.
    - Find the task's issue, or create it with the `task` label and name it
      in the roadmap entry; without issue write access, give the owner the
      issue title and body to create.
-   - Write the spec and acceptance tests on a branch `task/<n>-<name>`, and
-     turn `handoff.md` into the execution contract. End by recording the
-     Plan head commit in `handoff.md`: the state Execute starts from. Plan
-     owns the acceptance tests, the specifications and the golden
-     declarations as of that commit.
-2. **Execute** (`Execute task N`). A separate implementation context with
-   write access.
+   - Write the spec and acceptance tests on a branch `task/<n>-<name>`,
+     and record the frozen Plan head and Plan-owned files in `handoff.md`.
+     This is the contract for any later Execute and Review. Plan owns the
+     acceptance tests, the specifications and the golden declarations as
+     of that commit.
+   - State whether substantive Execute work remains. When the Plan already
+     contains the complete proposed deliverable, provide its evidence and
+     request independent Review directly. Plan may not self-certify that
+     its deliverable meets terminal acceptance.
+2. **Execute** (`Execute task N`). An implementation-capable context,
+   required when substantive work remains beyond Plan.
    - Implement the Plan contract, committing coherent steps, preserving
      settled semantics and the acceptance tests.
    - Make provisional choices only where the plan permits them. If the work
@@ -121,19 +153,22 @@ obtain a preferred result, or retroactively rewrite evidence.
      verification performed, known limitations, mutation-survivor decisions
      and the claims Review must verify.
    - Execute does not certify its own implementation as correct.
-3. **Review** (`Review task N`). A fresh context separate from Execute;
-   a different model when useful. Adversarial, and read-only for the
-   implementation.
+3. **Review** (`Review task N`). A fresh context independent of the
+   deliverable's preparer, whether Plan or Execute; a different model
+   when useful. Adversarial and read-only for the deliverable.
    - Fetch the current repository before judging anything. Read
      `handoff.md` as claims to check, not as evidence.
    - Verify the important claims independently against code, tests, docs,
      git history and diff, and CI, and check conformance with the Plan
      contract.
-   - Find the Plan head commit (named in `handoff.md`, checked against git
-     history) and diff it with the implementation head over the Plan-owned
-     files: acceptance tests, specifications, `tests/golden_changes/`. Every
-     difference must be called out and justified against the Plan; an
-     unexplained one is a blocking defect. Check that:
+   - Verify the baseline, frozen Plan head and reviewed head against git
+     history. When Execute occurred, diff the Plan head with the
+     implementation head over Plan-owned files: acceptance tests,
+     specifications and `tests/golden_changes/`. Every difference must
+     be called out and justified against the Plan; an unexplained one is
+     a blocking defect. When Execute was skipped, inspect the complete
+     Plan deliverable against the baseline and frozen terminal acceptance;
+     no implementation diff is required. In either path, check that:
      acceptance tests were not weakened, removed or bypassed; assertions and
      expected values were not relaxed to fit the implementation; production
      code has no special case that only satisfies the acceptance tests;
@@ -164,7 +199,8 @@ obtain a preferred result, or retroactively rewrite evidence.
    - Do not repair production code, tests or specifications. The findings
      are the reply; the owner or Resolve records them in `handoff.md` if
      they should outlive the chat.
-4. **Resolve** (`Resolve task N`). An execution-capable context.
+4. **Resolve** (`Resolve task N`). An execution-capable context,
+   needed only when Review identifies findings requiring correction.
    - Handle the findings one by one: fix a verified defect with the smallest
      valid change, or rebut it with concrete repository evidence.
    - Do not change Decided semantics, acceptance expectations or
@@ -178,11 +214,16 @@ obtain a preferred result, or retroactively rewrite evidence.
    - A fresh Review pass follows every Resolve. Review and Resolve repeat
      until Review has no unresolved blocking finding.
 5. **Publish** (`Publish task N`). Only after an independent Review has
-   accepted the final implementation state.
-   - Fetch current `main` and rebase the task branch if needed; re-check
-     that the Plan-owned files (acceptance tests, specifications, golden
-     declarations) have not changed since the commit the final accepted
-     Review examined; verify the final diff and CI;
+   accepted the final deliverable. It may be performed in the same
+   context as Execute or Plan, or by the owner, without a separate
+   Publish chat.
+   - Fetch current `main` and rebase the task branch if needed. Check
+     that the reviewed contract, implementation and evidence have not
+     changed substantively since the accepted Review; any such change,
+     including a Plan-owned acceptance edit, requires renewed independent
+     Review. Publication-only metadata may be added after Review when it
+     does not alter the reviewed deliverable. Verify the final diff and
+     applicable CI, reporting missing or pending checks accurately, and
      check that every finding is resolved or explicitly accepted as a
      non-blocking limitation.
    - An actionable conclusion does not replace terminal acceptance.
@@ -206,16 +247,17 @@ obtain a preferred result, or retroactively rewrite evidence.
      descriptive negative verdict.
    - Open a ready PR (without PR access, give the owner its title and
      description) whose description closes the task's issue
-     (`Closes #<n>`), then mark the roadmap entry Implemented with the PR's
-     number. The PR states intentionally deferred limitations and follow-ups
-     separately from defects; each deferred follow-up links an existing
-     tracking issue or receives a new `follow-up` issue.
+     (`Closes #<n>`), then mark its roadmap entry Implemented with the PR's
+     number when it has one. The PR states intentionally deferred limitations
+     and follow-ups separately from defects; each deferred follow-up links
+     an existing tracking issue or receives a new `follow-up` issue.
 
 The owner merges, or pushes back, and says so.
 
-A chat whose context grows heavy ends by updating `handoff.md`; the next
-chat in the same role starts from CLAUDE.md, this section and `handoff.md`.
-Mutation campaigns run in CI, not in a chat.
+A chat whose context grows heavy records the material state needed for
+continuation in `handoff.md`. The next context starts from CLAUDE.md,
+this section and `handoff.md`. No handoff update is required merely
+because a role label changes. Mutation campaigns run in CI, not in a chat.
 
 ## Decision D1: graph form is canonical
 
@@ -939,8 +981,8 @@ The acceptance anchors are the review's section 4: the semantic graph stays
 canonical and executable forms stay derived; an image keeps the compiler
 machinery that regenerates its execution; producing a candidate stays
 distinct from activating it; continuity alone does not establish
-preservation. A task here that would trade one of them for speed brings the
-trade to the owner.
+preservation. A task here that would trade one of them for speed brings
+the trade to the owner.
 
 Order: task 27 is done; then task 23 with its bootstrap costs, tasks 28 and
 29, decisions D3 and D4, and tasks 30 and 31.
