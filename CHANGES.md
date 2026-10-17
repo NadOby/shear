@@ -1951,3 +1951,29 @@ artifacts and agree with ordinary host execution. One instruction table
 is shared as metadata by admission, the machine's tests and the
 SHEAR-written VM. Update latency and retention are measured in
 hosted_bootstrap.md.
+
+### Constraints as functions – bounded experiment (task 24, GH-56)
+
+Tested three approaches to replacing the dedicated constraint evaluator:
+direct callable constraints (A), interpretation through ordinary SHEAR
+functions (B), and compilation of canonical constraints to functions (C).
+
+The frozen semantic and boundary graders disqualified the bounded
+candidates. B lacks canonical-content inspection operations; C executes
+a limited subset but lacks budgets, external authority and admission
+integration. All 17 boundary scripts were rejected as unsupported,
+not successfully executed through candidate-integrated runtimes.
+
+No production mechanism removal was verified (R = 0). C demonstrates
+at least one new constraint-to-code translation mechanism. Complete
+migration costs remain unresolved.
+
+Independent Review accepted the bounded kill verdict. Retain the
+existing constraint evaluator and unchanged semantic contracts.
+The result does not establish that every possible function-based
+implementation is infeasible.
+
+Added independent acceptance infrastructure, A/B/C experimental probes
+and a mechanism-accounting report. No production semantic or golden
+record changes. Follow-up #118 addresses actionable outcomes from
+negative and inconclusive experiments.
