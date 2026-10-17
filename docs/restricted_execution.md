@@ -657,4 +657,4 @@ decisions, hidden fallback, mechanism counting and the adequacy of
 negative/inconclusive disposition.
 
 Do not begin Execute or open a PR until the Plan is approved.
-⁸
+
