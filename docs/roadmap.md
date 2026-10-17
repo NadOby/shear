@@ -27,11 +27,45 @@ findings are its reply.
 **Decided.** Work is tracked in GitHub issues. Each roadmap task not yet
 done has an issue labelled `task`, named in its entry's status line; any
 other change gets an issue before work starts, and a follow-up found during
-a task becomes an issue labelled `follow-up`. An issue holds the goal, the status and the
-discussion. This roadmap remains the order and the task definitions, the
-specifications the design, `CHANGES.md` the log and `handoff.md` the
-checkpoint between chats. Commits and PRs name their issue as CLAUDE.md
-describes.
+a task becomes an issue labelled `follow-up`. An issue holds the goal, the
+status and the discussion. This roadmap remains the order and the task
+definitions, the specifications the design, `CHANGES.md` the log and
+`handoff.md` the checkpoint between chats. Commits and PRs name their issue
+as CLAUDE.md describes.
+
+**Decided.** Every research, architecture, performance or implementation
+task must produce an actionable conclusion, including when its bounded
+result is negative or inconclusive. Distinguish the motivating question
+from the bounded task contract. A task may satisfy its contract without
+resolving the motivating question; neither a valid negative result nor an
+inconclusive result is automatically an implementation defect.
+
+Classify obstacles by the evidence that supports them:
+
+- **Proven limitation:** a demonstrated restriction within an explicit
+  scope. Do not generalize a bounded counterexample to all designs.
+- **Missing capability:** an operation, semantic rule or integration
+  facility absent from the tested system. Absence is not impossibility.
+- **Architectural obstacle:** a demonstrated conflict with an invariant,
+  required behavior or architectural objective. State the assumptions
+  under which the conflict holds.
+- **Implementation defect:** behavior that violates an applicable
+  specification or acceptance contract. Distinguish it from an
+  intentionally incomplete prototype and an unsupported experiment.
+
+Hypotheses, untested alternatives and insufficient evidence remain
+explicitly uncertain. These classifications supplement, rather than
+replace, Review's existing finding categories and defect severities.
+
+An actionable conclusion states what was established, what remains
+unresolved, and the next implementation, experiment or owner decision.
+Give the next action a priority and name its dependencies, or justify
+why no further work should follow. A priority is a proposed ordering of
+work, not a defect severity or an authorization to change architecture.
+Retain the original falsifiable criteria, independent Review and
+historical evidence. Do not require production changes merely to make a
+negative experiment actionable, revise frozen acceptance criteria to
+obtain a preferred result, or retroactively rewrite evidence.
 
 1. **Plan** (`Plan task N`). A fresh context, preferably with the strongest
    reasoning model available. No production changes.
@@ -50,6 +84,14 @@ describes.
      Execute must not make alone. A new layer gets an acceptance test that
      runs the existing corpora through it. Golden records the task
      intends to change are declared in `tests/golden_changes/GH-<n>.txt`.
+   - Separately state the motivating question and the bounded acceptance
+     or adoption criteria. Define what a positive, negative or
+     inconclusive outcome can establish, what evidence distinguishes
+     those outcomes, and which broader questions may remain unanswered.
+     Pre-register discriminators and predictions where applicable.
+     Do not make a negative result depend on completing an unlimited
+     implementation, or let a bounded failure imply universal
+     impossibility.
    - Name the important claims Review must verify independently, and keep
      required work apart from useful follow-ups.
    - Find the task's issue, or create it with the `task` label and name it
@@ -67,6 +109,14 @@ describes.
    - Make provisional choices only where the plan permits them. If the work
      shows the plan is materially wrong, do not redesign around it: return
      the decision to the owner or to a new Plan pass.
+   - Report the bounded outcome separately from the status of the
+     motivating question. Distinguish demonstrated limitations,
+     missing capabilities, architectural obstacles and implementation
+     defects. Identify unsupported or unexecuted acceptance scenarios
+     instead of treating their rejection as successful execution.
+     Record concrete evidence, unresolved hypotheses, candidate next
+     actions and their prerequisites. Do not invent a replacement
+     architecture or change frozen criteria to force a positive result.
    - Record in `handoff.md` the implementation state, provisional choices,
      verification performed, known limitations, mutation-survivor decisions
      and the claims Review must verify.
@@ -103,6 +153,14 @@ describes.
      failure mode or counterexample, and the smallest valid fix. Do not turn
      suspicion into a defect, and do not re-raise historical issues that the
      current code has fixed.
+   - Independently check what each bounded outcome establishes and whether
+     the motivating question remains open. Do not mistake missing
+     functionality, absent integration or unexecuted scenarios for proof
+     of architectural impossibility. Verify the evidence classification,
+     proposed next action and its connection to the unresolved question.
+     An unsupported conclusion or absent required disposition is a
+     workflow finding; do not demand a production change solely to turn
+     a valid negative result into a positive one.
    - Do not repair production code, tests or specifications. The findings
      are the reply; the owner or Resolve records them in `handoff.md` if
      they should outlive the chat.
@@ -112,6 +170,9 @@ describes.
    - Do not change Decided semantics, acceptance expectations or
      specifications to make a finding disappear; escalate such decisions to
      the owner.
+   - Correct unsupported conclusions or missing actionable dispositions
+     using the available evidence, or identify the additional evidence
+     required. Do not alter historical experimental results.
    - Record the findings (from the Review's reply), fixes, rebuttals and
      unresolved findings in `handoff.md`.
    - A fresh Review pass follows every Resolve. Review and Resolve repeat
@@ -124,6 +185,15 @@ describes.
      Review examined; verify the final diff and CI;
      check that every finding is resolved or explicitly accepted as a
      non-blocking limitation.
+   - State the bounded result, whether the motivating question is
+     resolved, and the evidence supporting that distinction. If it
+     remains open, identify the next concrete implementation, experiment
+     or owner decision, its priority, dependencies and expected
+     discriminator. Record the corresponding follow-up issue; if a
+     decision or prerequisite prevents scheduling, say so explicitly.
+     Alternatively justify a decision to stop or defer indefinitely.
+     Publish cannot close with an unexamined capability gap or a merely
+     descriptive negative verdict.
    - Open a ready PR (without PR access, give the owner its title and
      description) whose description closes the task's issue
      (`Closes #<n>`), then mark the roadmap entry Implemented with the PR's
