@@ -1977,3 +1977,26 @@ Added independent acceptance infrastructure, A/B/C experimental probes
 and a mechanism-accounting report. No production semantic or golden
 record changes. Follow-up #118 addresses actionable outcomes from
 negative and inconclusive experiments.
+
+### Actionable task outcomes (GH-118)
+
+- Updated `docs/roadmap.md` Workflow to separate motivating questions
+  from bounded acceptance criteria. Research and implementation tasks
+  must distinguish demonstrated limitations, missing capabilities,
+  architectural obstacles and implementation defects.
+- Negative and inconclusive results require evidence-supported
+  conclusions and actionable dispositions. They can complete a task
+  only when its frozen terminal acceptance criteria permit that
+  outcome. Actionability cannot replace mandatory acceptance.
+- Publish identifies whether the motivating question was resolved.
+  For unresolved questions, it records a concrete successor or owner
+  decision, priority, dependencies and expected discriminator.
+  Existing follow-up issues can be reused.
+- Stopping or indefinitely deferring a substantive unresolved
+  architectural question requires explicit owner approval.
+- Independently reviewed against Task 24's bounded negative result,
+  Task 25's field-identity discriminator, Task 26's consolidation
+  decision and issue #116's artifact-reuse verification gap.
+- Preserved independent Review, frozen acceptance and historical
+  evidence. No production semantics, tests or golden records changed.
+  Flexible workflow stages are tracked separately in issue #89.
