@@ -795,12 +795,12 @@ mutation targets are carried or dropped by the task 19 rule.
   Self-hosting does not imply it, and it does not require rewriting platform
   services in SHEAR.
 - After hosted bootstrap, not before it (2026-10-08 review): removing
-  Python, native code generation, the final memory manager, concurrency,
-  the full systems-data model, records unless the workload needs them,
-  package management, the final module system, polished final syntax,
-  IDE tooling, complete formal semantics, general theorem proving,
-  a second compiler implementation, a new review workflow, and redesign
-  of identity, continuity or retirement without a concrete counterexample.
+  Python, native code generation, the final memory manager, concurrency, the
+  full systems-data model, records unless the workload needs them, package
+  management, the final module system, polished final syntax, IDE tooling,
+  complete formal semantics, general theorem proving, a second compiler
+  implementation, a new review workflow, and redesign of identity,
+  continuity or retirement without a concrete counterexample.
 - Concurrency starts with a semantic spike, not with thread safety added to
   the current path: two computations reading and writing cells, activation
   while other computations run old code, capability authority across
@@ -981,8 +981,8 @@ The acceptance anchors are the review's section 4: the semantic graph stays
 canonical and executable forms stay derived; an image keeps the compiler
 machinery that regenerates its execution; producing a candidate stays
 distinct from activating it; continuity alone does not establish
-preservation. A task here that would trade one of them for speed brings the
-trade to the owner.
+preservation. A task here that would trade one of them for speed brings
+the trade to the owner.
 
 Order: task 27 is done; then task 23 with its bootstrap costs, tasks 28 and
 29, decisions D3 and D4, and tasks 30 and 31.
@@ -1121,8 +1121,8 @@ and error-handling canaries, with every executed program-code artifact
 produced by the SHEAR compiler and admitted through route B. Extend the
 compiler and, where useful, the SHEAR-written VM to support the remaining
 operations; full VM parity is not required. Exercise a persistent running
-image that reads and changes its canonical program, compiles a candidate,
-compiles it with its retained compiler, trials and activates it with declared
+image that reads and changes its canonical program, compiles a candidate
+with its retained compiler, trials and activates it with declared
 continuity and live data, and rejects bad candidates by the language's
 failure semantics. Cover an old frame or closure across activation,
 dependency-safe artifact reuse, repeated updates and version retirement.
