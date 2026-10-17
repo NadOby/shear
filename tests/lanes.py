@@ -118,6 +118,8 @@ LANES: dict[str, tuple[str, ...]] = {
         "test_mutation_regressions_boundaries",
         "test_properties",
         "test_reference_version",
+        "test_restricted_execution",
+        "test_restricted_execution_boundaries",
         "test_stateful_sequences",
     ),
     "mutation": (
@@ -186,7 +188,7 @@ def suite_for(lane: str) -> unittest.TestSuite:
         modules = LANES[lane]
     except KeyError as exc:
         raise RuntimeError(
-            f"unknown test lane {lane!r}; choose from "
+            f"unknown lane {lane!r}; choose from "
             + ", ".join(sorted(LANES))
         ) from exc
 
@@ -219,7 +221,7 @@ def _run_lane(lane: str) -> tuple[int, str]:
 
 def run_all(
     jobs: int | None = None,
-    run: Callable[[str], tuple[int, str]] = _run_lane,
+    run: Callable[[str], tuple[int, str]]] = _run_lane,
 ) -> int:
     """Run every lane as a separate process, ``jobs`` at a time.
 
@@ -233,10 +235,10 @@ def run_all(
     workers = jobs or os.cpu_count() or 1
     grouped = os.environ.get("GITHUB_ACTIONS") == "true"
 
-    def timed(lane: str) -> tuple[int, str, float]:
+    def timed(lane: str) -> tuple[str, int, str, float]:
         start = time.monotonic()
         code, output = run(lane)
-        return code, output, time.monotonic() - start
+        return lane, code, output, time.monotonic() - start
 
     finished: dict[str, tuple[int, str, float]] = {}
 
@@ -247,7 +249,7 @@ def run_all(
         # the job times out does not hide the output of the others.
         for future in as_completed(pending):
             lane = pending[future]
-            code, output, seconds = future.result()
+            _, code, output, seconds = future.result()
             finished[lane] = (code, output, seconds)
             status = "ok" if code == 0 else "FAILED"
             if grouped and code == 0:
