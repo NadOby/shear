@@ -1,10 +1,10 @@
 # Task 24 – Execute Evidence and Mechanism Audit
 
-**Status: Execute complete – proposed kill; independent Review pending.**
+**Status: Independent Review accepted – bounded kill; Publish pending.**
 
 Issue: GH-56.
 Branch: `task/24-constraints-as-functions`.
-Evidence head: `a2d2553`.
+Evidence head: `cac07b0`.
 Frozen Plan: `97e4297`.
 Control baseline: `697b2d7`.
 
@@ -14,7 +14,7 @@ expectations.
 
 ## 1. Verification
 
-GitHub Actions run `38974990376` passed at `a2d2553`.
+GitHub Actions run `38976315088` passed at `cac07b0`.
 
 Verified CI steps:
 
@@ -350,5 +350,10 @@ Any subsequent attempt to introduce generic content inspection,
 a generic fuel budget, new authority capabilities or pre-activation
 execution should be separately planned and authorized.
 
-Next workflow checkpoint: update `handoff.md`, then independent
-read-only Review. Do not enter Publish before Review.
+Independent Execute Review accepted the bounded kill at `3dfeb87`
+with no P0–P2 blockers. The P3 failure-inventory and bootstrap-witness
+weaknesses are accepted limitations, not evidence of complete candidate
+coverage. The provenance drift noted by Review was corrected in Publish.
+
+Next workflow checkpoint: Publish. Retain the approved negative verdict
+and preserve the frozen Plan-owned files.
