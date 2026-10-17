@@ -185,21 +185,31 @@ obtain a preferred result, or retroactively rewrite evidence.
      Review examined; verify the final diff and CI;
      check that every finding is resolved or explicitly accepted as a
      non-blocking limitation.
+   - An actionable conclusion does not replace terminal acceptance.
+     A negative or inconclusive result may conclude a task only if it
+     satisfies the frozen Plan's terminal acceptance criteria. Otherwise
+     the task remains incomplete and returns to Plan for an explicitly
+     revised contract, preserving the original criteria and evidence.
+     An implementation task cannot be completed merely by reporting a
+     useful failure or proposing further work.
    - State the bounded result, whether the motivating question is
      resolved, and the evidence supporting that distinction. If it
      remains open, identify the next concrete implementation, experiment
      or owner decision, its priority, dependencies and expected
-     discriminator. Record the corresponding follow-up issue; if a
-     decision or prerequisite prevents scheduling, say so explicitly.
-     Alternatively justify a decision to stop or defer indefinitely.
+     discriminator. Link an existing issue when it tracks that action;
+     create a new `follow-up` issue only for genuinely new work.
+     If a decision or prerequisite prevents scheduling, say so
+     explicitly. Stopping or indefinitely deferring a substantive
+     unresolved architectural question requires the owner's explicit
+     approval; Publish may recommend that disposition.
      Publish cannot close with an unexamined capability gap or a merely
      descriptive negative verdict.
    - Open a ready PR (without PR access, give the owner its title and
      description) whose description closes the task's issue
      (`Closes #<n>`), then mark the roadmap entry Implemented with the PR's
      number. The PR states intentionally deferred limitations and follow-ups
-     separately from defects; each deferred follow-up gets a `follow-up`
-     issue named in the PR.
+     separately from defects; each deferred follow-up links an existing
+     tracking issue or receives a new `follow-up` issue.
 
 The owner merges, or pushes back, and says so.
 
@@ -995,8 +1005,8 @@ through the
 running function's links, such as `READ`, `WRITE`, `CODE` and `ACTIVATE`,
 would need it chosen by value in interpreted code (vm_in_shear.md section 8).
 It also includes that the VM's `CALL` runs the callee as installed, so every
-function the workload reaches needs a wrapper, and the wrappers displace the
-semantic source. The spike establishes whether the SHEAR-VM route has a form
+function the workload reaches needs a wrapper, and the wrappers displace
+the semantic source. The spike establishes whether the SHEAR-VM route has a form
 that keeps the source canonical and executable forms derived; if it has none,
 that route stays a candidate only if the owner explicitly changes the first
 acceptance anchor. For host execution, the verifier's admission rule is
