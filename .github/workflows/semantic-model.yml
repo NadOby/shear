@@ -125,12 +125,6 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          python -m tests.content_baseline inventory > content-inventory.json
-
-      - name: Measure bootstrap costs
-        shell: bash
-        run: |
-          set -o pipefail
           python -m tests.content_baseline_measure | tee content-baseline.json
 
       - name: Upload task 23 evidence
@@ -290,7 +284,6 @@ jobs:
           python -m tests.mutation_performance mutation-report-*.jsonl --json mutation-performance.json | tee -a "$GITHUB_STEP_SUMMARY"
 
       - name: Upload the performance summary
-        if: ${{ always() }}
         uses: actions/upload-artifact@v7
         with:
           name: mutation-performance-batch-${{ inputs.mutation_batch }}
