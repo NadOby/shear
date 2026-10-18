@@ -1,8 +1,9 @@
-"""Task 32 Plan-owned lifecycle and authenticated provenance tests.
+"""Task 32 Plan-owned lifecycle and authenticated authority tests.
 
-Independent adversarial witnesses for in-flight replacement, preparation
-failure cleanup, and producer evidence. These tests require Task 32's
-unimplemented restricted executor and intentionally fail collection in Plan.
+The adversarial fixtures preserve artifact hash integrity and, where noted,
+existing chunk structural validity. Rejection must come from execution
+binding and producer authority, not a broken checksum or malformed program.
+These tests remain red until the restricted executor is implemented.
 """
 
 from __future__ import annotations
@@ -13,15 +14,18 @@ from unittest import mock
 
 from shear import (
     CellContentRejected, CellDeclaration, EntityID, External, Runtime,
-    State, Value,
+    State, StateID, Value, VersionID,
 )
 from shear import machine
 from shear.examples._support import program
 from shear.hosted_bootstrap import AdmissionRejected
 from shear.hosted_bootstrap.artifacts import ArtifactSet, TARGET, artifact_id
 from shear.hosted_bootstrap.restricted import RestrictedExecutor
-from shear.lang import Function, load
-from tests.test_restricted_execution import CELL, PRED, PURE_POLICY, evaluator_source
+from shear.hosted_bootstrap.validation import validate_chunk
+from shear.lang import Function, _definition_of, load
+from tests.test_restricted_execution import (
+    CELL, PRED, PURE, PURE_POLICY, evaluator_source,
+)
 
 SECOND = EntityID("t32.lifecycle.second")
 
@@ -42,13 +46,15 @@ def refusal_source() -> State:
 
 
 def identified_change(artifact, **changes):
-    """Preserve internal hash integrity; challenge trusted provenance."""
+    """Rehash changed authority fields; checksum rejection is insufficient."""
     forged = replace(artifact, **changes)
-    return replace(forged, artifact_id=artifact_id(
+    forged = replace(forged, artifact_id=artifact_id(
         forged.domain, forged.generation, forged.produced_by,
         forged.state_id, forged.entity, forged.version,
         forged.owner, forged.chunk, forged.reused_from,
     ))
+    forged.verify()
+    return forged
 
 
 class LifecycleEvidence(unittest.TestCase):
@@ -92,17 +98,34 @@ class LifecycleEvidence(unittest.TestCase):
         self.assertEqual(
             {version.state.id for version, _ in opened}, {self.source.id},
         )
-
         with self.assertRaises(CellContentRejected):
             Runtime(state, registry.context)
         self.assertEqual(accepted.read(CELL), 3)
         self.assertEqual(accepted.read(SECOND), 3)
 
+    def test_replacement_and_explicit_invalidation_preserve_new_authority(self):
+        """Replacing a name does not invalidate the new deployment."""
+        second = self.executor.deploy(
+            refusal_source(), compiler_generation=1,
+        )
+        registry = self.executor.registry({
+            "policy": (self.first, PRED),
+        })
+        before = two_checks().id
+        registry.replace("policy", (second, PRED))
+        with self.assertRaises(CellContentRejected):
+            Runtime(two_checks(), registry.context)
+        self.assertEqual(two_checks().id, before)
+
         self.executor.invalidate(self.first)
         with self.assertRaises(AdmissionRejected):
             self.executor.run(self.first, PRED, 3, policy=PURE_POLICY)
-        with self.assertRaises(CellContentRejected):
-            Runtime(state, registry.context)
+        self.assertEqual(
+            self.executor.run(second, PRED, 3, policy=PURE_POLICY),
+            "violated",
+        )
+        # This does not mandate reuse of an old, no-longer-pinned deployment;
+        # in-flight retention is covered separately, D5 retirement elsewhere.
 
     def test_failed_preparation_does_not_leave_admitted_artifacts(self):
         observed = []
@@ -129,34 +152,54 @@ class LifecycleEvidence(unittest.TestCase):
             "satisfied",
         )
 
-    def test_self_consistent_forged_producer_cannot_run(self):
-        """An updated artifact hash does not create compiler authority."""
-        from shear.lang import _definition_of
+    def test_rehashed_forgery_cannot_gain_restricted_execution_authority(self):
+        """Change admitted records, not their checksum, at the trust boundary.
 
+        ArtifactSet.admit is deliberately an unchecked storage operation in
+        D5. A hostile post-admission substitution must not become authorized
+        restricted execution merely by recalculating artifact_id.
+        """
         root = _definition_of(self.source.values[PRED]).body
-        observed = []
+        valid_replacement = (("LIT", "satisfied"), ("END",))
+        validate_chunk(self.source, root, PRED, valid_replacement)
+        variations = (
+            ("source state", {"state_id": StateID("t32.forced-state")}),
+            ("code node", {"entity": PURE}),
+            ("node version", {"version": VersionID("t32.forced-version")}),
+            ("code owner", {"owner": PURE}),
+            ("compiler producer", {"produced_by": 2}),
+            ("unverified reuse", {"reused_from": "unverified-source-artifact"}),
+            ("substituted valid chunk", {"chunk": valid_replacement}),
+        )
         real_admit = ArtifactSet.admit
+        for name, changes in variations:
+            with self.subTest(name=name):
+                injected = []
 
-        def forge_producer(artifact_set, artifact):
-            if artifact.domain == TARGET and artifact.entity == root:
-                observed.append(artifact.entity)
-                artifact = identified_change(artifact, produced_by=0)
-                artifact.verify()
-            return real_admit(artifact_set, artifact)
+                def substitute(artifact_set, artifact):
+                    if (
+                        artifact.domain == TARGET
+                        and artifact.state_id == self.source.id
+                        and artifact.entity == root
+                    ):
+                        forged = identified_change(artifact, **changes)
+                        injected.append((artifact_set, forged))
+                        return real_admit(artifact_set, forged)
+                    return real_admit(artifact_set, artifact)
 
-        other_executor = RestrictedExecutor()
-        with mock.patch.object(ArtifactSet, "admit", new=forge_producer):
-            try:
-                forged = other_executor.deploy(
-                    self.source, compiler_generation=1,
-                )
-            except AdmissionRejected:
-                self.assertEqual(observed, [root])
-                return
+                other = RestrictedExecutor()
+                with mock.patch.object(ArtifactSet, "admit", new=substitute):
+                    try:
+                        deployment = other.deploy(
+                            self.source, compiler_generation=1,
+                        )
+                    except AdmissionRejected:
+                        self.assertEqual(len(injected), 1)
+                        continue
 
-        self.assertEqual(observed, [root])
-        with self.assertRaises(AdmissionRejected):
-            other_executor.run(forged, PRED, 3, policy=PURE_POLICY)
+                self.assertEqual(len(injected), 1, "the forgery never landed")
+                with self.assertRaises(AdmissionRejected):
+                    other.run(deployment, PRED, 11, policy=PURE_POLICY)
 
 
 if __name__ == "__main__":
