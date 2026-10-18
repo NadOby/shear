@@ -107,7 +107,7 @@ OMITTED = {
     "shear/hosted_bootstrap/errors.py":
         "exception classes only; no behaviour to mutate",
     "shear/examples/__init__.py":
-        "example/corpus harness rather than semantic implementation",
+        "example/corpus harness rather than a semantic implementation",
     "shear/examples/_support.py":
         "example construction helper rather than semantic implementation",
     "shear/examples/closures.py":
@@ -203,7 +203,7 @@ def _require_string(
 
     if not value.strip():
         raise CatalogError(
-            f"{context}: {field} must not be empty"
+            f"{context}: field must not be empty"
         )
 
     return value
@@ -365,6 +365,16 @@ def _load_survivor(
         context,
     ).strip()
 
+    if kind != kind.strip():
+        raise CatalogError(
+            f"{context}: kind must be stripped"
+        )
+
+    if source != source.strip():
+        raise CatalogError(
+            f"{context}: source must be a stripped source line"
+        )
+
     if occurrence < 0:
         raise CatalogError(
             f"{context}: occurrence must be non-negative"
@@ -511,7 +521,7 @@ def load_catalog(
                     f"{context}: duplicate survivor key {key!r}"
                 )
 
-            survivors[key] = classification
+                survivors[key] = classification
 
     actual_targets = set(source_blobs)
     expected_targets = set(catalog_targets)
