@@ -792,9 +792,13 @@ class SuiteMutationTests(unittest.TestCase):
             ),
         )
 
+        selected_targets = mutation_campaign.select_targets(
+            TARGETS,
+            os.environ.get("SHEAR_MUTATE_TARGETS", ""),
+        )
         full_work = mutation_campaign.build_work_set(
             mutation.ROOT,
-            TARGETS,
+            selected_targets,
             count,
             seed,
             batch,
@@ -882,6 +886,7 @@ class SuiteMutationTests(unittest.TestCase):
                 "count": count,
                 "seed": seed,
                 "batch": batch,
+                "selected_targets": selected_targets,
                 "shards": shards,
                 "shard": shard,
                 "selected_unsharded": len(
