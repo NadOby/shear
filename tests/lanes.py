@@ -189,7 +189,7 @@ def suite_for(lane: str) -> unittest.TestSuite:
         modules = LANES[lane]
     except KeyError as exc:
         raise RuntimeError(
-            f"unknown lane {lane!r}; choose from "
+            f"unknown test lane {lane!r}; choose from "
             + ", ".join(sorted(LANES))
         ) from exc
 
