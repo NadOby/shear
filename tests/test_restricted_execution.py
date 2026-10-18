@@ -28,13 +28,13 @@ from shear import (
     ActivationRejected, AllOf, CellContentRejected, CellDeclaration,
     ConstraintResult, EntityID, External, IsKind, Relation,
     RelationConstraintRejected, Runtime, State, Value, canonicalize,
-    transform_with_mapping,
+    relation_of, transform_with_mapping,
 )
 from shear import bytecode, machine
 from shear.examples._support import program
 from shear.hosted_bootstrap import AdmissionRejected, HostedSession
 from shear.hosted_bootstrap.restricted import RestrictedExecutor, RestrictionPolicy
-from shear.lang import Function, links, load
+from shear.lang import Function, LanguageError, links, load
 
 CELL = EntityID("t32.cell")
 SECOND = EntityID("t32.second")
@@ -48,6 +48,7 @@ OWNED_PRED = EntityID("t32.owned_predicate")
 BAD_RESULT = EntityID("t32.bad_result")
 RAISE = EntityID("t32.raise")
 PURE = EntityID("t32.pure")
+PURE_CALL = EntityID("t32.pure_call")
 READ = EntityID("t32.read")
 WRITE = EntityID("t32.write")
 CALL_WRITE = EntityID("t32.call_write")
@@ -93,6 +94,10 @@ def evaluator_source() -> State:
         PURE: Function(("x",), (
             "mul", ("add", ("arg", "x"), ("lit", 3)), ("lit", 3),
         )),
+        PURE_CALL: Function(("x",), (
+            "call", "callee", ("arg", "x"),
+        )),
+        EntityID("t32.pure_call.links"): links(PURE_CALL, callee=PURE),
         CELL: CellDeclaration(IsKind("int"), 7),
         READ: Function((), ("read", "cell")),
         EntityID("t32.read.links"): links(READ, cell=CELL),
@@ -139,11 +144,16 @@ def relation_state(initial: int = 3) -> State:
 
 
 def snapshot(runtime: Runtime):
+    """Include held references/frames, not just visible live cell values."""
     return (
         runtime.active,
         runtime.active.state.id,
         dict(runtime.active.cells),
         runtime.versions,
+        tuple(
+            (version, tuple(sorted(id(hold) for hold in version._holds)))
+            for version in runtime.versions
+        ),
     )
 
 
@@ -173,6 +183,27 @@ class RestrictedAcceptance(unittest.TestCase):
         )
         with self.assertRaises(AdmissionRejected):
             self.executor.run(self.deployment, READ, policy=PURE_POLICY)
+
+    def test_permitted_transitive_call_uses_existing_machine(self):
+        opened = []
+        real_open = machine._open
+
+        def observe(activation, args, *rest, **kwargs):
+            chunk, env, node = real_open(activation, args, *rest, **kwargs)
+            if activation.hold.version.state.id == self.source.id:
+                opened.append((activation.entity, node, chunk))
+            return chunk, env, node
+
+        with mock.patch.object(machine, "_open", side_effect=observe):
+            result = self.executor.run(
+                self.deployment, PURE_CALL, 4, policy=PURE_POLICY,
+            )
+        self.assertEqual(result, 21)
+        self.assertIn(PURE_CALL, {entry for entry, _, _ in opened})
+        self.assertIn(PURE, {entry for entry, _, _ in opened})
+        for _, node, chunk in opened:
+            key = (node, self.source.values[node].version_id)
+            self.assertIs(chunk, self.deployment.artifacts[key].chunk)
 
     def test_real_predicate_and_independent_admitted_chunks(self):
         artifacts = self.deployment.artifacts
@@ -313,7 +344,7 @@ class RestrictedAcceptance(unittest.TestCase):
         with self.assertRaises(TypeError):
             External("policy").evaluate(3, self.registry(BAD_RESULT).context)
 
-    def test_preflight_denies_effects_and_transitive_calls(self):
+    def test_restriction_preflight_and_transitive_calls(self):
         for entry, arguments in (
             (WRITE, (8,)), (CALL_WRITE, (8,)),
             (DEAD_WRITE, (8,)), (ACTIVATE, (8,)),
@@ -339,7 +370,12 @@ class RestrictedAcceptance(unittest.TestCase):
                 additional = self.executor.trace()[len(before):]
                 self.assertFalse(any(e.kind == "execute" for e in additional))
 
-    def test_replacement_preserves_identity_and_pins_one_admission(self):
+    def test_wrong_arity_preserves_language_boundary(self):
+        with self.assertRaises(LanguageError) as cm:
+            self.executor.run(self.deployment, PRED, policy=PURE_POLICY)
+        self.assertIn("takes 1 argument", str(cm.exception))
+
+    def test_replacement_is_not_retroactive_revalidation(self):
         state = State.create({
             CELL: Value.create(CELL, CellDeclaration(External("policy"), 3)),
             SECOND: Value.create(
@@ -372,25 +408,52 @@ class RestrictedAcceptance(unittest.TestCase):
         self.assertEqual((state.id, tuple(
             (entity, value.version_id) for entity, value in state.values.items()
         )), before)
+        # Previously admitted content is not retroactively invalidated.
+        self.assertEqual(first.read(CELL), 3)
+        self.assertEqual(another.read(SECOND), 3)
+        # The next new admission uses the replacement evaluator.
         with self.assertRaises(CellContentRejected) as cm:
             first.write(CELL, 3)
         self.assertIs(cm.exception.result, VIO)
         self.assertEqual(first.read(CELL), 3)
 
-    def test_invalidated_and_malformed_deployments_fail_closed(self):
+    def test_malformed_function_roles_are_not_normalized_away(self):
+        loaded = self.source
+        malformed_links = loaded.with_changes({
+            EntityID("t32.malformed.links"): Relation("links", {
+                "function": (CALL_WRITE,),
+                "writer": WRITE,
+            }),
+        })
+        self.assertEqual(load(malformed_links).id, malformed_links.id)
+        with self.assertRaises(AdmissionRejected):
+            self.executor.deploy(malformed_links, compiler_generation=1)
+
+        definition = relation_of(loaded.values[CALL_WRITE])
+        self.assertEqual(definition.kind, "definition")
+        malformed_definition = loaded.with_changes({
+            CALL_WRITE: Relation(
+                definition.kind,
+                {**definition.roles, "link:writer": (WRITE,)},
+                definition.payload,
+            ),
+        })
+        self.assertEqual(
+            relation_of(malformed_definition.values[CALL_WRITE]).roles[
+                "link:writer"
+            ],
+            (WRITE,),
+        )
+        self.assertEqual(load(malformed_definition).id, malformed_definition.id)
+        with self.assertRaises(AdmissionRejected):
+            self.executor.deploy(
+                malformed_definition, compiler_generation=1,
+            )
+
+    def test_invalidated_deployment_fails_closed(self):
         missing = EntityID("t32.nonexistent")
         with self.assertRaises(AdmissionRejected):
             self.executor.run(self.deployment, missing, 3)
-        malformed = State.create({
-            PRED: Value.create(PRED, Function(("x",), ("lit", "satisfied"))),
-            EntityID("t32.invalid.links"): Value.create(
-                EntityID("t32.invalid.links"), Relation(
-                    "links", {"function": (PRED,)},
-                ),
-            ),
-        })
-        with self.assertRaises((AdmissionRejected, ValueError)):
-            self.executor.deploy(load(malformed), compiler_generation=1)
         self.executor.invalidate(self.deployment)
         with self.assertRaises(AdmissionRejected):
             self.executor.run(self.deployment, PRED, 3)
@@ -409,9 +472,8 @@ class RestrictedAcceptance(unittest.TestCase):
         session.prepare(compiler_generation=1)
         registry.replace("policy", (self.deployment, RAISE))
         before = snapshot(target)
-        with self.assertRaises(Exception) as cm:
+        with self.assertRaises(LanguageError):
             session.run(WRITER)
-        self.assertNotIsInstance(cm.exception, AdmissionRejected)
         self.assertEqual(snapshot(target), before)
 
 
