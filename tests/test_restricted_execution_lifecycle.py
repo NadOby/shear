@@ -1,9 +1,8 @@
 """Task 32 Plan-owned lifecycle and authenticated authority tests.
 
-The adversarial fixtures preserve artifact hash integrity and, where noted,
-existing chunk structural validity. Rejection must come from execution
-binding and producer authority, not a broken checksum or malformed program.
-These tests remain red until the restricted executor is implemented.
+Adversarial records retain valid content hashes and are tested at the
+original authenticated lookup key. Rejection must not be explained merely
+by checksum failure or a missing dictionary key.
 """
 
 from __future__ import annotations
@@ -104,7 +103,6 @@ class LifecycleEvidence(unittest.TestCase):
         self.assertEqual(accepted.read(SECOND), 3)
 
     def test_replacement_and_explicit_invalidation_preserve_new_authority(self):
-        """Replacing a name does not invalidate the new deployment."""
         second = self.executor.deploy(
             refusal_source(), compiler_generation=1,
         )
@@ -124,8 +122,7 @@ class LifecycleEvidence(unittest.TestCase):
             self.executor.run(second, PRED, 3, policy=PURE_POLICY),
             "violated",
         )
-        # This does not mandate reuse of an old, no-longer-pinned deployment;
-        # in-flight retention is covered separately, D5 retirement elsewhere.
+        # In-flight retention is covered above; D5 covers version retirement.
 
     def test_failed_preparation_does_not_leave_admitted_artifacts(self):
         observed = []
@@ -153,39 +150,52 @@ class LifecycleEvidence(unittest.TestCase):
         )
 
     def test_rehashed_forgery_cannot_gain_restricted_execution_authority(self):
-        """Change admitted records, not their checksum, at the trust boundary.
+        """A forged record at the *original* key must never execute.
 
-        ArtifactSet.admit is deliberately an unchecked storage operation in
-        D5. A hostile post-admission substitution must not become authorized
-        restricted execution merely by recalculating artifact_id.
+        Distinguish authentication from lookup failure: the replacement is
+        stored under the genuine node/version key. Also accept an immutable
+        deployment that demonstrably kept the authentic record instead.
         """
         root = _definition_of(self.source.values[PRED]).body
-        valid_replacement = (("LIT", "satisfied"), ("END",))
+        key = (root, self.source.values[root].version_id)
+        valid_replacement = (("LIT", "violated"), ("END",))
         validate_chunk(self.source, root, PRED, valid_replacement)
+        original = self.first.artifacts[key]
+        unrelated = next(
+            item.artifact_id for item in self.first.artifacts.values()
+            if item.entity != root
+        )
+        self.assertNotEqual(unrelated, original.artifact_id)
         variations = (
             ("source state", {"state_id": StateID("t32.forced-state")}),
             ("code node", {"entity": PURE}),
             ("node version", {"version": VersionID("t32.forced-version")}),
             ("code owner", {"owner": PURE}),
             ("compiler producer", {"produced_by": 2}),
-            ("unverified reuse", {"reused_from": "unverified-source-artifact"}),
+            ("wrong real reuse parent", {"reused_from": unrelated}),
             ("substituted valid chunk", {"chunk": valid_replacement}),
         )
         real_admit = ArtifactSet.admit
+
         for name, changes in variations:
             with self.subTest(name=name):
                 injected = []
 
                 def substitute(artifact_set, artifact):
+                    real_admit(artifact_set, artifact)
                     if (
                         artifact.domain == TARGET
                         and artifact.state_id == self.source.id
                         and artifact.entity == root
                     ):
                         forged = identified_change(artifact, **changes)
-                        injected.append((artifact_set, forged))
-                        return real_admit(artifact_set, forged)
-                    return real_admit(artifact_set, artifact)
+                        # Deliberately retain the original lookup key; using
+                        # ArtifactSet.admit(forged) could trivially miss it.
+                        authentic_key = (artifact.entity, artifact.version)
+                        self.assertEqual(authentic_key, key)
+                        artifact_set._artifacts[authentic_key] = forged
+                        artifact_set._chunks[authentic_key] = forged.chunk
+                        injected.append((artifact, forged))
 
                 other = RestrictedExecutor()
                 with mock.patch.object(ArtifactSet, "admit", new=substitute):
@@ -197,9 +207,40 @@ class LifecycleEvidence(unittest.TestCase):
                         self.assertEqual(len(injected), 1)
                         continue
 
-                self.assertEqual(len(injected), 1, "the forgery never landed")
-                with self.assertRaises(AdmissionRejected):
-                    other.run(deployment, PRED, 11, policy=PURE_POLICY)
+                self.assertEqual(len(injected), 1, "forgery not injected")
+                authentic, forged = injected[0]
+                self.assertEqual(authentic.artifact_id, original.artifact_id)
+                self.assertNotEqual(authentic.artifact_id, forged.artifact_id)
+                forged.verify()
+
+                actual = deployment.artifacts[key]
+                if actual is authentic:
+                    # A detached immutable deployment snapshot is also safe,
+                    # provided execution actually uses its original chunk.
+                    opened = []
+                    old_open = machine._open
+
+                    def observe(activation, args, *rest, **kwargs):
+                        result = old_open(activation, args, *rest, **kwargs)
+                        if activation.entity == PRED:
+                            opened.append(result[0])
+                        return result
+
+                    with mock.patch.object(machine, "_open", side_effect=observe):
+                        try:
+                            answer = other.run(
+                                deployment, PRED, 3, policy=PURE_POLICY,
+                            )
+                        except AdmissionRejected:
+                            self.assertEqual(opened, [])
+                        else:
+                            self.assertEqual(answer, "satisfied")
+                            self.assertTrue(opened)
+                            self.assertIs(opened[0], authentic.chunk)
+                else:
+                    self.assertIs(actual, forged)
+                    with self.assertRaises(AdmissionRejected):
+                        other.run(deployment, PRED, 3, policy=PURE_POLICY)
 
 
 if __name__ == "__main__":
