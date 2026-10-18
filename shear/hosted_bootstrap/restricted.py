@@ -37,6 +37,11 @@ from .restricted_policy import (
 from .validation import validate_chunk
 
 
+# Failure is not an EXECUTE observation: preflight may have refused the
+# invocation before the machine opened any admitted instruction.
+RESTRICTED_FAILURE = "restricted-failure"
+
+
 @dataclass(frozen=True, eq=False)
 class RestrictedDeployment:
     """One separately compiled source with authenticated admitted artifacts.
@@ -279,19 +284,45 @@ class RestrictedExecutor:
         """Run normal SHEAR bytecode over a proven, pinned admitted view."""
         self._check_deployment(deployment)
         selected = policy if policy is not None else RestrictionPolicy()
-        allowed = preflight(
-            deployment._target.state, deployment.artifacts, entry, selected,
-        )
-        resolver = _PinnedResolver(deployment, allowed, selected)
-        result = machine.run(
-            deployment._target.runtime, entry,
-            *(canonicalize(arg) for arg in args),
-            resolver=resolver, may_activate=False,
-        )
-        definition = _definition_of(deployment._target.state.values[entry])
-        root = definition.body
-        key = (root, deployment._target.state.values[root].version_id)
-        artifact = deployment.artifacts[key]
+        artifact = None
+
+        try:
+            allowed = preflight(
+                deployment._target.state, deployment.artifacts, entry, selected,
+            )
+            definition = _definition_of(
+                deployment._target.state.values[entry]
+            )
+            root = definition.body
+            key = (
+                root,
+                deployment._target.state.values[root].version_id,
+            )
+            artifact = deployment.artifacts[key]
+            resolver = _PinnedResolver(deployment, allowed, selected)
+            result = machine.run(
+                deployment._target.runtime, entry,
+                *(canonicalize(arg) for arg in args),
+                resolver=resolver, may_activate=False,
+            )
+        except BaseException as exc:
+            self._trace.emit(
+                RESTRICTED_FAILURE, ADMITTED_HOST,
+                entity=entry if isinstance(entry, EntityID) else None,
+                version=artifact.version if artifact is not None else None,
+                artifact_id=(
+                    artifact.artifact_id if artifact is not None else None
+                ),
+                compiler_generation=deployment.compiler_generation,
+                target_state_id=deployment.source_state_id,
+                detail=(
+                    "restricted invocation failed or was refused; "
+                    f"evaluator_source={deployment.source_state_id.value}; "
+                    f"failure={type(exc).__name__}"
+                ),
+            )
+            raise
+
         self._trace.emit(
             EXECUTE, ADMITTED_HOST, entity=entry, version=artifact.version,
             artifact_id=artifact.artifact_id,
@@ -415,31 +446,64 @@ class RestrictedRegistry:
         finally:
             self._operation.reset(token)
 
+    def _record_operation(
+        self,
+        name: str,
+        deployment: RestrictedDeployment,
+        entry: EntityID,
+        operation: _OperationSelection,
+        outcome: str,
+    ) -> None:
+        """Associate an outcome with the constrained target operation.
+
+        An exceptional outcome does not claim admitted bytecode executed:
+        failure might have happened during preflight or argument checking.
+        """
+        source = deployment._target.state
+        root = _definition_of(source.values[entry]).body
+        artifact = deployment.artifacts[
+            (root, source.values[root].version_id)
+        ]
+        self._executor._trace.emit(
+            EXECUTE if outcome == "success" else RESTRICTED_FAILURE,
+            ADMITTED_HOST,
+            entity=entry,
+            version=artifact.version,
+            artifact_id=artifact.artifact_id,
+            compiler_generation=deployment.compiler_generation,
+            target_state_id=operation.target_state_id,
+            detail=(
+                f"{operation.operation}: External({name}); "
+                f"evaluator_source={deployment.source_state_id.value}; "
+                f"outcome={outcome}"
+            ),
+        )
+
     def _evaluate(self, name: str, subject: Any) -> ConstraintResult:
         operation = self._operation.get()
         selected = self._bindings if operation is None else operation.bindings
         deployment, entry = selected[name]
-        result = self._executor.run(
-            deployment, entry, canonicalize(subject),
-            policy=RestrictionPolicy(),
-        )
-        if operation is not None:
-            source = deployment._target.state
-            root = _definition_of(source.values[entry]).body
-            artifact = deployment.artifacts[
-                (root, source.values[root].version_id)
-            ]
-            self._executor._trace.emit(
-                EXECUTE, ADMITTED_HOST,
-                entity=entry,
-                version=artifact.version,
-                artifact_id=artifact.artifact_id,
-                compiler_generation=deployment.compiler_generation,
-                target_state_id=operation.target_state_id,
-                detail=f"{operation.operation}: External({name})",
+
+        try:
+            result = self._executor.run(
+                deployment, entry, canonicalize(subject),
+                policy=RestrictionPolicy(),
             )
-        if type(result) is not str or result not in (
-            "satisfied", "violated", "unknown",
-        ):
-            raise TypeError("invalid named constraint result")
-        return ConstraintResult(result)
+            if type(result) is not str or result not in (
+                "satisfied", "violated", "unknown",
+            ):
+                raise TypeError("invalid named constraint result")
+            converted = ConstraintResult(result)
+        except BaseException as exc:
+            if operation is not None:
+                self._record_operation(
+                    name, deployment, entry, operation,
+                    f"failure:{type(exc).__name__}",
+                )
+            raise
+
+        if operation is not None:
+            self._record_operation(
+                name, deployment, entry, operation, "success",
+            )
+        return converted
