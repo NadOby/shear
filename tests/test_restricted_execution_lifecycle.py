@@ -7,7 +7,7 @@ by checksum failure or a missing dictionary key.
 
 from __future__ import annotations
 
-from dataclasses import replace
+from dataclasses import FrozenInstanceError, replace
 import unittest
 from unittest import mock
 
@@ -18,8 +18,11 @@ from shear import (
 from shear import machine
 from shear.examples._support import program
 from shear.hosted_bootstrap import AdmissionRejected
-from shear.hosted_bootstrap.artifacts import ArtifactSet, TARGET, artifact_id
+from shear.hosted_bootstrap.artifacts import (
+    ArtifactSet, COMPILER, TARGET, artifact_id,
+)
 from shear.hosted_bootstrap.restricted import RestrictedExecutor
+from shear.hosted_bootstrap.trace import ADMIT, HOST_ADMISSION, PRODUCE, SHEAR_COMPILER
 from shear.hosted_bootstrap.validation import validate_chunk
 from shear.lang import Function, _definition_of, load
 from tests.test_restricted_execution import (
@@ -241,6 +244,180 @@ class LifecycleEvidence(unittest.TestCase):
                     self.assertIs(actual, forged)
                     with self.assertRaises(AdmissionRejected):
                         other.run(deployment, PRED, 3, policy=PURE_POLICY)
+
+
+class RestrictedSecurityRegressions(unittest.TestCase):
+    """Adversarial mutation oracles for authority and execution boundaries."""
+
+    def setUp(self):
+        self.source = evaluator_source()
+        self.executor = RestrictedExecutor()
+        self.deployment = self.executor.deploy(
+            self.source, compiler_generation=1,
+        )
+
+    def authenticate(self):
+        return RestrictedExecutor._authenticate(
+            self.deployment._session, self.source,
+            self.deployment._target, 1,
+        )
+
+    def test_deployment_is_immutable_identity_bound_and_opaque(self):
+        deployment = self.deployment
+        with self.assertRaises(FrozenInstanceError):
+            deployment.source_state_id = StateID("t32.changed")
+        self.assertNotEqual(deployment, replace(deployment))
+        description = repr(deployment)
+        for private in ("_session=", "_target=", "_artifact_set=", "_owner="):
+            with self.subTest(field=private):
+                self.assertNotIn(private, description)
+
+    def test_invalid_compiler_generations_reject_before_preparation(self):
+        for generation in (0, -1, True, False, 1.0, "1"):
+            with self.subTest(generation=generation):
+                with self.assertRaises(ValueError):
+                    RestrictedExecutor().deploy(
+                        self.source, compiler_generation=generation,
+                    )
+        default = RestrictedExecutor().deploy(self.source)
+        self.assertEqual(default.compiler_generation, 1)
+
+    def test_restricted_machine_call_explicitly_disallows_activation(self):
+        with mock.patch.object(machine, "run", wraps=machine.run) as observed:
+            answer = self.executor.run(
+                self.deployment, PRED, 3, policy=PURE_POLICY,
+            )
+        self.assertEqual(answer, "satisfied")
+        calls = [
+            call for call in observed.call_args_list
+            if call.args and call.args[0] is self.deployment._target.runtime
+        ]
+        self.assertEqual(len(calls), 1)
+        self.assertIs(calls[0].kwargs["may_activate"], False)
+
+    def test_deployment_rejects_issuer_binding_changes(self):
+        original = self.deployment._session
+        try:
+            object.__setattr__(self.deployment, "_session", object())
+            with self.assertRaises(AdmissionRejected):
+                self.executor.run(
+                    self.deployment, PRED, 3, policy=PURE_POLICY,
+                )
+        finally:
+            object.__setattr__(self.deployment, "_session", original)
+        self.assertEqual(
+            self.executor.run(
+                self.deployment, PRED, 3, policy=PURE_POLICY,
+            ),
+            "satisfied",
+        )
+
+    def test_deployment_requires_live_producing_generation(self):
+        chain = self.deployment._session._chain
+        generation = chain._sets.pop(1)
+        try:
+            with self.assertRaises(AdmissionRejected):
+                self.executor.run(
+                    self.deployment, PRED, 3, policy=PURE_POLICY,
+                )
+        finally:
+            chain._sets[1] = generation
+
+        generation.invalidate()
+        with self.assertRaises(AdmissionRejected):
+            self.executor.run(
+                self.deployment, PRED, 3, policy=PURE_POLICY,
+            )
+
+    def test_production_and_admission_are_separate_authorities(self):
+        """Matching IDs and one true predicate do not replace both events."""
+        root = _definition_of(self.source.values[PRED]).body
+        key = (root, self.source.values[root].version_id)
+        original = self.deployment._session.trace()
+        self.assertTrue(
+            any(e.entity == root and e.kind == PRODUCE for e in original),
+        )
+        self.assertTrue(
+            any(e.entity == root and e.kind == ADMIT for e in original),
+        )
+
+        for missing, route in (
+            (PRODUCE, SHEAR_COMPILER),
+            (ADMIT, HOST_ADMISSION),
+        ):
+            with self.subTest(missing=missing):
+                redacted = []
+                replaced = 0
+                for event in original:
+                    if (
+                        event.entity == key[0]
+                        and event.version == key[1]
+                        and event.target_state_id == self.source.id
+                        and event.kind == missing
+                        and event.route == route
+                    ):
+                        # The claimed route is correct, but the event kind
+                        # lacks the corresponding producer/admitter authority.
+                        redacted.append(
+                            replace(event, kind="unrelated-event"),
+                        )
+                        replaced += 1
+                    else:
+                        redacted.append(event)
+                self.assertEqual(replaced, 1)
+                with mock.patch.object(
+                    self.deployment._session,
+                    "trace",
+                    return_value=tuple(redacted),
+                ):
+                    with self.assertRaises(AdmissionRejected):
+                        self.authenticate()
+
+    def test_rehashed_artifacts_need_matching_bound_metadata_even_with_events(self):
+        """Spoofed event IDs cannot authorize invalid artifact metadata."""
+        root = _definition_of(self.source.values[PRED]).body
+        key = (root, self.source.values[root].version_id)
+        admitted = self.deployment._artifact_set._artifacts
+        original = admitted[key]
+        trace = self.deployment._session.trace()
+        self.assertIs(self.authenticate()[key], original)
+
+        variations = (
+            ("domain", {"domain": COMPILER}),
+            ("generation", {"generation": 0}),
+            ("source", {"state_id": StateID("t32.invented-source")}),
+            ("node", {"entity": PURE}),
+            ("version", {"version": VersionID("t32.invented-version")}),
+            ("compiler", {"produced_by": 2}),
+        )
+        for name, changes in variations:
+            with self.subTest(name=name):
+                forged = identified_change(original, **changes)
+                self.assertNotEqual(forged.artifact_id, original.artifact_id)
+                spoofed_events = tuple(
+                    replace(event, artifact_id=forged.artifact_id)
+                    if (
+                        event.entity == root
+                        and event.version == key[1]
+                        and event.target_state_id == self.source.id
+                        and event.kind in (PRODUCE, ADMIT)
+                    )
+                    else event
+                    for event in trace
+                )
+                admitted[key] = forged
+                try:
+                    with mock.patch.object(
+                        self.deployment._session,
+                        "trace",
+                        return_value=spoofed_events,
+                    ):
+                        with self.assertRaises(AdmissionRejected):
+                            self.authenticate()
+                finally:
+                    admitted[key] = original
+
+        self.assertIs(self.authenticate()[key], original)
 
 
 if __name__ == "__main__":
