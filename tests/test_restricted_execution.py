@@ -32,7 +32,7 @@ from shear import (
 )
 from shear import bytecode, machine
 from shear.examples._support import program
-from shear.hosted_bootstrap import AdmissionRejected, HostedSession
+from shear.hosted_bootstrap import AdmissionRejected, HostedSession, restricted_policy
 from shear.hosted_bootstrap.restricted import RestrictedExecutor, RestrictionPolicy
 from shear.lang import Function, LanguageError, links, load
 
@@ -537,6 +537,62 @@ class RestrictedAcceptance(unittest.TestCase):
         )
         self.assertEqual(cm.exception.error[3], (RAISE, opened[0][0]))
         self.assertEqual(snapshot(target), before)
+
+    def test_malformed_definition_body_is_rejected_before_compilation(self):
+        """Malformed source-body roles fail at the restricted trust boundary."""
+        original = relation_of(self.source.values[PRED])
+        self.assertEqual(original.kind, "definition")
+        body = original.roles["body"]
+        self.assertIsInstance(body, EntityID)
+        malformed = self.source.with_changes({
+            PRED: Relation(
+                original.kind,
+                {**original.roles, "body": (body,)},
+                original.payload,
+            ),
+        })
+        self.assertEqual(
+            relation_of(malformed.values[PRED]).roles["body"],
+            (body,),
+        )
+        with self.assertRaisesRegex(
+            AdmissionRejected, "malformed definition body",
+        ):
+            RestrictedExecutor().deploy(
+                malformed, compiler_generation=1,
+            )
+
+    def test_absent_decoded_code_relation_fails_as_admission_rejection(self):
+        """Do not mistake missing-code validation for an artifact mismatch.
+
+        Isolate a decoder returning no executable relation while using the
+        original pinned state, versions and admitted artifacts. A weakened
+        boolean guard must not leak AttributeError or admit the node.
+        """
+        from shear.lang import _definition_of
+
+        root = _definition_of(self.source.values[PURE]).body
+        root_value = self.source.values[root]
+        genuine_relation_of = restricted_policy.relation_of
+
+        def missing_code_relation(value):
+            if value is root_value:
+                return None
+            return genuine_relation_of(value)
+
+        with mock.patch.object(
+            restricted_policy, "relation_of",
+            side_effect=missing_code_relation,
+        ):
+            with self.assertRaisesRegex(
+                AdmissionRejected, "unclassified executable node",
+            ):
+                restricted_policy.preflight(
+                    self.source,
+                    self.deployment.artifacts,
+                    PURE,
+                    PURE_POLICY,
+                )
 
 
 if __name__ == "__main__":
