@@ -8,9 +8,13 @@ on:
         required: false
         default: "0"
       mutation_count:
-        description: "Mutation sites per target per batch; 0 skips the heavy mutation campaign"
+        description: "Mutation sites per selected file; 0 skips campaign"
         required: false
         default: "0"
+      mutation_targets:
+        description: "Space-separated file paths or directory prefixes ending /; blank selects all"
+        required: false
+        default: ""
       mutation_seed:
         description: "Mutation ordering seed"
         required: false
@@ -19,14 +23,6 @@ on:
         description: "Zero-based disjoint mutation batch"
         required: false
         default: "0"
-      mutation_shards:
-        description: "Mutation campaign shards, 1 to 16; empty sizes it from the selected mutants (one shard per 150, at most 16)"
-        required: false
-        default: ""
-      python_version:
-        description: "Python for the mutation plan and campaign shards (evidence for moving CI to a newer Python)"
-        required: false
-        default: "3.14"
       mutation_revalidate:
         description: "Also re-run reviewed survivors (use after repinning the engine or a target)"
         required: false
@@ -129,6 +125,12 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
+          python -m tests.content_baseline inventory > content-inventory.json
+
+      - name: Measure bootstrap costs
+        shell: bash
+        run: |
+          set -o pipefail
           python -m tests.content_baseline_measure | tee content-baseline.json
 
       - name: Upload task 23 evidence
@@ -173,21 +175,21 @@ jobs:
 
       - uses: actions/setup-python@v7
         with:
-          python-version: ${{ inputs.python_version || '3.14' }}
+          python-version: "3.14"
 
       - name: Size the shard matrix from the selected mutants
         id: plan
         env:
           COUNT: ${{ inputs.mutation_count }}
+          SHEAR_MUTATE_TARGETS: ${{ inputs.mutation_targets }}
           SEED: ${{ inputs.mutation_seed }}
           BATCH: ${{ inputs.mutation_batch }}
-          SHARDS: ${{ inputs.mutation_shards }}
         run: >-
           python -m tests.mutation_campaign plan
           --count "$COUNT"
+          --targets "$SHEAR_MUTATE_TARGETS"
           --seed "$SEED"
           --batch "$BATCH"
-          --shards "$SHARDS"
 
       # Orders each mutant's run (modules that execute its line first); it
       # never changes which tests run or the outcome, so a failure here only
@@ -217,6 +219,7 @@ jobs:
 
     env:
       SHEAR_MUTATE: ${{ inputs.mutation_count }}
+      SHEAR_MUTATE_TARGETS: ${{ inputs.mutation_targets }}
       SHEAR_MUTATE_SEED: ${{ inputs.mutation_seed }}
       SHEAR_MUTATE_BATCH: ${{ inputs.mutation_batch }}
       SHEAR_MUTATE_SHARDS: ${{ needs.mutation-plan.outputs.count }}
@@ -229,7 +232,7 @@ jobs:
 
       - uses: actions/setup-python@v7
         with:
-          python-version: ${{ inputs.python_version || '3.14' }}
+          python-version: "3.14"
 
       - name: Download the coverage map
         continue-on-error: true
@@ -287,6 +290,7 @@ jobs:
           python -m tests.mutation_performance mutation-report-*.jsonl --json mutation-performance.json | tee -a "$GITHUB_STEP_SUMMARY"
 
       - name: Upload the performance summary
+        if: ${{ always() }}
         uses: actions/upload-artifact@v7
         with:
           name: mutation-performance-batch-${{ inputs.mutation_batch }}
