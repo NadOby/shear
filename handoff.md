@@ -4,14 +4,15 @@
 
 - Issue: #119 – Task 32, restricted execution and SHEAR-defined constraints.
 - Branch: `task/32-restricted-execution`.
-- Role: Execute implementation complete; independent Execute Review required.
+- Role: independent Execute re-Review APPROVED; editorial Publish preparation.
 - Baseline `main`: `d50297cd44db26135bc0b3f9f95e4326c832beb9`.
 - Original frozen Plan: `819848a849c4a15da29232c911fa36c24b57bd40`.
 - First revised Plan: `d7261cdd568ae55a85714b12f5659c7cb7a5f0d2`.
 - Approved second frozen Plan content head: `1cf3f22f1767a3d3b001b86f27381b6cfb41d9e2`.
 - Pre-Execute handoff: `77982141161b28cade0bb8f15b3296e37b0fbff1`.
-- Last verified implementation head: `7b59e76e35c9a84086c4fa33c275eefc9725cac5`.
-- No PR opened, no independent Execute approval, no merge.
+- Independently approved implementation head: `e26430c4630655a6cb2a4aa714b00d26bf53199c`.
+- Independent Execute re-Review: APPROVE, with P2/P3 editorial publication findings.
+- No PR opened and no merge at this checkpoint.
 
 Read `CLAUDE.md`, the Workflow section of `docs/roadmap.md`,
 issue #119, `docs/restricted_execution.md`, and the Task 24
@@ -40,9 +41,10 @@ Additional corrections addressed immutable rollback observations,
 error provenance, runtime-operation trace identity, malformed links,
 replacement atomicity and lifecycle evidence.
 
-The revised Plan was independently approved for Execute.
-Its acceptance, specification and Task 24 golden controls were not
-modified by Execute. No golden-record changes were authorized.
+The revised Plan was independently approved for Execute. Its frozen
+technical acceptance and the Task 24 semantic/golden controls were not
+changed by Execute. No golden-record changes were authorized. Plan-owned
+documentation needs editorial status reconciliation before Publish.
 
 ## Execute changes
 
@@ -61,6 +63,21 @@ Commits after the pre-Execute handoff:
    in the restricted runner.
 6. `7b59e76` – reviewed `runtime.py` mutation-survivor source repin
    in `tests/mutation_catalog_data/shear/runtime.toml`.
+7. `98648878`, `0ba555a7`, `8ee78a89` – failed evaluator
+   provenance, fault-aware tracing and descriptor-authentication tests.
+8. `60b8f538`, `77d1dbb9`, `2df978ba` – mutation-target
+   registration and mutation-catalog validation fixes.
+9. `fed24acc`, `8ebaed1a`, `0af3a5f4` – selectable mutation
+   targets through campaign selection, runner and CI.
+10. `d47ed1f` – removed unintended workflow modifications.
+11. `04714465` – restored optional `mutation_shards` input.
+12. `5170b125` – authority, provenance, lifecycle and deployment
+    mutation-regression tests.
+13. `efc89b0` – independent restricted-policy and boundary regressions.
+14. `e26430c` – final two adversarial mutation guards.
+
+Other Execute checkpoint commits: `0fe99f7` recorded the initial handoff.
+All post-Review changes above preceded the accepted Execute re-Review.
 
 All production execution remains on the existing SHEAR compiler and
 host machine. No separate interpreter, Python predicate fallback,
@@ -87,8 +104,9 @@ change that selection. Explicit invalidation fails closed.
 
 ## Bounded Execute outcome
 
-**Provisional classification: positive integration feasibility,
-pending independent Review.**
+**Accepted bounded result: positive integration feasibility.**
+The independent Execute re-Review approved the implementation at
+`e26430c`; no P0 or P1 production defects were identified.
 
 The frozen acceptance suite now executes successfully, including:
 
@@ -109,31 +127,39 @@ Passing these checks demonstrates the bounded milestone, not complete
 replacement of the incumbent constraint evaluator or superiority of
 the new architecture.
 
-## CI evidence
+## CI evidence and mutation disposition
 
-Successful push run:
+The branch was verified at reviewed implementation head
+`e26430c4630655a6cb2a4aa714b00d26bf53199c`.
 
-- https://github.com/NadOby/shear/actions/runs/39153659410
-- Tested commit: `7b59e76e35c9a84086c4fa33c275eefc9725cac5`.
-- Eight ordinary test lanes passed: core-model, language-runtime,
-  transform-continuity, syntax-reconcile, compiler-self-hosting,
-  vm-bootstrap, cross-boundary and mutation.
-- Task 24 experimental probes and golden comparison also passed.
-- Earlier failures at `76042af` involved replacement and trace
-  semantics; they were corrected by `8e77bb9`.
-- Earlier failures at `8e77bb9` and `886ed99` were the stale runtime
-  mutation-source pin; the corrected pin passed at `7b59e76`.
+- Final ordinary push CI:
+  https://github.com/NadOby/shear/actions/runs/39176163229
+  – passed all eight test lanes, the Task 24 probes and golden comparison.
+- Final full targeted mutation campaign:
+  https://github.com/NadOby/shear/actions/runs/39176488935
+  – passed; `mutation_count=9999`, batch `0`, seed `1`,
+  16 shards and exactly the two new restricted-execution modules.
+- All 200 selected mutations were killed. Zero unclassified survivors,
+  timeouts, resource kills, abnormal exits or unexecuted mutations.
+- Discovery campaign:
+  https://github.com/NadOby/shear/actions/runs/39166568100
+  – 169 killed, 31 unclassified survivors.
+- After two consolidated regression-test commits:
+  https://github.com/NadOby/shear/actions/runs/39174412544
+  – 198 killed, two survivors.
+- Final two targeted rejection-boundary tests at `e26430c` killed
+  both remaining mutations. This establishes 100% kill of this
+  engine's current 200-site selected catalog, not universal correctness.
+- The new restricted modules are both registered mutation targets;
+  target selection and optional shard count are available in CI.
+- Existing source-pinned classified-survivor rules were not relaxed.
+  Issue #107's general repin-after-merge problem remains a separate
+  open workflow concern; this Task 32 targeted campaign is not a claim
+  that issue #107 is closed.
 
-**Outstanding CI evidence:** the push run skipped the heavyweight
-mutation campaign. Because the survivor catalog changed, issue #107
-requires a branch-head campaign that actually revalidates the reviewed
-survivors before Publish. Do not infer that evidence from ordinary
-mutation catalog tests.
-
-Use the `Semantic model` workflow on this branch with
-`mutation_count=1` and `mutation_revalidate=true`. Inspect the
-mutation-plan revalidation message, campaign outcome and evidence
-artifacts. Resolve any classified-survivor failures before Publish.
+The independent Execute re-Review was read-only and returned **APPROVE**
+for the bounded milestone; it accepted some implementation-coupled
+mutation assertions as P3 without requiring further changes.
 
 ## Mechanism accounting
 
@@ -187,48 +213,63 @@ implementation defects:
   unresolved.
 - No performance acceptance or sustained throughput measurement
   was established for repeated policy preflight.
-- The new restricted modules are not mutation campaign targets in
-  the current `tests/mutation_catalog.py` target inventory.
-- The issued-descriptor guard added at `886ed99` is not directly
-  challenged by the frozen acceptance suite using copied deployment
-  dataclasses. A targeted regression test would strengthen coverage.
+- The follow-up for complete constraint semantics, including
+  canonical-content inspection and resource budgeting, is #123.
+- Broader planning guidance for decisive experiments is #124.
 
-Do not broaden the frozen tests silently. The owner is open to
-late-stage tightening for a demonstrated gap; any substantive
-acceptance revision needs explicit review and a newly frozen contract.
+The new restricted modules are mutation targets. Regression coverage
+now directly challenges copied deployment authority, rehashed artifacts,
+absent decoded executable nodes and malformed definition bodies.
+Some tests intentionally assert structural invariants such as dataclass
+immutability and `may_activate=False`; those are not independent proofs
+of end-to-end isolation.
 
-## Independent Execute Review
+Do not silently broaden the reviewed implementation or frozen tests.
+Any substantive post-Review change requires new independent Review.
 
-Review the repository at the actual branch head, against
-`d50297c` and frozen Plan head `1cf3f22`. Do not trust this handoff
-as independent evidence.
+## Independent Execute re-Review disposition
 
-Prioritize:
+Reviewed branch: `task/32-restricted-execution`.
+Reviewed implementation head: `e26430c4630655a6cb2a4aa714b00d26bf53199c`.
+Baseline: `d50297cd44db26135bc0b3f9f95e4326c832beb9`.
+Approved frozen Plan: `1cf3f22f1767a3d3b001b86f27381b6cfb41d9e2`.
 
-1. Full implementation diff and unchanged Plan-owned acceptance.
-2. Genuine SHEAR compilation and machine execution without fallback.
-3. Both source and admitted-bytecode effect proof, including
-   unclassified and transitive operations.
-4. Artifact production authority versus content-hash integrity,
-   authentic lookup keys, rehashed substitution and invalidation.
-5. Executor-issued deployment descriptor identity and replacement.
-6. Target versus evaluator source provenance and operation tracing.
-7. Admission-operation atomicity, evaluator selection and D5 ordering.
-8. Holds, artifact lifetimes, failed preparation and cleanup.
-9. Exact error/result boundaries and Task 24 oracle preservation.
-10. Mechanism accounting, architectural limits and untested assumptions.
-11. Mutation survivor revalidation under issue #107.
+**Verdict: APPROVE – Execute.** Genuine SHEAR compilation and machine
+execution, independent source/chunk effect checking, authenticated
+artifact authority, operation-scoped selection, negative admissions,
+rollback, provenance and complete current mutation coverage passed.
 
-Classify findings P0–P3 with exact locations and counterexamples.
-Give an explicit APPROVE or REVISE verdict. Independent Review is
-read-only. Any substantive fix requires another independent Review.
+No P0 or P1 production defects were identified. Outstanding
+publication-only findings:
+
+- P2 – refresh this handoff with actual review and CI evidence.
+- P2 – update the obsolete Plan Review/Execute authorization status
+  in `docs/restricted_execution.md`, strictly editorially.
+- P3 – correct historical Task 24 and Task 31 roadmap statuses;
+  mark Task 32 as implemented pending Publish until merged.
+- P3 – some mutation tests are implementation-coupled; accepted
+  without further work.
+
+Keep the reviewed technical contract, tests, production behavior,
+mutation-pinned evidence and Task 24 golden records unchanged.
 
 ## Next action
 
-Complete issue #107's branch-head mutation revalidation, then request
-fresh independent Task 32 Execute Review. If approved, Publish may
-prepare the PR and update roadmap/change metadata, preserving the
-reviewed implementation and acceptance contract.
+Publish preparation only:
+
+1. Reconcile the obsolete workflow-status text in
+   `docs/restricted_execution.md` without changing its frozen contract.
+2. Reconcile historical statuses for Tasks 24 and 31 and branch status
+   for Task 32 in `docs/roadmap.md`.
+3. Append the bounded Task 32 outcome, evidence, retained mechanisms
+   and follow-ups to `CHANGES.md`.
+4. Inspect the complete publication-only diff against `e26430c`;
+   verify applicable CI and open the PR. Do not merge before final checks.
+
+Follow-up issues: #123 (full constraints semantics) and #124
+(decisive experiments/planning). Both are open and separately scoped.
+No additional production changes or full mutation rerun are required
+by the approved review. Any substantive change requires fresh Review.
 
 The longer-term architecture question remains open: extending ordinary
 SHEAR functions to cover full constraint semantics depends on a
