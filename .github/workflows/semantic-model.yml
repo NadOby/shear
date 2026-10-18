@@ -23,6 +23,10 @@ on:
         description: "Zero-based disjoint mutation batch"
         required: false
         default: "0"
+      mutation_shards:
+        description: "Optional shards (1-16); blank = automatic"
+        required: false
+        default: ""
       mutation_revalidate:
         description: "Also re-run reviewed survivors (use after repinning the engine or a target)"
         required: false
@@ -178,12 +182,14 @@ jobs:
           SHEAR_MUTATE_TARGETS: ${{ inputs.mutation_targets }}
           SEED: ${{ inputs.mutation_seed }}
           BATCH: ${{ inputs.mutation_batch }}
+          SHARDS: ${{ inputs.mutation_shards }}
         run: >-
           python -m tests.mutation_campaign plan
           --count "$COUNT"
           --targets "$SHEAR_MUTATE_TARGETS"
           --seed "$SEED"
           --batch "$BATCH"
+          --shards "$SHARDS"
 
       # Orders each mutant's run (modules that execute its line first); it
       # never changes which tests run or the outcome, so a failure here only
