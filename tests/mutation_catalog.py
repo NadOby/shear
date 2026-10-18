@@ -203,7 +203,7 @@ def _require_string(
 
     if not value.strip():
         raise CatalogError(
-            f"{context}: field must not be empty"
+            f"{context}: {field} must not be empty"
         )
 
     return value
@@ -439,6 +439,7 @@ def load_catalog(
         "engine_blob",
         "manifest",
     )
+
     catalog_targets = _require_string_list(
         manifest,
         "catalog_targets",
@@ -521,7 +522,7 @@ def load_catalog(
                     f"{context}: duplicate survivor key {key!r}"
                 )
 
-                survivors[key] = classification
+            survivors[key] = classification
 
     actual_targets = set(source_blobs)
     expected_targets = set(catalog_targets)
