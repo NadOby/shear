@@ -13,6 +13,7 @@ from contextvars import ContextVar
 from dataclasses import dataclass, field
 from types import MappingProxyType
 from typing import Any, Iterator, Mapping
+from weakref import WeakKeyDictionary
 
 from .. import machine
 from ..canonical import canonicalize
@@ -98,8 +99,6 @@ class _PinnedResolver:
             raise AdmissionRejected("restricted artifact admission was replaced")
         actual.verify()
         validate_chunk(version.state, entity, owner, actual.chunk)
-        # Defense in depth: validate every instruction against the *same*
-        # restriction as preflight, not only the first source node.
         if any(
             not _permit_instruction(i[0], self._policy)
             for i in actual.chunk
@@ -118,6 +117,18 @@ class RestrictedExecutor:
     def __init__(self) -> None:
         self._identity = object()
         self._trace = Trace()
+        # The issuance record, not a field copied out of a descriptor, is
+        # the authority to use its admitted artifacts. Weak keys avoid
+        # retaining deployments after all legitimate owners release them.
+        self._issued: WeakKeyDictionary[
+            RestrictedDeployment,
+            tuple[
+                HostedSession,
+                HostedTarget,
+                ArtifactSet,
+                Mapping[tuple[EntityID, VersionID], Artifact],
+            ],
+        ] = WeakKeyDictionary()
 
     @staticmethod
     def _validate_source(state: State) -> None:
@@ -186,8 +197,6 @@ class RestrictedExecutor:
             validate_chunk(state, node, artifact.owner, artifact.chunk)
             if state.owner_of(node) != artifact.owner:
                 raise AdmissionRejected("restricted artifact owner differs")
-            # Task 32 initial deployment compiles a fresh independent source.
-            # Any reused artifact needs separate authenticated parent proof.
             if artifact.reused_from is not None:
                 raise AdmissionRejected("deployment cannot invent a reuse parent")
         return MappingProxyType(artifacts)
@@ -212,39 +221,53 @@ class RestrictedExecutor:
             authenticated = self._authenticate(
                 session, source, target, compiler_generation,
             )
-            for event in session.trace():
-                self._trace._events.append(event)
-            return RestrictedDeployment(
+            deployment = RestrictedDeployment(
                 source.id, compiler_generation, authenticated, session,
                 target, target._artifacts, self._identity,
             )
+            self._issued[deployment] = (
+                session, target, target._artifacts, authenticated,
+            )
+            for event in session.trace():
+                self._trace._events.append(event)
+            return deployment
         except BaseException:
-            # A partially prepared deployment must leave no admitted code
-            # reachable, including on an injected admission failure.
             for artifact_set in target._sets.values():
                 artifact_set.invalidate()
             raise
 
     def _check_deployment(self, deployment: RestrictedDeployment) -> None:
-        if (
-            not isinstance(deployment, RestrictedDeployment)
-            or deployment._owner is not self._identity
-        ):
+        if not isinstance(deployment, RestrictedDeployment):
             raise AdmissionRejected("unknown restricted deployment")
-        if deployment.source_state_id != deployment._target.state.id:
+        issued = self._issued.get(deployment)
+        if issued is None or deployment._owner is not self._identity:
+            raise AdmissionRejected("restricted deployment was not issued here")
+        session, target, artifact_set, authenticated = issued
+        if (
+            deployment._session is not session
+            or deployment._target is not target
+            or deployment._artifact_set is not artifact_set
+            or deployment.artifacts is not authenticated
+            or target._artifacts is not artifact_set
+            or target._sets.get(target.runtime.active) is not artifact_set
+        ):
+            raise AdmissionRejected("restricted deployment bindings were altered")
+        if deployment.source_state_id != target.state.id:
             raise AdmissionRejected("restricted source identity changed")
-        if deployment._target.runtime.active.state.id != deployment.source_state_id:
+        if deployment.compiler_generation != target.compiler_generation:
+            raise AdmissionRejected("restricted compiler generation changed")
+        if target.runtime.active.state.id != deployment.source_state_id:
             raise AdmissionRejected("restricted runtime changed state")
-        if not deployment._artifact_set.valid:
+        if not artifact_set.valid:
             raise AdmissionRejected("restricted deployment was invalidated")
-        chain = deployment._session._chain
+        chain = session._chain
         source_generation = chain._sets.get(deployment.compiler_generation)
         if source_generation is None or not source_generation.valid:
             raise AdmissionRejected("producing compiler generation is invalid")
-        current = deployment._artifact_set.artifacts()
-        if len(current) != len(deployment.artifacts):
+        current = artifact_set.artifacts()
+        if len(current) != len(authenticated):
             raise AdmissionRejected("restricted artifact set changed")
-        for key, expected in deployment.artifacts.items():
+        for key, expected in authenticated.items():
             if current.get(key) is not expected:
                 raise AdmissionRejected("restricted admitted artifact was replaced")
             expected.verify()
@@ -371,8 +394,6 @@ class RestrictedRegistry:
     ) -> None:
         if name not in self._bindings:
             raise KeyError("cannot replace an unknown named evaluator")
-        # Validation is completed before a registry entry is made visible.
-        # No admitted artifacts are transferred or relabelled by replacement.
         self._set(name, binding)
 
     @contextmanager
@@ -403,9 +424,6 @@ class RestrictedRegistry:
             policy=RestrictionPolicy(),
         )
         if operation is not None:
-            # The invocation has succeeded on the authenticated machine.
-            # Attribute its actual admitted entry to the *constrained target*,
-            # not to the separately deployed evaluator source.
             source = deployment._target.state
             root = _definition_of(source.values[entry]).body
             artifact = deployment.artifacts[
