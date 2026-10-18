@@ -1,17 +1,19 @@
-"""Independent Task 32 boundary and anti-fallback tests – GH-119.
+"""Independent Task 32 admission and anti-fallback acceptance – GH-119.
 
-Inspect actual machine execution and existing admitted-artifact machinery.
-These Plan-owned tests are intentionally red before restricted execution exists.
+These tests observe machine execution, admitted artifacts and runtime state.
+Structural validity, compiler authority and restricted effect enforcement
+are deliberately separate proof obligations.
 """
 
 from __future__ import annotations
 
-from dataclasses import replace
+from contextlib import contextmanager
 import unittest
 from unittest import mock
 
 from shear import (
     ActivationRejected,
+    CellContentRejected,
     CellDeclaration,
     EntityID,
     External,
@@ -21,32 +23,32 @@ from shear import (
     Runtime,
     State,
     Value,
+    canonicalize,
     transform_with_mapping,
 )
 from shear import bytecode, machine
 from shear.hosted_bootstrap import AdmissionRejected
-from shear.hosted_bootstrap.artifacts import (
-    ArtifactSet,
-    artifact_id,
-)
+from shear.hosted_bootstrap.artifacts import ArtifactSet
+from shear.hosted_bootstrap.generations import CompilerChain
 from shear.hosted_bootstrap.restricted import (
     RestrictedExecutor,
     RestrictionPolicy,
 )
-from shear.lang import load
+from shear.hosted_bootstrap.validation import validate_chunk
+from shear.lang import _definition_of, load
 from tests.test_restricted_execution import (
     CALL_WRITE,
     CELL,
     DEAD_WRITE,
     DYNAMIC,
     PRED,
-    PURE,
     PURE_POLICY,
     READ,
     READ_POLICY,
     RELATION,
     ROLE_PRED,
     WRITE,
+    cell_state,
     evaluator_source,
     no_host_lowering,
     relation_state,
@@ -55,7 +57,6 @@ from tests.test_restricted_execution import (
 
 
 def permissive_relation_state() -> State:
-    """The original relation accepts any canonical role map."""
     return State.create({
         CELL: Value.create(
             CELL, CellDeclaration(IsKind("int"), 3),
@@ -68,7 +69,6 @@ def permissive_relation_state() -> State:
 
 
 def narrowed_relation(source):
-    """Introduce an External requirement without changing the cell."""
     return transform_with_mapping(
         source,
         {
@@ -81,7 +81,7 @@ def narrowed_relation(source):
 
 
 def artifact_snapshot(deployment):
-    """Record authoritative admitted bindings, not implementation traces."""
+    """Immutable observations of admitted artifact bindings."""
     return (
         deployment.source_state_id,
         deployment.compiler_generation,
@@ -104,20 +104,26 @@ def artifact_snapshot(deployment):
     )
 
 
-def changed_chunk(artifact, chunk):
-    """Create a self-consistently identified but untrusted compiler output."""
-    changed = replace(artifact, chunk=chunk)
-    return replace(changed, artifact_id=artifact_id(
-        changed.domain,
-        changed.generation,
-        changed.produced_by,
-        changed.state_id,
-        changed.entity,
-        changed.version,
-        changed.owner,
-        changed.chunk,
-        changed.reused_from,
-    ))
+def runtime_snapshot(runtime):
+    """Capture mutable version state as values, not live references."""
+    return (
+        runtime.active.id,
+        tuple(
+            (
+                id(version),
+                version.id,
+                version.state.id,
+                version.retired,
+                tuple(sorted(
+                    version.cells.items(),
+                    key=lambda item: item[0].value,
+                )),
+                tuple(sorted(id(hold) for hold in version.holds)),
+            )
+            for version in runtime.versions
+        ),
+        tuple(id(change) for change in runtime._history),
+    )
 
 
 class IndependentBoundaries(unittest.TestCase):
@@ -131,81 +137,36 @@ class IndependentBoundaries(unittest.TestCase):
             "policy": (self.deployment, ROLE_PRED),
         })
 
-    def test_relation_write_positive_and_negative(self):
-        runtime = Runtime(relation_state(), self.registry.context)
-        kept = runtime.keep(runtime.active.state.reference(CELL))
-        try:
-            before = runtime.active
-            runtime.write(CELL, 3)
-            self.assertIs(runtime.active, before)
+    def scalar_registry(self):
+        return self.executor.registry({
+            "policy": (self.deployment, PRED),
+        })
 
-            original = snapshot(runtime)
-            artifacts = artifact_snapshot(self.deployment)
-            with self.assertRaises(RelationConstraintRejected):
-                runtime.write(CELL, 4)
-
-            self.assertEqual(snapshot(runtime), original)
-            self.assertEqual(artifact_snapshot(self.deployment), artifacts)
-            self.assertFalse(kept.released)
-        finally:
-            kept.release()
-
-    def test_staged_relation_accepts_and_rejects_activation(self):
-        source = permissive_relation_state()
-        candidate = narrowed_relation(source)
-
-        accepted = Runtime(source, self.registry.context)
-        accepted.activate(candidate)
-        self.assertEqual(accepted.active.state.id, candidate.destination.id)
-        self.assertEqual(accepted.read(CELL), 3)
-
-        rejected = Runtime(source, self.registry.context)
-        rejected.write(CELL, 11)
-        before = snapshot(rejected)
-        artifacts = artifact_snapshot(self.deployment)
-        with self.assertRaises(ActivationRejected) as cm:
-            rejected.activate(candidate)
-
-        self.assertEqual(cm.exception.relation, RELATION)
-        self.assertEqual(snapshot(rejected), before)
-        self.assertEqual(artifact_snapshot(self.deployment), artifacts)
-
-    def test_staged_relation_accepts_and_rejects_trial(self):
-        source = permissive_relation_state()
-        candidate = narrowed_relation(source)
-
-        accepted = Runtime(source, self.registry.context)
-        before = snapshot(accepted)
-        trial = accepted.trial(candidate)
-        try:
-            self.assertEqual(trial.active.state.id, candidate.destination.id)
-            self.assertEqual(trial.read(CELL), 3)
-            self.assertEqual(snapshot(accepted), before)
-        finally:
-            trial.end_trial()
-
-        rejected = Runtime(source, self.registry.context)
-        rejected.write(CELL, 11)
-        before = snapshot(rejected)
-        artifacts = artifact_snapshot(self.deployment)
-        with self.assertRaises(ActivationRejected) as cm:
-            rejected.trial(candidate)
-
-        self.assertEqual(cm.exception.relation, RELATION)
-        self.assertEqual(snapshot(rejected), before)
-        self.assertEqual(artifact_snapshot(self.deployment), artifacts)
-
-    def test_admission_uses_actual_admitted_evaluator_chunks(self):
+    @contextmanager
+    def observed_admitted_execution(self, entry):
+        """Observe the actual selected machine chunk during admission."""
         opened = []
         original = machine._open
 
         def observe(activation, args, *rest, **kwargs):
-            chunk, env, node = original(
-                activation, args, *rest, **kwargs,
-            )
-            if activation.hold.version.state.id == self.source.id:
-                opened.append((node, chunk))
-            return chunk, env, node
+            result = original(activation, args, *rest, **kwargs)
+            if (
+                activation.entity == entry
+                and activation.hold.version.state.id == self.source.id
+            ):
+                chunk, _, node = result
+                key = (node, self.source.values[node].version_id)
+                self.assertIn(key, self.deployment.artifacts)
+                artifact = self.deployment.artifacts[key]
+                self.assertIs(chunk, artifact.chunk)
+                self.assertEqual(artifact.state_id, self.source.id)
+                self.assertEqual(artifact.entity, node)
+                self.assertEqual(artifact.version, key[1])
+                self.assertEqual(artifact.owner, entry)
+                self.assertEqual(artifact.produced_by, 1)
+                artifact.verify()
+                opened.append((tuple(args), node, artifact))
+            return result
 
         with (
             mock.patch.object(machine, "_open", side_effect=observe),
@@ -216,60 +177,251 @@ class IndependentBoundaries(unittest.TestCase):
                 bytecode, "chunk_of", side_effect=no_host_lowering,
             ),
         ):
-            runtime = Runtime(relation_state(), self.registry.context)
-            runtime.write(CELL, 3)
+            yield opened
 
-        self.assertTrue(opened)
-        for node, chunk in opened:
-            key = (node, self.source.values[node].version_id)
-            self.assertIn(key, self.deployment.artifacts)
-            artifact = self.deployment.artifacts[key]
-            self.assertIs(chunk, artifact.chunk)
-            self.assertEqual(artifact.state_id, self.source.id)
-            self.assertEqual(artifact.produced_by, 1)
+        self.assertTrue(
+            opened, "admission did not open an admitted evaluator",
+        )
 
-    def test_machine_fault_proves_genuine_initial_admission(self):
+    def assert_machine_fault(self, entry, action):
+        """Fault at the machine entry, not at the evaluator adapter."""
+        seen = []
         original = machine._open
-        intercepted = []
 
         def trap(activation, args, *rest, **kwargs):
             if (
-                activation.entity == ROLE_PRED
+                activation.entity == entry
                 and activation.hold.version.state.id == self.source.id
             ):
-                intercepted.append(activation.entity)
-                raise RuntimeError("independent evaluator interception")
+                seen.append((activation.entity, tuple(args)))
+                raise RuntimeError("injected evaluator-machine fault")
             return original(activation, args, *rest, **kwargs)
 
         with mock.patch.object(machine, "_open", side_effect=trap):
             with self.assertRaisesRegex(
-                RuntimeError, "independent evaluator interception",
+                RuntimeError, "injected evaluator-machine fault",
             ):
-                Runtime(relation_state(), self.registry.context)
-        self.assertEqual(intercepted, [ROLE_PRED])
+                action()
 
-    def test_machine_fault_proves_genuine_write_admission(self):
+        self.assertTrue(seen, "the evaluator machine was never entered")
+
+    def test_relation_write_positive_negative_and_reference_atomicity(self):
         runtime = Runtime(relation_state(), self.registry.context)
-        before = snapshot(runtime)
-        original = machine._open
-        intercepted = []
+        kept = runtime.keep(runtime.active.state.reference(CELL))
+        try:
+            before = runtime.active
 
-        def trap(activation, args, *rest, **kwargs):
-            if (
-                activation.entity == ROLE_PRED
-                and activation.hold.version.state.id == self.source.id
-            ):
-                intercepted.append(activation.entity)
-                raise RuntimeError("independent write interception")
-            return original(activation, args, *rest, **kwargs)
-
-        with mock.patch.object(machine, "_open", side_effect=trap):
-            with self.assertRaisesRegex(
-                RuntimeError, "independent write interception",
-            ):
+            with self.observed_admitted_execution(ROLE_PRED) as opened:
                 runtime.write(CELL, 3)
-        self.assertEqual(intercepted, [ROLE_PRED])
-        self.assertEqual(snapshot(runtime), before)
+
+            self.assertEqual(
+                opened[0][0],
+                (canonicalize({"item": 3}),),
+            )
+            self.assertIs(runtime.active, before)
+
+            original = runtime_snapshot(runtime)
+            artifacts = artifact_snapshot(self.deployment)
+            reference = kept.reference
+            held_version = kept.version
+
+            with self.observed_admitted_execution(ROLE_PRED) as rejected:
+                with self.assertRaises(RelationConstraintRejected):
+                    runtime.write(CELL, 4)
+
+            self.assertEqual(
+                rejected[0][0],
+                (canonicalize({"item": 4}),),
+            )
+            self.assertEqual(runtime_snapshot(runtime), original)
+            self.assertEqual(artifact_snapshot(self.deployment), artifacts)
+            self.assertEqual(kept.reference, reference)
+            self.assertIs(kept.version, held_version)
+            self.assertFalse(kept.released)
+        finally:
+            kept.release()
+
+    def test_initial_cell_admission_uses_selected_admitted_machine(self):
+        registry = self.scalar_registry()
+        accepted_source = cell_state(3)
+
+        with self.observed_admitted_execution(PRED) as accepted_open:
+            runtime = Runtime(accepted_source, registry.context)
+
+        self.assertEqual(runtime.read(CELL), 3)
+        self.assertEqual(accepted_open[0][0], (3,))
+        self.assertEqual(runtime.active.state.id, accepted_source.id)
+
+        rejected_source = cell_state(11)
+        artifacts = artifact_snapshot(self.deployment)
+
+        with self.observed_admitted_execution(PRED) as rejected_open:
+            with self.assertRaises(CellContentRejected) as cm:
+                Runtime(rejected_source, registry.context)
+
+        self.assertEqual(rejected_open[0][0], (11,))
+        self.assertEqual(cm.exception.cell, CELL)
+        self.assertEqual(artifact_snapshot(self.deployment), artifacts)
+
+        self.assert_machine_fault(
+            PRED,
+            lambda: Runtime(accepted_source, registry.context),
+        )
+
+    def test_initial_relation_admission_uses_selected_admitted_machine(self):
+        accepted_source = relation_state(3)
+
+        with self.observed_admitted_execution(ROLE_PRED) as accepted:
+            runtime = Runtime(accepted_source, self.registry.context)
+
+        self.assertEqual(
+            accepted[0][0], (canonicalize({"item": 3}),),
+        )
+        self.assertEqual(runtime.active.state.id, accepted_source.id)
+
+        with self.observed_admitted_execution(ROLE_PRED) as rejected:
+            with self.assertRaises(RelationConstraintRejected):
+                Runtime(relation_state(11), self.registry.context)
+
+        self.assertEqual(
+            rejected[0][0], (canonicalize({"item": 11}),),
+        )
+
+        self.assert_machine_fault(
+            ROLE_PRED,
+            lambda: Runtime(accepted_source, self.registry.context),
+        )
+
+    def test_staged_cell_activation_and_trial_machine_evidence(self):
+        registry = self.scalar_registry()
+        source = cell_state(0, IsKind("int"))
+        candidate = transform_with_mapping(
+            source,
+            {CELL: CellDeclaration(External("policy"), 0)},
+            {CELL: CELL},
+        )
+
+        for operation in ("activate", "trial"):
+            with self.subTest(operation=operation):
+                accepted = Runtime(source, registry.context)
+                accepted.write(CELL, 3)
+                old = runtime_snapshot(accepted)
+
+                with self.observed_admitted_execution(PRED) as opened:
+                    outcome = getattr(accepted, operation)(candidate)
+
+                self.assertEqual(opened[0][0], (3,))
+                self.assertEqual(
+                    outcome.state.id if operation == "activate"
+                    else outcome.active.state.id,
+                    candidate.destination.id,
+                )
+
+                if operation == "trial":
+                    self.assertEqual(runtime_snapshot(accepted), old)
+                    self.assertEqual(outcome.read(CELL), 3)
+                    outcome.end_trial()
+                else:
+                    self.assertEqual(accepted.read(CELL), 3)
+
+                rejected = Runtime(source, registry.context)
+                rejected.write(CELL, 11)
+                before = runtime_snapshot(rejected)
+                artifacts = artifact_snapshot(self.deployment)
+
+                with self.observed_admitted_execution(PRED) as denied:
+                    with self.assertRaises(ActivationRejected) as cm:
+                        getattr(rejected, operation)(candidate)
+
+                self.assertEqual(denied[0][0], (11,))
+                self.assertEqual(cm.exception.cell, CELL)
+                self.assertEqual(runtime_snapshot(rejected), before)
+                self.assertEqual(
+                    artifact_snapshot(self.deployment), artifacts,
+                )
+
+                self.assert_machine_fault(
+                    PRED,
+                    lambda: getattr(rejected, operation)(candidate),
+                )
+                self.assertEqual(runtime_snapshot(rejected), before)
+
+    def test_staged_relation_activation_and_trial_machine_evidence(self):
+        source = permissive_relation_state()
+        candidate = narrowed_relation(source)
+
+        for operation in ("activate", "trial"):
+            with self.subTest(operation=operation):
+                accepted = Runtime(source, self.registry.context)
+                with self.observed_admitted_execution(ROLE_PRED) as opened:
+                    result = getattr(accepted, operation)(candidate)
+
+                self.assertEqual(
+                    opened[0][0], (canonicalize({"item": 3}),),
+                )
+                if operation == "trial":
+                    self.assertEqual(
+                        result.active.state.id, candidate.destination.id,
+                    )
+                    result.end_trial()
+                else:
+                    self.assertEqual(
+                        result.state.id, candidate.destination.id,
+                    )
+
+                rejected = Runtime(source, self.registry.context)
+                rejected.write(CELL, 11)
+                before = runtime_snapshot(rejected)
+                artifacts = artifact_snapshot(self.deployment)
+
+                with self.observed_admitted_execution(ROLE_PRED) as denied:
+                    with self.assertRaises(ActivationRejected) as cm:
+                        getattr(rejected, operation)(candidate)
+
+                self.assertEqual(
+                    denied[0][0], (canonicalize({"item": 11}),),
+                )
+                self.assertEqual(cm.exception.relation, RELATION)
+                self.assertEqual(runtime_snapshot(rejected), before)
+                self.assertEqual(
+                    artifact_snapshot(self.deployment), artifacts,
+                )
+
+    def test_machine_fault_proves_genuine_relation_write_admission(self):
+        runtime = Runtime(relation_state(), self.registry.context)
+        before = runtime_snapshot(runtime)
+        self.assert_machine_fault(
+            ROLE_PRED,
+            lambda: runtime.write(CELL, 3),
+        )
+        self.assertEqual(runtime_snapshot(runtime), before)
+
+    def test_runtime_trace_identifies_target_and_write_operation(self):
+        registry = self.scalar_registry()
+        target = cell_state(3)
+        runtime = Runtime(target, registry.context)
+        before = len(self.executor.trace())
+
+        with self.observed_admitted_execution(PRED) as opened:
+            runtime.write(CELL, 4)
+
+        events = self.executor.trace()[before:]
+        artifact = opened[0][2]
+        self.assertTrue(
+            any(
+                event.entity == PRED
+                and event.artifact_id == artifact.artifact_id
+                and event.compiler_generation == 1
+                and event.target_state_id == target.id
+                and (
+                    getattr(event, "operation", None) == "write"
+                    or "write" in event.detail.lower()
+                )
+                for event in events
+            ),
+            "missing target-state, operation and evaluator provenance",
+        )
+        self.assertEqual(runtime.read(CELL), 4)
 
     def test_denied_effects_cannot_modify_evaluator_cells(self):
         self.assertEqual(
@@ -292,7 +444,9 @@ class IndependentBoundaries(unittest.TestCase):
                     ),
                     7,
                 )
-                self.assertEqual(artifact_snapshot(self.deployment), artifacts)
+                self.assertEqual(
+                    artifact_snapshot(self.deployment), artifacts,
+                )
 
     def test_denied_indirect_call_never_reaches_machine(self):
         before = artifact_snapshot(self.deployment)
@@ -309,90 +463,123 @@ class IndependentBoundaries(unittest.TestCase):
                 )
         self.assertEqual(artifact_snapshot(self.deployment), before)
 
-    def test_existing_artifact_resolver_rejects_provenance_mismatch(self):
-        """Independent existing-machine oracle – no Task 32 trace trust."""
-        root = PURE
-        from shear.lang import _definition_of
-        node = _definition_of(self.source.values[root]).body
-        artifact = self.deployment.artifacts[
-            (node, self.source.values[node].version_id)
-        ]
+    def test_existing_artifact_resolver_identity_guardrails(self):
+        """D5 resolver check, separate from compiler-production authority."""
+        root = _definition_of(self.source.values[READ]).body
+        key = (root, self.source.values[root].version_id)
+        artifact = self.deployment.artifacts[key]
+
         valid = ArtifactSet(self.source, lambda _: None)
         valid.admit(artifact)
         self.assertIs(
-            valid.resolver()(self.source, node, root), artifact.chunk,
+            valid.resolver()(self.source, root, READ), artifact.chunk,
         )
-
-        mismatches = (
-            ("wrong source", "state_id", relation_state().id),
-            ("wrong node", "entity", PRED),
-            ("wrong version", "version", self.source.values[PRED].version_id),
-            ("wrong owner", "owner", PRED),
-            ("wrong producer", "produced_by", 0),
-            ("wrong compiler generation", "generation", 999),
-            ("wrong dependency", "reused_from", "unverified-parent"),
-            ("tampered chunk", "chunk", (("LIT", "tampered"),)),
-        )
-        for name, field, value in mismatches:
-            with self.subTest(name=name):
-                forged = replace(artifact, **{field: value})
-                candidate = ArtifactSet(self.source, lambda _: None)
-                candidate.admit(forged)
-                with self.assertRaises(AdmissionRejected):
-                    candidate.resolver()(self.source, node, root)
 
         different = self.source.with_changes({
             EntityID("t32.extra"): 5,
         })
         with self.assertRaises(AdmissionRejected):
-            valid.resolver()(different, node, root)
+            valid.resolver()(different, root, READ)
         with self.assertRaises(AdmissionRejected):
-            valid.resolver()(self.source, PRED, root)
+            valid.resolver()(self.source, PRED, READ)
         with self.assertRaises(AdmissionRejected):
-            valid.resolver()(self.source, node, PRED)
+            valid.resolver()(self.source, root, PRED)
+
         valid.invalidate()
         with self.assertRaises(AdmissionRejected):
-            valid.resolver()(self.source, node, root)
+            valid.resolver()(self.source, root, READ)
 
-    def test_admitted_emitted_effects_are_checked_independently(self):
-        """A signed executable chunk cannot bypass source-graph preflight."""
-        from shear.lang import _definition_of
-        root = _definition_of(self.source.values[PURE]).body
-        real_admit = ArtifactSet.admit
-        for instruction in (("WRITE", CELL), ("FUTURE_UNKNOWN_OPCODE",)):
-            with self.subTest(instruction=instruction):
-                emitted = []
+    def test_structurally_valid_emitted_write_is_rejected_by_policy(self):
+        """Compiler-output adversary, not a malformed-chunk adversary.
 
-                def adversarial_admit(artifacts, artifact):
-                    if artifact.entity == root:
-                        emitted.append(artifact.entity)
-                        artifact = changed_chunk(artifact, (instruction,))
-                    return real_admit(artifacts, artifact)
+        The source is an ordinary READ node with a legitimate cell link.
+        The adversarial compiler output is structurally valid and correctly
+        identified. It must be rejected because WRITE is not allowed by
+        READ_POLICY, before the evaluator machine opens.
+        """
+        root = _definition_of(self.source.values[READ]).body
+        emitted = (
+            ("LIT", canonicalize(99)),
+            ("WRITE", CELL),
+            ("END",),
+        )
 
-                adversarial_executor = RestrictedExecutor()
-                with mock.patch.object(
-                    ArtifactSet, "admit", new=adversarial_admit,
-                ):
-                    try:
-                        deployment = adversarial_executor.deploy(
-                            self.source, compiler_generation=1,
-                        )
-                    except AdmissionRejected:
-                        self.assertEqual(emitted, [root])
-                        continue
+        # Independently establish structural validity before injection.
+        validate_chunk(self.source, root, READ, emitted)
+        self.assertNotIn(
+            "WRITE",
+            {instruction[0] for instruction in
+             self.deployment.artifacts[
+                 (root, self.source.values[root].version_id)
+             ].chunk},
+        )
 
-                self.assertEqual(emitted, [root])
-                with mock.patch.object(
-                    machine, "_open",
-                    side_effect=AssertionError("forbidden chunk executed"),
-                ):
-                    with self.assertRaises(AdmissionRejected):
-                        adversarial_executor.run(
-                            deployment, PURE, 4, policy=PURE_POLICY,
-                        )
+        original_compile = CompilerChain.compile
+        produced = []
+
+        def adversarial_compile(chain, descriptor, generation):
+            identity = descriptor.value[1]
+            if identity[0] == self.source.id and identity[1] == root:
+                produced.append((identity, generation))
+                return emitted
+            return original_compile(chain, descriptor, generation)
+
+        adversarial = RestrictedExecutor()
+        with mock.patch.object(
+            CompilerChain, "compile", new=adversarial_compile,
+        ):
+            deployment = adversarial.deploy(
+                self.source, compiler_generation=1,
+            )
+
+        self.assertEqual(len(produced), 1)
+        key = (root, self.source.values[root].version_id)
+        self.assertIn(key, deployment.artifacts)
+        artifact = deployment.artifacts[key]
+        artifact.verify()
+        self.assertEqual(artifact.chunk, emitted)
+        self.assertEqual(artifact.produced_by, 1)
+
+        with mock.patch.object(
+            machine, "_open",
+            side_effect=AssertionError(
+                "policy was bypassed and machine execution began",
+            ),
+        ):
+            with self.assertRaises(AdmissionRejected):
+                adversarial.run(
+                    deployment, READ, policy=READ_POLICY,
+                )
+
+    def test_unknown_emitted_opcode_is_structurally_rejected(self):
+        """Unknown opcode is a separate structural failure discriminator."""
+        root = _definition_of(self.source.values[READ]).body
+        unknown = (("FUTURE_UNKNOWN_OPCODE",), ("END",))
+
+        with self.assertRaises(AdmissionRejected):
+            validate_chunk(self.source, root, READ, unknown)
+
+        original_compile = CompilerChain.compile
+        produced = []
+
+        def adversarial_compile(chain, descriptor, generation):
+            identity = descriptor.value[1]
+            if identity[0] == self.source.id and identity[1] == root:
+                produced.append(root)
+                return unknown
+            return original_compile(chain, descriptor, generation)
+
+        with mock.patch.object(
+            CompilerChain, "compile", new=adversarial_compile,
+        ):
+            with self.assertRaises(AdmissionRejected):
+                RestrictedExecutor().deploy(
+                    self.source, compiler_generation=1,
+                )
+
+        self.assertEqual(produced, [root])
 
     def test_malformed_link_target_fails_closed(self):
-        """A post-load malformed role survives normalization unchanged."""
         malformed = self.source.with_changes({
             EntityID("t32.bad_links"): Relation("links", {
                 "function": (CALL_WRITE,),
@@ -401,7 +588,9 @@ class IndependentBoundaries(unittest.TestCase):
         })
         self.assertEqual(load(malformed).id, malformed.id)
         with self.assertRaises(AdmissionRejected):
-            self.executor.deploy(malformed, compiler_generation=1)
+            self.executor.deploy(
+                malformed, compiler_generation=1,
+            )
 
 
 if __name__ == "__main__":
