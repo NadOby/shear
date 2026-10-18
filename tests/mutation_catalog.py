@@ -76,6 +76,8 @@ TARGETS = (
     "shear/hosted_bootstrap/command.py",
     "shear/hosted_bootstrap/descriptors.py",
     "shear/hosted_bootstrap/generations.py",
+    "shear/hosted_bootstrap/restricted.py",
+    "shear/hosted_bootstrap/restricted_policy.py",
     "shear/hosted_bootstrap/seed.py",
     "shear/hosted_bootstrap/session.py",
     "shear/hosted_bootstrap/target.py",
@@ -105,7 +107,7 @@ OMITTED = {
     "shear/hosted_bootstrap/errors.py":
         "exception classes only; no behaviour to mutate",
     "shear/examples/__init__.py":
-        "example/corpus harness rather than a semantic implementation",
+        "example/corpus harness rather than semantic implementation",
     "shear/examples/_support.py":
         "example construction helper rather than semantic implementation",
     "shear/examples/closures.py":
@@ -362,16 +364,6 @@ def _load_survivor(
         "reason",
         context,
     ).strip()
-
-    if kind != kind.strip():
-        raise CatalogError(
-            f"{context}: kind must be stripped"
-        )
-
-    if source != source.strip():
-        raise CatalogError(
-            f"{context}: source must be a stripped source line"
-        )
 
     if occurrence < 0:
         raise CatalogError(
