@@ -8,9 +8,11 @@ External evaluators to the generic runner.
 
 from __future__ import annotations
 
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass, field
 from types import MappingProxyType
-from typing import Any, Mapping
+from typing import Any, Iterator, Mapping
 
 from .. import machine
 from ..canonical import canonicalize
@@ -28,10 +30,10 @@ from .trace import (
     ADMIT, ADMITTED_HOST, EXECUTE, HOST_ADMISSION, PRODUCE,
     SHEAR_COMPILER, Trace, TraceEvent,
 )
-from .validation import validate_chunk
 from .restricted_policy import (
     RestrictionPolicy, _permit_instruction, preflight,
 )
+from .validation import validate_chunk
 
 
 @dataclass(frozen=True, eq=False)
@@ -74,7 +76,9 @@ class _PinnedResolver:
     def __call__(self, state: State, entity: EntityID, owner: EntityID) -> tuple:
         raise AdmissionRejected("restricted execution requires a pinned version")
 
-    def for_version(self, version: object, entity: EntityID, owner: EntityID) -> tuple:
+    def for_version(
+        self, version: object, entity: EntityID, owner: EntityID,
+    ) -> tuple:
         deployment = self._deployment
         if version is not deployment._target.runtime.active:
             raise AdmissionRejected("restricted invocation changed its version")
@@ -96,7 +100,10 @@ class _PinnedResolver:
         validate_chunk(version.state, entity, owner, actual.chunk)
         # Defense in depth: validate every instruction against the *same*
         # restriction as preflight, not only the first source node.
-        if any(not _permit_instruction(i[0], self._policy) for i in actual.chunk):
+        if any(
+            not _permit_instruction(i[0], self._policy)
+            for i in actual.chunk
+        ):
             raise AdmissionRejected("restricted instruction is not permitted")
         return self._resolver(version.state, entity, owner)
 
@@ -260,9 +267,8 @@ class RestrictedExecutor:
         )
         definition = _definition_of(deployment._target.state.values[entry])
         root = definition.body
-        artifact = deployment.artifacts[
-            (root, deployment._target.state.values[root].version_id)
-        ]
+        key = (root, deployment._target.state.values[root].version_id)
+        artifact = deployment.artifacts[key]
         self._trace.emit(
             EXECUTE, ADMITTED_HOST, entity=entry, version=artifact.version,
             artifact_id=artifact.artifact_id,
@@ -287,12 +293,40 @@ class RestrictedExecutor:
         return self._trace.snapshot()
 
 
-class RestrictedRegistry:
-    """Mutable host deployment selection behind stable canonical names.
+@dataclass(frozen=True)
+class _OperationSelection:
+    """Pinned host deployment selections for one target admission operation."""
 
-    The EvaluationContext instance remains fixed when selection changes.
-    A future runtime-operation boundary pins the selection for all checks
-    within one write, initial load, activation or trial.
+    target_state_id: StateID
+    operation: str
+    bindings: Mapping[str, tuple[RestrictedDeployment, EntityID]]
+
+
+class _RestrictedContext(EvaluationContext):
+    """EvaluationContext with an optional generic runtime operation hook.
+
+    The runtime calls operation_scope around each admission boundary. Neither
+    its canonical state nor the underlying EvaluationContext contract changes.
+    """
+
+    def __init__(
+        self, registry: RestrictedRegistry, externals: Mapping[str, Evaluator],
+        budget: int | None,
+    ) -> None:
+        super().__init__(externals, budget=budget)
+        object.__setattr__(self, "_registry", registry)
+
+    def operation_scope(self, target_state_id: StateID, operation: str):
+        return self._registry.operation_scope(target_state_id, operation)
+
+
+class RestrictedRegistry:
+    """Select named, independently deployed SHEAR evaluators.
+
+    Replacement is atomic between operations. An operation's snapshot keeps
+    every name pinned even if one of the machine invocations replaces the
+    registry. Explicit invalidation still fails closed, rather than changing
+    a pinned selection to the new implementation.
     """
 
     def __init__(
@@ -302,12 +336,18 @@ class RestrictedRegistry:
     ) -> None:
         self._executor = executor
         self._bindings: dict[str, tuple[RestrictedDeployment, EntityID]] = {}
+        self._operation: ContextVar[_OperationSelection | None] = ContextVar(
+            "shear_restricted_evaluator_operation", default=None,
+        )
         for name, binding in bindings.items():
             self._set(name, binding)
-        self.context = EvaluationContext({
-            name: Evaluator(lambda subject, name=name: self._evaluate(name, subject))
+        evaluators = {
+            name: Evaluator(
+                lambda subject, name=name: self._evaluate(name, subject)
+            )
             for name in self._bindings
-        }, budget=budget)
+        }
+        self.context = _RestrictedContext(self, evaluators, budget=budget)
 
     def _set(
         self, name: str, binding: tuple[RestrictedDeployment, EntityID],
@@ -331,16 +371,55 @@ class RestrictedRegistry:
     ) -> None:
         if name not in self._bindings:
             raise KeyError("cannot replace an unknown named evaluator")
-        # Validate before publishing: an invalid candidate never dislodges
-        # the last admitted deployment.
+        # Validation is completed before a registry entry is made visible.
+        # No admitted artifacts are transferred or relabelled by replacement.
         self._set(name, binding)
 
+    @contextmanager
+    def operation_scope(
+        self, target_state_id: StateID, operation: str,
+    ) -> Iterator[None]:
+        """Pin all selected deployments before any constraint is checked."""
+        if not isinstance(target_state_id, StateID):
+            raise TypeError("operation target must be a StateID")
+        if operation not in {"load", "write", "activate", "trial"}:
+            raise ValueError("unknown restricted admission operation")
+        snapshot = _OperationSelection(
+            target_state_id, operation,
+            MappingProxyType(dict(self._bindings)),
+        )
+        token = self._operation.set(snapshot)
+        try:
+            yield
+        finally:
+            self._operation.reset(token)
+
     def _evaluate(self, name: str, subject: Any) -> ConstraintResult:
-        deployment, entry = self._bindings[name]
+        operation = self._operation.get()
+        selected = self._bindings if operation is None else operation.bindings
+        deployment, entry = selected[name]
         result = self._executor.run(
             deployment, entry, canonicalize(subject),
             policy=RestrictionPolicy(),
         )
+        if operation is not None:
+            # The invocation has succeeded on the authenticated machine.
+            # Attribute its actual admitted entry to the *constrained target*,
+            # not to the separately deployed evaluator source.
+            source = deployment._target.state
+            root = _definition_of(source.values[entry]).body
+            artifact = deployment.artifacts[
+                (root, source.values[root].version_id)
+            ]
+            self._executor._trace.emit(
+                EXECUTE, ADMITTED_HOST,
+                entity=entry,
+                version=artifact.version,
+                artifact_id=artifact.artifact_id,
+                compiler_generation=deployment.compiler_generation,
+                target_state_id=operation.target_state_id,
+                detail=f"{operation.operation}: External({name})",
+            )
         if type(result) is not str or result not in (
             "satisfied", "violated", "unknown",
         ):
