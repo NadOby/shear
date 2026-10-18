@@ -611,7 +611,7 @@ class RestrictedExecutionMutationRegressions(unittest.TestCase):
             failure.detail,
         )
         self.assertIn(
-            "outcome=failure:LanguageError",
+            "outcome=failure:Raised",
             failure.detail,
         )
         self.assertFalse(any(
