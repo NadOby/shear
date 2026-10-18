@@ -140,6 +140,35 @@ remain valid.
 Artifact reuse follows D4/D5 verification. No reuse by matching
 function names, StateIDs alone or structural chunk equality.
 
+### Integrity and authority are independent
+
+An artifact's content-derived `artifact_id` establishes consistency
+between the recorded identity fields and chunk. It does not, by
+itself, establish that an authorized compiler produced that chunk.
+
+Restricted execution must preserve the D4/D5 distinction between:
+
+- Structural validity under `validate_chunk()`.
+- Internal integrity under `Artifact.verify()`.
+- Authentic compiler-production and admission evidence.
+- Authority to execute the artifact in a particular pinned
+  deployment and restricted invocation.
+
+Passing any one of these checks does not replace the others.
+
+An attacker who constructs a self-consistent artifact record and
+recomputes its hash must not thereby gain execution authority.
+
+For a target artifact, `produced_by` identifies the compiler
+generation which produced it. The `generation` field describes
+a compiler artifact's own generation and is normally `None`
+for a target artifact.
+
+Reuse requires authentic source-artifact identity and valid
+dependency bindings, not an arbitrary `reused_from` string.
+
+### Deployment lifetime
+
 An evaluator deployment remains held throughout an invocation.
 Replacement must not alter a running invocation. Retired or
 invalidated artifacts cannot be revived by an older registry entry.
@@ -153,9 +182,29 @@ A failed preparation must not publish a deployment or leave
 executable candidate artifacts reachable. Previously admitted
 deployments and their artifact sets remain unaffected.
 
-Every evaluation records enough trace evidence to identify the
-subject's target state and operation, the actual evaluator entry,
-its source state, admitted node/version and compiler generation.
+Normal replacement and eventual release must not leave an
+unowned executable artifact set. No separate canonical lifecycle
+or artifact identity scheme is introduced.
+
+### Execution provenance
+
+Every evaluation records enough evidence to identify:
+
+- The constrained target StateID.
+- The admission operation being performed.
+- The selected evaluator name and function entry.
+- The evaluator source StateID.
+- The admitted code node and VersionID.
+- The producing compiler generation and artifact identity.
+
+The target StateID is distinct from the evaluator source StateID.
+An evaluator-source execution event alone does not prove which
+target admission operation requested the evaluation.
+
+The implementation may extend host-side trace or operation
+context metadata to carry this association. It must not change
+canonical constraint content or derive the target identity from
+the evaluator deployment.
 
 Trace metadata must not become canonical constraint content.
 
@@ -194,8 +243,51 @@ Writes, activation, trials, undeclared external calls and any
 unclassified operation are denied. Canonical-state reflection,
 closures and indirect calls are not automatically authorized.
 
-The exact policy allowlist must be frozen with executable tests.
-Unrecognized future instructions default to denied, not pure.
+### 5.1 Initial operation and instruction policy
+
+The following is the bounded Task 32 classification. It is host
+restriction metadata, not a language-visible effect system.
+
+The pure policy has an empty effect allowlist. The read policy
+adds only the existing `read` effect.
+
+| Category | Source operations | Emitted instructions | Initial rule |
+| --- | --- | --- | --- |
+| Pure values and arithmetic | `lit`, `arg`, `add`, `sub`, `mul`, `lt`, `eq`, tuple and sequence operations | `LIT`, `ARG`, `ADD`, `SUB`, `MUL`, `LT`, `EQ`, `INT`, `TUPLE`, `MKTUPLE`, `LEN`, `ITEM`, `SLICE`, `CONCAT`, `POP` | Allowed |
+| Pure control and local binding | `if`, `seq`, `let`, `unquote` | `EVAL`, `BRANCH`, `GOTO`, `LETCHECK`, `LETBIND`, `END` | Allowed where structurally valid |
+| Static function calls | Statically resolved `call` | `CALL` | Allowed only when the entire transitive reachable call graph is proven permitted |
+| Local language error handling | `catch`, ordinary `raise` | `CATCH`, `FAIL` | Allowed, subject to existing error semantics |
+| Invalid-code failure | Malformed or invalid source | `RAISE` | May fail with the existing language error; never treated as a successful evaluator result |
+| Cell reading | `read` | `READ` | Allowed only when `read` is explicitly present in the policy |
+| Cell writing | `write` | `WRITE` | Denied by the pure and read policies |
+| State evolution | `activate`, `trial` | `ACTIVATE`, `TRIAL` | Denied by the pure and read policies |
+| Indirect execution | `apply`, `applyv` | `APPLY`, `APPLYV` | Denied unless separately proven; no such proof is in scope |
+| Reflection and executable references | `ref`, `code`, `linksof`, closures and executable quotation or function construction | `REF`, `CODE`, `LINKS`, `REFCHECK`, `CLOSURE`, `QUOTE`, `FUNCTION` | Not authorized in this milestone |
+| Unknown or unclassified | Any other operation | Any other instruction | Denied |
+
+The classification intentionally addresses both graph operations
+and admitted executable instructions. A known instruction is not
+automatically safe merely because its shape is valid.
+
+The allowed category for `FAIL` is necessary to exercise existing
+ordinary SHEAR error semantics. A program `raise` is not a write,
+activation, trial or external side effect.
+
+When an evaluator raises, that ordinary language error crosses
+the named `External` adapter as a host evaluation failure.
+The enclosing target SHEAR `catch` must not consume it.
+
+The `RAISE` instruction generated for invalid code is distinct
+from ordinary program `raise` lowering to `FAIL`. Allowing the
+existing invalid-code failure path does not authorize an
+unclassified instruction or convert the failure into a verdict.
+
+This matrix is the initial bounded policy. It does not imply
+support for all possible combinations of host-granted effects.
+The Task 32 positive witnesses require pure computation and
+explicit read authority, not generalized write-capable execution.
+
+### 5.2 Source and emitted instruction enforcement
 
 Both canonical graph operations and actual admitted executable
 instructions require checking. Checking only the semantic source
@@ -205,13 +297,31 @@ proof would leave transitive execution unprotected.
 
 Preflight must inspect the actual admitted chunks, not merely
 the compiler's declarations or source-node classifications.
-A forged chunk whose internal artifact hash has been recomputed
-is not evidence of authorized compiler production.
 
 A permitted static transitive call must actually execute. A
 forbidden transitive effect must be rejected before the first
 target instruction executes, including when hidden in a dead
 branch. Unresolved indirect dispatch remains denied.
+
+A structurally valid emitted `WRITE` is still forbidden under
+the read policy. A malformed instruction rejected by
+`validate_chunk()` does not demonstrate restricted effect-policy
+enforcement.
+
+The decisive emitted-effect acceptance witness must:
+
+1. Begin with a semantically permitted source node.
+2. Use an already valid, authorized cell link.
+3. Inject a structurally valid executable chunk containing
+   a forbidden `WRITE`.
+4. Independently establish structural validity.
+5. Ensure the chunk follows the observed compiler-production
+   and admission route rather than merely corrupting its hash.
+6. Require policy rejection before evaluator-machine execution.
+
+Unknown emitted opcodes are tested separately as structural
+admission failures. They do not substitute for the valid
+forbidden-effect witness.
 
 A conservative preflight may reject an otherwise harmless function.
 Such rejection is a limitation, not permission to execute unproven
@@ -226,7 +336,7 @@ Restriction failures are host-side failures, not `Violated`,
 
 No unrestricted fallback is permitted following rejection.
 
-### Capability boundary
+### 5.3 Capability boundary
 
 Task 32 may implement generic host-managed restriction metadata
 and an execution policy over existing operations.
@@ -311,12 +421,23 @@ Evaluator exceptions retain host-failure provenance, including
 when their exception class resembles a catchable language error.
 An outer SHEAR `catch` must not consume such a host failure.
 
+The acceptance test must independently observe the selected
+admitted evaluator function and its actual machine execution,
+then identify the precise language error it raised. Merely
+asserting an exception class is insufficient.
+
 Only `Satisfied` permits mandatory admission. `Violated` and
 `Unknown` remain distinct rejected outcomes.
 
 No partial write, activation or trial result may escape rejection.
 The previous active state, cells, holds and admitted artifact sets
 remain valid and unchanged.
+
+Rollback evidence must capture immutable observations of loaded
+version identities, per-version cell content, retirement flags,
+hold membership, retained references and relevant admitted
+artifact bindings. Comparing only mutable version objects is
+insufficient.
 
 Existing runtime admission is not retroactive. A successful
 initial admission or write is not automatically repeated when
@@ -474,8 +595,17 @@ preserved, without introducing generic-content inspection.
 Positive witnesses must prove execution, not merely admission
 or a reported route label.
 
+Each admission boundary requires an independent observation of
+the selected evaluator entry and actual admitted machine chunk,
+together with a resulting target-state assertion.
+
+Fault injection at the actual evaluator-machine entry must
+demonstrate that a hidden Python fallback cannot satisfy
+initial cell admission, activation or trial when the evaluator
+machine is intercepted.
+
 Negative witnesses must prove the previous state and appropriate
-cell, hold and artifact state remain unchanged.
+cell, hold, reference and artifact state remain unchanged.
 
 ### C. Semantic and error boundaries
 
@@ -485,6 +615,17 @@ exception, strong-Kleene composition and budget exhaustion.
 
 Check that evaluator failures do not become catchable program
 errors and do not turn into constraint verdicts.
+
+Wrong-arity failure must preserve the existing language-error
+kind and expected-versus-observed argument counts.
+
+Malformed constraint results must be distinguished from ordinary
+generic runner results. The generic runner may return a canonical
+value which the constraint-result adapter properly rejects.
+
+The error-provenance witness must establish the selected
+evaluator entry, the actual admitted chunk, the emitted error
+kind and detail, and its originating function and node.
 
 ### D. Restriction boundaries
 
@@ -503,6 +644,10 @@ A self-consistently rehashed artifact is still untrusted without
 authentic compiler-production evidence. Tests must distinguish
 hash integrity from admission authority.
 
+The structurally valid emitted-effect fixture described in
+section 5.2 is mandatory. A malformed chunk which fails
+ordinary structural validation is not an equivalent witness.
+
 Demonstrate that denied attempts leave live state unchanged.
 
 ### E. Provenance and lifecycle
@@ -510,13 +655,28 @@ Demonstrate that denied attempts leave live state unchanged.
 Reject wrong target state, node, VersionID, compiler generation,
 dependency, producer evidence and tampered admitted chunks.
 
+Challenge the actual restricted deployment trust boundary with
+rehashed, self-consistent artifact records. An arbitrary
+`ArtifactSet` fixture with a broken content hash establishes
+integrity checks, not authenticated restricted execution.
+
+For target artifacts, forge `produced_by` rather than treating
+`generation` as the producing compiler generation.
+
+Where a candidate reuses an artifact, verify the authenticated
+source dependency and refuse an invented reuse parent.
+
 Reject stale and invalidated artifacts.
 
 Prove that an in-flight invocation retains its valid deployment
 across a permitted replacement, without silently switching code.
 
-Prove correct artifact release and no survivor of failed
-candidate preparation.
+Prove correct artifact retention and eventual release under
+existing ownership rules. Explicit invalidation must not
+invalidate an unrelated replacement deployment.
+
+Prove no survivor of failed candidate preparation and no
+change to previously admitted artifact sets after rejection.
 
 The independent test oracle must distinguish an artifact's
 content-derived ID from its authority to execute. It must
@@ -566,6 +726,7 @@ observations of:
 - The compiler-produced artifact and its admission evidence.
 - The actual node/version/generation opened by the machine.
 - The subject supplied at the runtime boundary.
+- The constrained target StateID and admission operation.
 - The expected result and resulting runtime state.
 
 Disable host lowering after explicit preparation and verify no
@@ -585,6 +746,17 @@ an alternate evaluator.
 Independent tests must also challenge admitted bytecode that
 does not agree with the apparent source graph, including an
 emitted forbidden effect or an unknown future instruction.
+
+The forbidden-effect fixture must first pass the existing
+structural validator. Structural rejection cannot be counted
+as effect-policy enforcement.
+
+Self-consistent but unauthenticated artifact substitutions must
+be independently distinguished from broken hashes.
+
+For operations with staged changes, rollback observations must
+capture immutable copies of mutable runtime state and the
+corresponding admitted-artifact bindings.
 
 Tests must distinguish failed integration from genuinely executed
 negative results.
