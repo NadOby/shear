@@ -1,6 +1,6 @@
 # Restricted Execution – Task 32
 
-**Status: Provisional – Plan, not yet frozen or independently reviewed.**
+**Status: Plan Resolve – revised acceptance pending independent re-Review.**
 
 Issue: GH-119. Baseline: `main` at `d50297cd44db26135bc0b3f9f95e4326c832beb9`.
 
@@ -144,6 +144,15 @@ An evaluator deployment remains held throughout an invocation.
 Replacement must not alter a running invocation. Retired or
 invalidated artifacts cannot be revived by an older registry entry.
 
+Replacement does not immediately destroy artifacts still held by
+an in-flight invocation. Such artifacts remain pinned until that
+invocation ends, subject to explicit invalidation and existing
+artifact-integrity checks. Retirement follows D5 ownership rules.
+
+A failed preparation must not publish a deployment or leave
+executable candidate artifacts reachable. Previously admitted
+deployments and their artifact sets remain unaffected.
+
 Every evaluation records enough trace evidence to identify the
 subject's target state and operation, the actual evaluator entry,
 its source state, admitted node/version and compiler generation.
@@ -193,6 +202,16 @@ instructions require checking. Checking only the semantic source
 would trust the compiler's output to preserve its effects.
 Checking only declared bytecode metadata without call-resolution
 proof would leave transitive execution unprotected.
+
+Preflight must inspect the actual admitted chunks, not merely
+the compiler's declarations or source-node classifications.
+A forged chunk whose internal artifact hash has been recomputed
+is not evidence of authorized compiler production.
+
+A permitted static transitive call must actually execute. A
+forbidden transitive effect must be rejected before the first
+target instruction executes, including when hidden in a dead
+branch. Unresolved indirect dispatch remains denied.
 
 A conservative preflight may reject an otherwise harmless function.
 Such rejection is a limitation, not permission to execute unproven
@@ -299,6 +318,22 @@ No partial write, activation or trial result may escape rejection.
 The previous active state, cells, holds and admitted artifact sets
 remain valid and unchanged.
 
+Existing runtime admission is not retroactive. A successful
+initial admission or write is not automatically repeated when
+a named evaluator's deployment changes. Already accepted cell
+contents and canonical program states remain unchanged.
+
+A subsequent write, activation, trial or newly constructed
+runtime performs its normal constraint checks using the
+evaluator selected for that new operation.
+
+In particular, a write of the same canonical value is still
+a write operation and must satisfy the then-current constraint.
+Replacement does not grandfather future writes.
+
+No general mechanism for retroactively discovering and
+revalidating all live users of an evaluator is introduced.
+
 ## 8. Evaluator replacement
 
 The evaluator name is stable semantic content. Implementations are
@@ -307,6 +342,16 @@ identified by their separately pinned deployment descriptors.
 Replacement must be explicit and atomic between admission
 operations. An operation observes one coherent deployment snapshot,
 including when it performs multiple constraint checks.
+
+This snapshot rule concerns the new host deployment registry,
+not a change to the semantics of canonical `External(name)`.
+It guarantees that a single admission operation cannot mix
+evaluator generations merely because a registry entry changed.
+
+A new operation acquires its own deployment snapshot. The
+registry may select a different implementation for that
+operation without changing the previously admitted state's
+identity or cell contents.
 
 The frozen tests must compare the same target canonical state and
 constraint identity under two distinct SHEAR implementations and
@@ -317,6 +362,18 @@ For a persistent runtime, deployment replacement must not alter
 an in-flight operation. If current evaluation-context ownership
 cannot support this, Execute must introduce an explicit generic
 operation-boundary snapshot mechanism or return to Plan.
+
+The old deployment's admitted artifacts must remain valid
+through the completion of operations that already pinned it.
+When no invocation or other legitimate owner retains it, its
+resources can be released under existing lifecycle rules.
+Explicit invalidation must fail closed and must never silently
+redirect execution to the replacement.
+
+An operation rejected by a replacement evaluator must preserve
+its previous target state, cells, holds, references and unrelated
+admitted artifacts. Failed candidate preparation must also leave
+previously admitted deployments intact.
 
 No mutation of canonical constraint values, anonymous replacement
 fallback or silent artifact relabelling is permitted.
@@ -377,10 +434,9 @@ negative baseline without changing its results.
 
 ## 10. Frozen acceptance design
 
-The Plan must add an executable acceptance module and register it
-in `tests/lanes.py` before Execute. Tests must be executable and
-must fail on the unimplemented production interface, not skip
-the required integrations.
+The Plan must add executable acceptance modules and register
+them in `tests/lanes.py` before Execute. Tests must fail on the
+unimplemented production interface, not skip required integration.
 
 Required fixture families:
 
@@ -395,6 +451,9 @@ A second predicate returns `unknown` on a defined input.
 A non-constraint caller executes ordinary pure SHEAR functions
 through the same restricted runner and obtains raw canonical
 results, without using `External` or constraint conversion.
+
+A permitted static transitive call must execute using the same
+machine and actual admitted chunks.
 
 ### B. Genuine admission
 
@@ -440,6 +499,10 @@ Reject unresolved dynamic calls and any unclassified instruction.
 Reject an emitted forbidden instruction even when its semantic
 source appears harmless. No hidden host execution or fallback.
 
+A self-consistently rehashed artifact is still untrusted without
+authentic compiler-production evidence. Tests must distinguish
+hash integrity from admission authority.
+
 Demonstrate that denied attempts leave live state unchanged.
 
 ### E. Provenance and lifecycle
@@ -455,6 +518,10 @@ across a permitted replacement, without silently switching code.
 Prove correct artifact release and no survivor of failed
 candidate preparation.
 
+The independent test oracle must distinguish an artifact's
+content-derived ID from its authority to execute. It must
+also observe existing hold ownership and post-failure cleanup.
+
 ### F. Replacement
 
 Run the same canonical `External` constraint with different
@@ -463,6 +530,8 @@ identity, explicit deployment selection and different expected
 outcomes.
 
 No replacement may affect a partially evaluated transaction.
+Already accepted state must not be retroactively revalidated.
+The next admission operation uses the newly selected evaluator.
 
 ### G. Malformed data and isolation
 
@@ -471,6 +540,10 @@ function references before they can authorize execution.
 
 A malformed tuple link target or `function` role (#110) must
 not be accepted or silently flattened at this boundary.
+
+Tests must preserve the malformed witness through any ordinary
+input-format normalization. A post-load malformed definition or
+role relation must reach restricted admission unchanged.
 
 Check evaluator/source/target separation and failure cleanup.
 No evaluator may mutate a caller's cells or activate its state.
@@ -508,6 +581,10 @@ case cannot pass.
 Fault injection must prove that removing or corrupting the
 relevant admitted artifact stops execution rather than selecting
 an alternate evaluator.
+
+Independent tests must also challenge admitted bytecode that
+does not agree with the apparent source graph, including an
+emitted forbidden effect or an unknown future instruction.
 
 Tests must distinguish failed integration from genuinely executed
 negative results.
@@ -640,21 +717,20 @@ implementing a language-shaping change.
 
 Substantive Execute work remains.
 
-Before freezing Plan:
+Before freezing the revised Plan:
 
 - Register Task 32 in the roadmap without unrelated edits.
 - Add executable positive and negative acceptance tests.
 - Register their test lane and verify their collection.
 - Fix complete expected observations independently of production.
 - Record the exact baseline and full Plan-owned file inventory.
-- Record the frozen Plan content head in `handoff.md`.
+- Record the revised frozen Plan content head in `handoff.md`.
 - Confirm no production or golden records changed.
-- Request fresh independent Plan Review.
+- Request fresh independent Plan re-Review.
 
 Review must challenge architectural feasibility, bootstrap ordering,
 effect-proof completeness, independent oracles, owner-controlled
 decisions, hidden fallback, mechanism counting and the adequacy of
 negative/inconclusive disposition.
 
-Do not begin Execute or open a PR until the Plan is approved.
-
+Do not begin Execute or open a PR until the revised Plan is approved.
