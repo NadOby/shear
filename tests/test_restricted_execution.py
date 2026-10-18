@@ -144,16 +144,25 @@ def relation_state(initial: int = 3) -> State:
 
 
 def snapshot(runtime: Runtime):
-    """Include held references/frames, not just visible live cell values."""
+    """Freeze mutable version, cell, hold and retirement observations."""
     return (
-        runtime.active,
-        runtime.active.state.id,
-        dict(runtime.active.cells),
-        runtime.versions,
+        id(runtime.active),
+        runtime.active.id,
         tuple(
-            (version, tuple(sorted(id(hold) for hold in version._holds)))
+            (
+                id(version),
+                version.id,
+                version.state.id,
+                version.retired,
+                tuple(sorted(
+                    version.cells.items(),
+                    key=lambda item: item[0].value,
+                )),
+                tuple(sorted(id(hold) for hold in version.holds)),
+            )
             for version in runtime.versions
         ),
+        tuple(id(change) for change in runtime._history),
     )
 
 
@@ -341,8 +350,20 @@ class RestrictedAcceptance(unittest.TestCase):
             "policy": (self.deployment, PRED),
         }, budget=0)
         self.assertIs(External("policy").evaluate(3, exhausted.context), UNK)
-        with self.assertRaises(TypeError):
-            External("policy").evaluate(3, self.registry(BAD_RESULT).context)
+
+        # Raw ordinary computation can return 17. Only the named External
+        # result adapter must reject it as an invalid constraint verdict.
+        self.assertEqual(
+            self.executor.run(
+                self.deployment, BAD_RESULT, 3, policy=PURE_POLICY,
+            ),
+            17,
+        )
+        with self.assertRaises(TypeError) as cm:
+            External("policy").evaluate(
+                3, self.registry(BAD_RESULT).context,
+            )
+        self.assertIn("result", str(cm.exception).lower())
 
     def test_restriction_preflight_and_transitive_calls(self):
         for entry, arguments in (
@@ -373,7 +394,14 @@ class RestrictedAcceptance(unittest.TestCase):
     def test_wrong_arity_preserves_language_boundary(self):
         with self.assertRaises(LanguageError) as cm:
             self.executor.run(self.deployment, PRED, policy=PURE_POLICY)
-        self.assertIn("takes 1 argument", str(cm.exception))
+
+        error = cm.exception.error
+        self.assertEqual(error[:2], ("language", "arity"))
+        self.assertEqual(
+            dict(error[2]),
+            {"expected": 1, "function": PRED, "got": 0},
+        )
+        self.assertEqual(error[3][0], PRED)
 
     def test_replacement_is_not_retroactive_revalidation(self):
         state = State.create({
@@ -408,10 +436,9 @@ class RestrictedAcceptance(unittest.TestCase):
         self.assertEqual((state.id, tuple(
             (entity, value.version_id) for entity, value in state.values.items()
         )), before)
-        # Previously admitted content is not retroactively invalidated.
         self.assertEqual(first.read(CELL), 3)
         self.assertEqual(another.read(SECOND), 3)
-        # The next new admission uses the replacement evaluator.
+
         with self.assertRaises(CellContentRejected) as cm:
             first.write(CELL, 3)
         self.assertIs(cm.exception.result, VIO)
@@ -472,8 +499,43 @@ class RestrictedAcceptance(unittest.TestCase):
         session.prepare(compiler_generation=1)
         registry.replace("policy", (self.deployment, RAISE))
         before = snapshot(target)
-        with self.assertRaises(LanguageError):
-            session.run(WRITER)
+
+        opened = []
+        real_open = machine._open
+
+        def observe(activation, args, *rest, **kwargs):
+            chunk, env, node = real_open(
+                activation, args, *rest, **kwargs,
+            )
+            if (
+                activation.entity == RAISE
+                and activation.hold.version.state.id == self.source.id
+            ):
+                key = (node, self.source.values[node].version_id)
+                artifact = self.deployment.artifacts[key]
+                self.assertIs(chunk, artifact.chunk)
+                self.assertEqual(artifact.produced_by, 1)
+                opened.append((node, artifact.artifact_id))
+            return chunk, env, node
+
+        with (
+            mock.patch.object(machine, "_open", side_effect=observe),
+            mock.patch.object(
+                bytecode, "lower_value", side_effect=no_host_lowering,
+            ),
+            mock.patch.object(
+                bytecode, "chunk_of", side_effect=no_host_lowering,
+            ),
+        ):
+            with self.assertRaises(LanguageError) as cm:
+                session.run(WRITER)
+
+        self.assertEqual(len(opened), 1)
+        self.assertEqual(
+            cm.exception.error[:3],
+            ("program", "evaluator_failure", "probe"),
+        )
+        self.assertEqual(cm.exception.error[3], (RAISE, opened[0][0]))
         self.assertEqual(snapshot(target), before)
 
 
