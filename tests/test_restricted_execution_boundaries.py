@@ -8,6 +8,8 @@ are deliberately separate proof obligations.
 from __future__ import annotations
 
 from contextlib import contextmanager
+from dataclasses import FrozenInstanceError, replace
+from types import MappingProxyType
 import unittest
 from unittest import mock
 
@@ -28,11 +30,20 @@ from shear import (
 )
 from shear import bytecode, machine
 from shear.hosted_bootstrap import AdmissionRejected
-from shear.hosted_bootstrap.artifacts import ArtifactSet
+from shear.hosted_bootstrap.artifacts import ArtifactSet, artifact_id
 from shear.hosted_bootstrap.generations import CompilerChain
 from shear.hosted_bootstrap.restricted import (
     RestrictedExecutor,
     RestrictionPolicy,
+    _OperationSelection,
+    _PinnedResolver,
+)
+from shear.hosted_bootstrap.restricted_policy import (
+    _check_links,
+    _function,
+    _permit_instruction,
+    _permit_source,
+    preflight,
 )
 from shear.hosted_bootstrap.validation import validate_chunk
 from shear.lang import _definition_of, load
@@ -42,6 +53,7 @@ from tests.test_restricted_execution import (
     DEAD_WRITE,
     DYNAMIC,
     PRED,
+    PURE,
     PURE_POLICY,
     READ,
     READ_POLICY,
@@ -591,6 +603,172 @@ class IndependentBoundaries(unittest.TestCase):
             self.executor.deploy(
                 malformed, compiler_generation=1,
             )
+
+
+class RestrictedMutationBoundaries(unittest.TestCase):
+    """Distinguish independent policy and authority checks from other guards."""
+
+    def setUp(self):
+        self.source = evaluator_source()
+        self.executor = RestrictedExecutor()
+        self.deployment = self.executor.deploy(
+            self.source, compiler_generation=1,
+        )
+
+    def test_policy_is_frozen_and_rejects_invalid_effect_sets(self):
+        policy = RestrictionPolicy()
+        with self.assertRaises(FrozenInstanceError):
+            policy.allowed_effects = frozenset({"read"})
+        for invalid in (
+            {"read"},
+            frozenset({"unknown-effect"}),
+            frozenset({7}),
+            frozenset({"read", 7}),
+        ):
+            with self.subTest(invalid=invalid):
+                with self.assertRaises(ValueError):
+                    RestrictionPolicy(allowed_effects=invalid)
+
+    def test_read_authority_checks_both_operation_and_policy(self):
+        for kind, permitted in (
+            ("read", False),
+            ("write", False),
+            ("unrecognized", False),
+            ("lit", True),
+        ):
+            with self.subTest(kind=kind):
+                self.assertIs(_permit_source(kind, PURE_POLICY), permitted)
+        self.assertTrue(_permit_source("read", READ_POLICY))
+        self.assertFalse(_permit_source("write", READ_POLICY))
+        self.assertFalse(_permit_instruction("READ", PURE_POLICY))
+        self.assertTrue(_permit_instruction("READ", READ_POLICY))
+        self.assertFalse(_permit_instruction("WRITE", READ_POLICY))
+
+    def test_missing_definitions_and_malformed_link_roles_are_rejected(self):
+        for entry in (CELL, EntityID("t32.missing-function")):
+            with self.subTest(entry=entry):
+                with self.assertRaises(AdmissionRejected):
+                    _function(self.source, entry)
+
+        malformed = self.source.with_changes({
+            EntityID("t32.malformed-link-check"): Relation(
+                "links", {"function": (PRED,), "target": PURE},
+            ),
+        })
+        with self.assertRaises(AdmissionRejected):
+            _check_links(malformed)
+
+    def test_preflight_checks_each_link_field_independently(self):
+        """Inject invalid decoded links without changing pinned artifact IDs."""
+        value = self.source.values[PURE]
+        definition = _definition_of(value)
+        self.assertIsNotNone(definition)
+        for label, links in (
+            ("non-string name", {9: PRED}),
+            ("grouped target", {"extra": (PRED,)}),
+        ):
+            with self.subTest(label=label):
+                object.__setattr__(
+                    value, "_definition", replace(definition, links=links),
+                )
+                try:
+                    with self.assertRaises(AdmissionRejected):
+                        preflight(
+                            self.source, self.deployment.artifacts,
+                            PURE, PURE_POLICY,
+                        )
+                finally:
+                    object.__setattr__(value, "_definition", definition)
+
+        self.assertTrue(preflight(
+            self.source, self.deployment.artifacts, PURE, PURE_POLICY,
+        ))
+
+    def test_preflight_rejects_unclassified_code_nodes(self):
+        root = _definition_of(self.source.values[PURE]).body
+        malformed = self.source.with_changes({root: 99})
+        with self.assertRaises(AdmissionRejected):
+            preflight(
+                malformed, self.deployment.artifacts, PURE, PURE_POLICY,
+            )
+
+    def test_preflight_checks_artifact_fields_without_other_guards(self):
+        root = _definition_of(self.source.values[PURE]).body
+        key = (root, self.source.values[root].version_id)
+        authentic = self.deployment.artifacts[key]
+        for label, changes in (
+            ("wrong domain", {"domain": "compiler"}),
+            ("no producer", {"produced_by": None}),
+        ):
+            with self.subTest(label=label):
+                forged = replace(authentic, **changes)
+                forged = replace(forged, artifact_id=artifact_id(
+                    forged.domain, forged.generation, forged.produced_by,
+                    forged.state_id, forged.entity, forged.version,
+                    forged.owner, forged.chunk, forged.reused_from,
+                ))
+                forged.verify()
+                selected = dict(self.deployment.artifacts)
+                selected[key] = forged
+                with self.assertRaises(AdmissionRejected):
+                    preflight(self.source, selected, PURE, PURE_POLICY)
+
+        self.assertTrue(preflight(
+            self.source, self.deployment.artifacts, PURE, PURE_POLICY,
+        ))
+
+    def test_pinned_resolver_rejects_missing_authenticated_key(self):
+        root = _definition_of(self.source.values[PRED]).body
+        key = (root, self.source.values[root].version_id)
+        detached = replace(
+            self.deployment, artifacts=MappingProxyType({}),
+        )
+        resolver = _PinnedResolver(
+            detached, frozenset({key}), PURE_POLICY,
+        )
+        with self.assertRaises(AdmissionRejected):
+            resolver.for_version(
+                self.deployment._target.runtime.active, root, PRED,
+            )
+
+    def test_registry_validates_each_name_binding_and_entry(self):
+        selected = (self.deployment, PRED)
+        for invalid in ("", 5):
+            with self.subTest(name=invalid):
+                with self.assertRaises(TypeError):
+                    self.executor.registry({invalid: selected})
+
+        registry = self.executor.registry({"policy": selected})
+        for invalid in (
+            [self.deployment, PRED],
+            (self.deployment,),
+            (self.deployment, PRED, PURE),
+        ):
+            with self.subTest(binding=invalid):
+                with self.assertRaises(TypeError):
+                    registry.replace("policy", invalid)
+
+        for invalid in (EntityID("t32.missing"), CELL):
+            with self.subTest(entry=invalid):
+                with self.assertRaises(AdmissionRejected):
+                    registry.replace("policy", (self.deployment, invalid))
+
+    def test_invalid_string_constraint_verdict_is_type_error(self):
+        registry = self.executor.registry({
+            "policy": (self.deployment, PRED),
+        })
+        with mock.patch.object(
+            self.executor, "run", return_value="not-a-verdict",
+        ):
+            with self.assertRaises(TypeError):
+                External("policy").evaluate(3, registry.context)
+
+    def test_operation_selection_is_immutable(self):
+        snapshot = _OperationSelection(
+            self.source.id, "write", MappingProxyType({}),
+        )
+        with self.assertRaises(FrozenInstanceError):
+            snapshot.operation = "trial"
 
 
 if __name__ == "__main__":
