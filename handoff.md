@@ -1,103 +1,91 @@
 # Handoff
 
 Read `CLAUDE.md`, the Workflow section of `docs/roadmap.md`,
-issue #89 and the Task 28 and issue #118 precedents.
+issue #119, `docs/restricted_execution.md`, and the Task 24
+experimental evidence. Verify all claims against the repository.
 
-Verify all claims against the repository. This file is a checkpoint,
-not independent evidence.
+This file is a checkpoint, not independent evidence.
 
 ## Current state
 
-- Issue: #89 – flexible workflow stages.
-- Branch: `task/89-flexible-workflow`.
-- Role: Plan complete – request independent Review.
-- Baseline `main`: `9151949a652de8100cc7e6c0581b3b078269f21d`.
-- Frozen Plan content head: `cf3e2d7af288112c38304d31a40644424b8c6b1b`.
-- Plan-owned files: `CLAUDE.md` and `docs/roadmap.md`.
-- No production, test, golden-record or language-semantic changes.
-- No substantive Execute work remains.
-- No PR opened for #89 at this checkpoint.
+- Issue: #119 – Task 32, generic restricted execution and SHEAR-defined constraints.
+- Branch: `task/32-restricted-execution`.
+- Role: Plan complete – request independent Plan Review.
+- Baseline `main`: `d50297cd44db26135bc0b3f9f95e4326c832beb9`.
+- Frozen Plan content head: `819848a849c4a15da29232c911fa36c24b57bd40`.
+- Substantive Execute work remains mandatory.
+- No production implementation, golden-record changes or PR.
+- The proposed `shear.hosted_bootstrap.restricted` module does not exist.
 
-## Motivating problem
+## Frozen Plan-owned files
 
-The current workflow requires separate task-role transitions even
-when Plan already contains the complete deliverable, Review finds
-no blocking defect, or Publish can be performed by the existing
-execution context after independent approval.
+- `docs/restricted_execution.md`
+- `docs/roadmap.md` – Task 32 entry only
+- `tests/test_restricted_execution.py`
+- `tests/test_restricted_execution_boundaries.py`
+- `tests/lanes.py` – test registration
 
-Task 28 and issue #118 demonstrated unnecessary no-op transitions.
+The acceptance files deliberately fail before implementation.
+Execute must not weaken or rewrite their frozen expectations
+without an explicit reviewed Plan revision.
 
-## Plan deliverable
+## Plan contract
 
-Update the existing workflow contracts, without introducing a new
-role, review infrastructure or language-design change.
+Build generic restricted execution of ordinary SHEAR functions
+through authenticated hosted artifacts. Use it to deploy named
+`External` constraint evaluators independently of semantic
+constraint identity.
 
-- Five responsibilities remain: Plan, Execute, Review, Resolve,
-  Publish. They need not run in separate chats.
-- Execute is required only when substantive work remains after Plan.
-- A complete Plan deliverable may proceed directly to independent
-  Review and then Publish.
-- Review always uses a fresh independent context, including when
-  the deliverable was produced during Plan.
-- Resolve is conditional on Review findings and requires re-Review.
-- Publish may happen in the Plan or Execute context, or through
-  the owner, after accepted independent Review.
-- Substantive post-review changes require renewed independent Review.
-- Publication-only metadata can be finalized after Review without
-  changing the reviewed contract or evidence.
-- Frozen terminal acceptance, Plan ownership, owner authority,
-  independent Review and applicable CI requirements remain intact.
-- Missing CI evidence must be reported, not represented as success.
-- No empty Execute, Resolve, Publish chat or handoff is required.
+Preserve initial admission, writes, activation and trial semantics;
+three-valued results, atomicity and host-error provenance;
+version and compiler-generation identity; fail-closed effect
+restrictions; and independent evidence of actual machine execution.
 
-## Acceptance
+Demonstrate non-constraint reuse and record a full mechanism audit.
+Retain Task 24's oracle, negative evidence and existing evaluator.
+Do not claim mechanism savings without verified removal.
 
-Independent Review should verify the following.
+Any required language-shaping decision returns to the owner.
+A blocked or negative result needs reproducible evidence and an
+actionable successor, not a substituted success criterion.
 
-1. Task 28's specification-and-test deliverable can complete in
-   Plan and proceed directly to independent Review and Publish.
-2. Issue #118's completed workflow-documentation deliverable can
-   follow the same path without a ceremonial Execute stage.
-3. Ordinary implementation tasks still require Execute when
-   substantive work remains.
-4. The preparer cannot certify their own deliverable.
-5. Resolve corrections and substantive post-review edits receive
-   renewed independent Review.
-6. Frozen acceptance criteria, Plan-owned files, owner decisions
-   and historical evidence remain protected.
-7. Publish may be performed in the same Plan or Execute context
-   after Review approval, without a separate Publish chat.
-8. Applicable CI and final-diff verification remain required.
-9. The change introduces no production semantics, new bureaucracy
-   or unnecessary scope expansion.
+## Verification
 
-No new executable acceptance test is planned for this
-documentation-only workflow clarification.
+GitHub Actions run `39064305280` completed with failure at the
+frozen Plan content head.
 
-## Diff notes
+Seven test lanes passed. The cross-boundary lane had two import
+errors because the planned restricted-execution module is absent.
+The new test assertions have not executed. Task 24's experimental
+probe step and the golden comparison step were skipped because
+the preceding CI step failed.
 
-The Plan consists of three commits:
+This is expected pre-Execute red acceptance, not a green CI claim.
+Independent Review must examine test validity and feasibility
+rather than assuming collection proves the frozen assertions.
 
-- `39945c1` – align `CLAUDE.md`.
-- `010b260` – revise the roadmap Workflow.
-- `cf3e2d7` – restore unrelated changes outside Workflow.
+The complete diff against the baseline contains only the five
+Plan-owned files listed above.
 
-One unrelated nonsemantic line-wrap change remains in the
-hosted-bootstrap section of `docs/roadmap.md`, near the paragraph
-beginning "The acceptance anchors". Classify it independently.
-Do not alter historical contracts to resolve a formatting concern.
+## Independent Plan Review
 
-## Next step
+Read-only. Review the complete branch against the baseline and
+the frozen Plan content head.
 
-Request fresh, read-only independent Plan Review against
-baseline `9151949` and Plan content head `cf3e2d7`.
+Challenge bootstrap circularity, generic rather than special-case
+execution, effect-preflight completeness, transitive and indirect
+calls, canonical role-map access, artifact identity and lifetimes,
+replacement during admission, actual-machine oracles, host failure
+provenance, atomicity, negative/inconclusive outcomes and the
+mechanism ledger.
 
-Review the complete branch diff, issue #89, the existing Workflow,
-Task 28 and issue #118. Classify remaining defects P0–P3 and give
-a clear verdict on Plan → Review → Publish without Execute.
+Verify that each acceptance test expresses feasible intended
+behavior, without false expectations about current runtime APIs.
+Check Task 24 and issues #107/#110 for preservation and scope.
 
-If Review finds blocking defects, Resolve them and obtain a
-new independent Review before Publish.
+Classify findings P0–P3 and give a clear Plan verdict.
+Do not modify files, Execute, or open a PR.
 
-After approval, append the required `CHANGES.md` entry, verify
-the final diff and applicable CI, and open a PR closing #89.
+If Review finds blocking defects, Resolve and obtain fresh Review
+before Execute. After Plan approval, Execute implements the frozen
+contract and supplies independent runtime evidence.
