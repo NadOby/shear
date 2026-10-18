@@ -24,6 +24,50 @@ class ReplayCase:
     engine_blob: str
 
 
+def select_targets(
+    available: tuple[str, ...],
+    requested: str = "",
+) -> tuple[str, ...]:
+    """Filter registered mutation targets using exact paths or directories.
+
+    Blank input means all targets. Directory selectors must end in "/".
+    Selection follows catalog order and removes duplicates.
+    """
+
+    selectors = requested.split()
+
+    if not selectors:
+        return available
+
+    selected: set[str] = set()
+
+    for selector in selectors:
+        if selector.endswith("/"):
+            matches = tuple(
+                target for target in available
+                if target.startswith(selector)
+            )
+        else:
+            matches = (
+                (selector,)
+                if selector in available
+                else ()
+            )
+
+        if not matches:
+            raise ValueError(
+                "unknown mutation target or directory prefix: "
+                f"{selector!r}"
+            )
+
+        selected.update(matches)
+
+    return tuple(
+        target for target in available
+        if target in selected
+    )
+
+
 def build_work_set(
     root: Path,
     targets: tuple[str, ...],
@@ -652,6 +696,14 @@ def _parser() -> argparse.ArgumentParser:
     plan.add_argument("--seed", type=int, required=True)
     plan.add_argument("--batch", type=int, default=0)
     plan.add_argument(
+        "--targets",
+        default="",
+        help=(
+            "space-separated target paths or directory prefixes; "
+            "empty selects every target"
+        ),
+    )
+    plan.add_argument(
         "--shards",
         default="",
         help="explicit shard count; empty sizes it from the selected work",
@@ -709,21 +761,25 @@ def main(argv: list[str] | None = None) -> int:
     if args.action == "plan":
         from tests.mutation_catalog import TARGETS
 
-        work = build_work_set(
-            mutation.ROOT,
-            TARGETS,
-            args.count,
-            args.seed,
-            batch=args.batch,
-        )
-
         try:
+            targets = select_targets(TARGETS, args.targets)
+            work = build_work_set(
+                mutation.ROOT,
+                targets,
+                args.count,
+                args.seed,
+                batch=args.batch,
+            )
             shards = plan_shards(len(work), args.shards)
         except ValueError as exc:
             print(f"mutation plan failed: {exc}", file=sys.stderr)
             return 2
 
-        print(f"selected={len(work)} shards={shards}")
+        print(
+            f"selected={len(work)} shards={shards} "
+            f"targets={len(targets)}"
+        )
+        print(f"target paths: {', '.join(targets)}")
         output = os.environ.get("GITHUB_OUTPUT")
 
         if output:
