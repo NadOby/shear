@@ -1,9 +1,9 @@
 # Roadmap
 
-**Status: provisional.** The order of work after the code-as-graph spike
-(PR #17, docs/spikes/code_as_graph.md on that branch). Tasks are done in
-order unless marked independent; each one has a GitHub issue, is a PR and
-follows CLAUDE.md.
+**Status: provisional.** This file retains the Workflow, architectural
+decisions and historical task definitions. The current unfinished backlog,
+priorities and dependencies are in [Active Roadmap](roadmap_active.md).
+GitHub issues track individual tasks; `CHANGES.md` records outcomes.
 
 ## Workflow
 
@@ -100,6 +100,13 @@ obtain a preferred result, or retroactively rewrite evidence.
    - Inspect the current repository rather than relying on earlier context;
      read the roadmap task, the relevant specifications, CLAUDE.md and
      `handoff.md`.
+   - Start with the architectural question, falsifiable decision criteria
+     and the shortest high-information experiment. Minimize time and
+     implementation to a decision, not merely task size. Prefer decisive
+     end-to-end tests of plausible capabilities, even across module
+     boundaries, over low-information microtasks. Split only when needed;
+     identify dependencies and the immediate successor. Task 32 (#119)
+     established integration feasibility; full equivalence remains #123.
    - Treat the roadmap entry as a goal to validate, not a recipe to obey:
      check that its assumptions still hold, and find contradictions,
      underspecified semantics, scope hazards and decisions that need the
@@ -900,41 +907,16 @@ budget; strong-Kleene behaviour comes from functions and data.
 Done when: the experiment is run against recorded predictions and the
 result – adopt or kill – is recorded.
 
-### 25. Field identity under layout change (handoff)
+### 25. Field identity under layout change
 
-**Planned.** Issue #61. Research input to records; the owner has postponed systems
-data until records exist (Later).
+**Planned – deferred.** Issue #61. Current definition and dependencies:
+[Active Roadmap](roadmap_active.md#25-field-identity-under-layout-change).
 
-When records are planned, first run this spike. Scenario: record A `{x, y}`,
-a reference R to `A.y`, and a running old-version frame holding R;
-activation continues A to A' with layout `{x, z, y}` and a converter; new
-code reads `A'.y`, the old frame continues under the old state, and R has an
-explicitly defined fate. Then vary one dimension at a time: moved field,
-deleted field, split record, ownership change, old-version retirement.
+### 26. Content consolidation decision
 
-The central question is the status of `A.y`, to be discriminated rather than
-presupposed: its own semantic identity; no identity (A plus a selector); or
-a logical property with layout and access path separate. It interacts with
-the planned `ref` values. The activation and lifetime protocol is modelled
-in Alloy (the runner from the archived experiment returns here);
-representation and layout are tested in Python.
-
-Done when: the scenario and its variations are run against recorded
-predictions and the result names which `A.y` outcome holds and what records
-need from it.
-
-### 26. Content consolidation decision (one session)
-
-**Planned.** Issue #62.
-
-Decide from task 23's baseline and what tasks 24 and 25 taught whether
-unifying `Value` content, relation records and payloads into one relational
-content form is still justified. It must preserve `EntityID`, reference and
-ownership semantics and show a concrete reduction in production mechanisms
-or conversion paths.
-
-Done when: the decision is recorded; if positive, the refactor becomes its
-own task.
+**Planned – blocked by Task 25.** Issue #62. Current definition and
+dependencies:
+[Active Roadmap](roadmap_active.md#26-content-consolidation-decision).
 
 ## I. Hosted bootstrap
 
@@ -1133,7 +1115,7 @@ budgets are diagnostic. This completes the hosted-bootstrap milestone.
 
 ### 32. Generic restricted execution and SHEAR-defined constraints
 
-**Implemented – pending Publish.** Issue #119. After Task 31.
+**Implemented** (PR #125). Issue #119. After Task 31.
 The Plan contract is in `restricted_execution.md`.
 
 Demonstrate ordinary SHEAR functions acting as named `External`
