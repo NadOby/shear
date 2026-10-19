@@ -17,13 +17,13 @@ mandatory; the context that produced a deliverable cannot certify it.
 No background agents.
 
 The owner starts or resumes a role with "Plan task N", "Execute task N",
-"Review task N", "Resolve task N" or "Publish task N"; the contracts below
-make each instruction sufficient. Every participating context fetches the
-repository and reads CLAUDE.md, this Workflow, the task issue, its active
-roadmap entry or historical definition as applicable, and `handoff.md`.
-A handoff records material decisions, state and the next action when
-another context needs them, not empty role transitions. `handoff.md`
-is a checkpoint of claims, not evidence that they hold.
+"Review task N", "Resolve task N" or "Publish task N". For unnumbered
+issues, the same roles accept "Plan issue #123" and equivalent commands.
+Every participating context fetches the repository and reads CLAUDE.md,
+this Workflow, the authoritative task issue, and `handoff.md`. The active
+roadmap supplies priorities and dependencies when relevant. A handoff
+records material decisions, state and next actions, not empty role
+transitions. `handoff.md` is a checkpoint of claims, not evidence.
 
 **Decided.** No role may assume write access to GitHub or to the repository.
 A role states in its reply what it needs to write, and when it lacks the
@@ -133,10 +133,10 @@ obtain a preferred result, or retroactively rewrite evidence.
      impossibility.
    - Name the important claims Review must verify independently, and keep
      required work apart from useful follow-ups.
-   - Find the task's issue, or create it with the `task` label. Name
-     unfinished roadmap tasks in `roadmap_active.md`; other changes need
-     an issue but not a roadmap entry. Without issue write access, give
-     the owner the issue title and body to create.
+   - Find the task's issue or provide its details for the owner to create.
+     Numbered tasks use the `task` label; follow-ups retain `follow-up`.
+     Update `roadmap_active.md` only when priorities or dependencies change.
+     Do not duplicate authoritative issue specifications in the index.
    - Write the spec and acceptance tests on a branch `task/<n>-<name>`,
      and record the frozen Plan head and Plan-owned files in `handoff.md`.
      This is the contract for any later Execute and Review. Plan owns the
@@ -267,6 +267,7 @@ obtain a preferred result, or retroactively rewrite evidence.
      deferred limitations and follow-ups separately from defects;
      each follow-up links an existing tracking issue or receives a new
      `follow-up` issue.
+
 The owner merges, or pushes back, and says so.
 
 A chat whose context grows heavy records the material state needed for
@@ -917,14 +918,13 @@ result – adopt or kill – is recorded.
 
 ### 25. Field identity under layout change
 
-**Planned – deferred.** Issue #61. Current definition and dependencies:
-[Active Roadmap](roadmap_active.md#25-field-identity-under-layout-change).
+Definition, experimental controls and current status:
+[Issue #61](https://github.com/NadOby/shear/issues/61).
 
 ### 26. Content consolidation decision
 
-**Planned – blocked by Task 25.** Issue #62. Current definition and
-dependencies:
-[Active Roadmap](roadmap_active.md#26-content-consolidation-decision).
+Decision criteria, dependencies and current status:
+[Issue #62](https://github.com/NadOby/shear/issues/62).
 
 ## I. Hosted bootstrap
 
