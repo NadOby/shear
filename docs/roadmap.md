@@ -65,8 +65,8 @@ applicable CI before publishing or merging; do not claim unrun checks passed.
 task must produce an actionable conclusion, including when its bounded
 result is negative or inconclusive. Distinguish the motivating question
 from the bounded task contract. A task may satisfy its contract without
-resolving the motivating question; neither a valid negative result nor
-an inconclusive result is automatically an implementation defect.
+resolving the motivating question; neither a valid negative result nor an
+inconclusive result is automatically an implementation defect.
 
 Classify obstacles by the evidence that supports them:
 
@@ -91,9 +91,9 @@ Give the next action a priority and name its dependencies, or justify
 why no further work should follow. A priority is a proposed ordering of
 work, not a defect severity or an authorization to change architecture.
 Retain the original falsifiable criteria, independent Review and
-historical evidence. Do not require production changes merely to make
-a negative experiment actionable, revise frozen acceptance criteria
-to obtain a preferred result, or retroactively rewrite evidence.
+historical evidence. Do not require production changes merely to make a
+negative experiment actionable, revise frozen acceptance criteria to
+obtain a preferred result, or retroactively rewrite evidence.
 
 1. **Plan** (`Plan task N`). A fresh context, preferably with the strongest
    reasoning model available. No production changes.
@@ -194,8 +194,8 @@ to obtain a preferred result, or retroactively rewrite evidence.
      of architectural impossibility. Verify the evidence classification,
      proposed next action and its connection to the unresolved question.
      An unsupported conclusion or absent required disposition is a
-     workflow finding; do not demand a production change solely to turn a
-     valid negative result into a positive one.
+     workflow finding; do not demand a production change solely to turn
+     a valid negative result into a positive one.
    - Do not repair production code, tests or specifications. The findings
      are the reply; the owner or Resolve records them in `handoff.md` if
      they should outlive the chat.
@@ -604,7 +604,7 @@ of tasks 7, 9, 12 and 13. Weak rows are recorded as such.
 name_resolution.md.
 
 Text edits become transformations with continuity (task 13's rules), so
-editing text keeps the identity of everything it does not touch.
+editing text keeps the identity of everything the edit does not touch.
 Lexical and module name resolution are specified first.
 
 ### 16. Documentation coherence (one session)
@@ -766,9 +766,9 @@ reports, including the call-depth limit; nothing is rolled back.
 Done when: `tests/test_error_handling.py` passes unchanged; the `errors`
 examples run in the corpus and round-trip through text; every program of
 main keeps its StateID, text and bytecode, so `tests/language_golden.json`
-is re-recorded only to add entries; existing failures keep their classes
-and messages; the language docs name the new operations; and survivors
-of edited mutation targets are carried or dropped by the task 19 rule.
+is re-recorded only to add entries; existing failures keep their classes and
+messages; the language docs name the new operations; and survivors of edited
+mutation targets are carried or dropped by the task 19 rule.
 
 ## Later
 
@@ -804,8 +804,8 @@ of edited mutation targets are carried or dropped by the task 19 rule.
 - Concurrency starts with a semantic spike, not with thread safety added to
   the current path: two computations reading and writing cells, activation
   while other computations run old code, capability authority across
-  computations, holds and retirement, failure during concurrent activation
-  or trial, and the order of externally visible effects.
+  computations, holds and retirement, failure during concurrent activation or
+  trial, and the order of externally visible effects.
 - Long-term direction (README, "Design philosophy"): DSLs and malleability,
   compiling new language structures at run time, composing libraries, and
   applications as libraries. Not scheduled. The design canaries
@@ -817,8 +817,8 @@ of edited mutation targets are carried or dropped by the task 19 rule.
 
 The experiment (identity_model.md §10) killed one simplification strategy
 and left narrower ones. Two rules apply to this section: a simplification
-names the concrete mechanism it intends to delete, and a research task
-names the concrete requirement that could falsify the current architecture.
+names the concrete mechanism it intends to delete, and a research task names
+the concrete requirement that could falsify the current architecture.
 Predictions are recorded before a run; an experiment gets one revision.
 
 These tasks follow task 20 (error handling, `task/20-error-handling`).
@@ -893,8 +893,8 @@ Kill criterion: it succeeds only if the mechanism count drops. Cost side:
 new VM operations, runtime-only semantic cases, special Unknown or budget
 machinery, constraint-only environment interfaces. Removed side: the
 constraint evaluator, constraint node semantics, constraint-specific
-recursion and control, the duplicate `External` path. Success allows at
-most one generic boundary for external authority and one generic execution
+recursion and control, the duplicate `External` path. Success allows at most
+one generic boundary for external authority and one generic execution
 budget; strong-Kleene behaviour comes from functions and data.
 
 Done when: the experiment is run against recorded predictions and the
@@ -977,10 +977,10 @@ same chunk. Three facts shape this section:
   (2 cores, best of 3). D3 subsequently permits authenticated,
   compiler-produced artifacts through host-internal admission.
 
-The acceptance anchors are the review's section 4: the semantic graph
-stays canonical and executable forms stay derived; an image keeps the
-compiler machinery that regenerates its execution; producing a candidate
-stays distinct from activating it; continuity alone does not establish
+The acceptance anchors are the review's section 4: the semantic graph stays
+canonical and executable forms stay derived; an image keeps the compiler
+machinery that regenerates its execution; producing a candidate stays
+distinct from activating it; continuity alone does not establish
 preservation. A task here that would trade one of them for speed brings
 the trade to the owner.
 
@@ -994,8 +994,8 @@ their own conditions; neither side waits for the other.
 **Implemented** (PR #82). The design is in vm_in_shear.md section 7.
 
 Keep the compiler's source as data across swaps. Generation 1 is today's
-`swap_all`; generation 2 is compiled by the swapped generation-1 compiler
-on the SHEAR VM and installed; generation 3 compiles again. Record which
+`swap_all`; generation 2 is compiled by the swapped generation-1 compiler on
+the SHEAR VM and installed; generation 3 compiles again. Record which
 generation produced each installed chunk.
 
 Done when: generations 2 and 3 agree with generation 1 and with the host
@@ -1021,8 +1021,8 @@ inference, state and identity derivation, canonicalization, activation,
 reflection, data operations), each with its contract, implementation,
 whether the hosted bootstrap permits it, and the test that covers it.
 
-Done when: the matrix test passes and the inventory is written, as input
-to D4.
+Done when: the matrix test passes and the inventory is written, as input to
+D4.
 
 ### 29. Execution route for compiler-produced chunks (one session)
 
@@ -1031,8 +1031,8 @@ to D4.
 Compare the SHEAR VM with host execution of the SHEAR compiler's chunks as
 derived artifacts of the nodes they compile, behind a verifier and with
 recorded provenance. The second needs the compiler to see node identities
-(self_hosting.md section 6) and keeps the source canonical, which the swap
-of task 27 does not. Predictions are recorded before the run; one revision;
+(self_hosting.md section 6) and keeps the source canonical, which the swap of
+task 27 does not. Predictions are recorded before the run; one revision;
 costs by task 23's method. If the route adds a machine boundary, weigh
 extracting one run-context component from `machine.py` first (review
 section 8).
@@ -1040,8 +1040,8 @@ section 8).
 **Historical Plan contract, not a claim of demonstrated workload coverage:**
 
 The routes are compared on D4's recommended workload with task 28's matrix,
-not on the compiler alone. For the SHEAR VM that includes the instructions
-it does not run (`READ`, `WRITE`, `CODE`, `LINKS`, `QUOTE`, `FUNCTION`,
+not on the compiler alone. For the SHEAR VM that includes the instructions it
+does not run (`READ`, `WRITE`, `CODE`, `LINKS`, `QUOTE`, `FUNCTION`,
 `ACTIVATE`, `TRIAL`, `CATCH`, `FAIL`, `RAISE`); those that name an entity
 through the
 running function's links, such as `READ`, `WRITE`, `CODE` and `ACTIVATE`,
