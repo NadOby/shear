@@ -2,67 +2,67 @@
 
 ## Current state
 
-- Issue: #124 – decisive experiments and reduced planning conservatism.
+- Issue: #124 – decisive experiments and planning maintenance.
 - Branch: `task/124-decisive-experiments`.
-- Role: Plan deliverable prepared; independent Review pending.
-- Baseline `main`: `9dc13c7b97084631b9c451b2f24c587fc4cd77eb`.
-- Plan content head before this handoff: `b200a494f8447e2cf89fcda737cef7859d5fa330`.
-- Final Plan head: verify after this handoff commit.
-- No Execute required: the documentation deliverable is complete.
-- No PR opened. Applicable branch CI has not yet been verified.
+- Baseline: `9dc13c7b97084631b9c451b2f24c587fc4cd77eb`.
+- Initial reviewed Plan: `7121fbbdb6ec6f7785c0f98396d2929b4e894a16`.
+- Independent Plan Review: REQUEST RESOLVE (three P2, one P3).
+- Final substantive Resolve head: `d035ba139ef40846546e455617b01d49250ca3bc`.
+- Role: Resolve complete; independent re-Review pending.
+- Execute unnecessary: documentation-only deliverable.
+- No PR opened.
 
-## Plan deliverable
+## Resolution
 
-- `CLAUDE.md` – prioritize decisive experiments and reference the active roadmap.
-- `docs/roadmap.md` – update Plan guidance, Workflow references and Task 32 status; retain historical task definitions.
-- `docs/roadmap_active.md` – new working backlog for unfinished tasks and selected architectural follow-ups.
-- `README.md` – link the active roadmap.
-- `docs/restricted_execution.md` – correct Task 32's post-merge status.
-- `CHANGES.md` – append the architectural and workflow change record.
-- `handoff.md` – replace the obsolete Task 32 checkpoint.
+### P2 – Roadmap maintenance
 
-No production code, tests, golden records or frozen technical acceptance were changed.
+- GitHub issues are authoritative for task definitions and completion.
+- `docs/roadmap_active.md` is a short priority/dependency index.
+- Completion alone requires no roadmap update.
+- Historical roadmap entries are not moved at completion.
+- Tasks 25–26 have stable references to issues #61 and #62.
 
-## Historical reconciliation
+### P2 – Plan head
 
-Task 32 (#119) was merged in PR #125 on 2026-10-19.
-Its accepted bounded result establishes restricted execution and
-constraint integration feasibility, not complete constraint equivalence.
+The reviewed Plan was `7121fbb`. The substantive Resolve content
+is pinned above at `d035ba1`. This handoff update is metadata only.
 
-The former Task 32 handoff remains available in Git history.
-Its independent Review, CI and mutation evidence remain associated
-with PR #125 and the existing historical records.
+### P2 – Task 25 experimental control
 
-Open follow-ups:
-- #123 – complete constraint semantics.
-- #61 – field identity under layout change.
-- #62 – content consolidation decision.
+Issue #61 now explicitly requires varying one experimental dimension
+at a time. Its full experiment and completion criteria are preserved.
 
-The active roadmap identifies #123 as the next architectural
-experiment; Tasks 25 and 26 remain deferred.
+### P3 – Unnumbered follow-ups
 
-## Independent Review
+Workflow supports commands such as `Plan issue #123`.
+Follow-ups retain their GitHub issue labels and close through PRs.
+The active index changes only when priorities or dependencies change.
 
-Review the complete branch diff against the pinned baseline.
+## Additional improvements
 
-Verify:
-- Issue #124 acceptance and absence of unrelated changes.
-- Decisive-experiment guidance without weakened safeguards.
-- Consistency between active roadmap, historical roadmap,
-  CLAUDE.md, README.md and Workflow.
-- Preservation of historical evidence and frozen acceptance.
-- Correct Task 32 post-merge metadata.
-- Markdown references, documentation checks and applicable CI.
-- No production, test or golden-record changes.
+- Planning favors decisive, falsifiable architectural experiments.
+- Mobile editing supports complete replacement below roughly 300 lines
+  or verified, bottom-to-top line-numbered edits in larger files.
+- `CHANGES.md` remains append-only.
+- No new workflow stage, template or mandatory synchronization.
+- No production code, tests or golden records changed.
 
-Classify findings P0–P3. Review is independent and read-only.
+## Verification
+
+- Task 32 (#119) merged through PR #125.
+- Its restricted-execution results remain bounded; full constraint
+  equivalence is open under #123.
+- Task 32's frozen technical acceptance and historical evidence remain
+  unchanged.
+- CI at `a73e3fb` passed.
+- Final Resolve CI must be verified before Publish.
 
 ## Next action
 
-1. Verify the final Plan head after this commit.
-2. Request fresh independent Review of that exact head.
-3. Resolve findings only if required, followed by independent re-Review.
-4. After approval, Publish without an empty Execute stage.
-5. Open a PR with `Closes #124`; verify final CI before merge.
+1. Independently re-Review the complete diff against the baseline,
+   including issues #61 and #62 and the original Review findings.
+2. Verify final CI and documentation checks.
+3. Resolve new findings only if required, followed by re-Review.
+4. After approval, Publish through a PR containing `Closes #124`.
 
-The owner retains publication and architectural decision authority.
+The owner retains architectural and publication authority.
