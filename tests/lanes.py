@@ -118,6 +118,9 @@ LANES: dict[str, tuple[str, ...]] = {
         "test_mutation_regressions_boundaries",
         "test_properties",
         "test_reference_version",
+        "test_restricted_execution",
+        "test_restricted_execution_boundaries",
+        "test_restricted_execution_lifecycle",
         "test_stateful_sequences",
     ),
     "mutation": (

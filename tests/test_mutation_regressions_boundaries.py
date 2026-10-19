@@ -2,20 +2,28 @@
 
 from __future__ import annotations
 
-from dataclasses import FrozenInstanceError
+from dataclasses import FrozenInstanceError, replace
 import unittest
+from unittest import mock
 
 from shear import (
     CellDeclaration,
     EntityID,
+    External,
     IsKind,
     Runtime,
     State,
     Value,
     canonical_serialize,
 )
+from shear import machine
 from shear.examples._support import program
 from shear.fold import fold_constants, sources_of
+from shear.hosted_bootstrap import AdmissionRejected
+from shear.hosted_bootstrap.restricted import (
+    RESTRICTED_FAILURE,
+    RestrictedExecutor,
+)
 from shear.lang import (
     Function,
     LanguageError,
@@ -27,6 +35,12 @@ from shear.lang import (
 )
 from shear.relations import relation_of
 from shear.syntax import SourceError, parse, render
+from tests.test_restricted_execution import (
+    PRED,
+    PURE_POLICY,
+    RAISE,
+    evaluator_source,
+)
 
 
 F = EntityID("f")
@@ -358,7 +372,7 @@ class SyntaxRendererBoundaryMutationRegressions(unittest.TestCase):
             (
                 ("apply", 1, ("lit", 2)),
                 (),
-                "apply(raw(1), (2,))",
+                'apply(raw(1), (2,))',
             ),
             (
                 ("apply", ("arg", ""), ("lit", 1)),
@@ -525,6 +539,118 @@ class SyntaxRendererBoundaryMutationRegressions(unittest.TestCase):
         for body in bodies:
             with self.subTest(body=body):
                 self.assertIn("function(", rendered(body))
+
+
+class RestrictedExecutionMutationRegressions(unittest.TestCase):
+    """Independent regressions for Task 32 Execute Review findings."""
+
+    def setUp(self) -> None:
+        self.source = evaluator_source()
+        self.executor = RestrictedExecutor()
+        self.deployment = self.executor.deploy(
+            self.source, compiler_generation=1,
+        )
+
+    def test_failed_write_preserves_evaluator_operation_provenance(
+        self,
+    ) -> None:
+        target_state = State.create({
+            CELL: Value.create(
+                CELL, CellDeclaration(External("policy"), 3),
+            ),
+        })
+        registry = self.executor.registry({
+            "policy": (self.deployment, PRED),
+        })
+        runtime = Runtime(target_state, registry.context)
+        registry.replace("policy", (self.deployment, RAISE))
+
+        before_cells = dict(runtime.active.cells)
+        before_id = runtime.active.id
+        before_events = len(self.executor.trace())
+
+        root = _definition_of(self.source.values[RAISE]).body
+        artifact = self.deployment.artifacts[
+            (root, self.source.values[root].version_id)
+        ]
+        opened = []
+        real_open = machine._open
+
+        def observe(activation, args, *rest, **kwargs):
+            if activation.entity == RAISE:
+                opened.append(activation.hold.version.state.id)
+            return real_open(activation, args, *rest, **kwargs)
+
+        with mock.patch.object(machine, "_open", side_effect=observe):
+            with self.assertRaises(LanguageError) as cm:
+                runtime.write(CELL, 4)
+
+        self.assertEqual(opened, [self.source.id])
+        self.assertEqual(
+            cm.exception.error[:3],
+            ("program", "evaluator_failure", "probe"),
+        )
+        self.assertEqual(runtime.active.id, before_id)
+        self.assertEqual(dict(runtime.active.cells), before_cells)
+
+        events = self.executor.trace()[before_events:]
+        failures = [
+            event for event in events
+            if event.kind == RESTRICTED_FAILURE
+            and event.entity == RAISE
+            and event.target_state_id == target_state.id
+        ]
+        self.assertEqual(len(failures), 1)
+        failure = failures[0]
+        self.assertEqual(failure.version, artifact.version)
+        self.assertEqual(failure.artifact_id, artifact.artifact_id)
+        self.assertEqual(failure.compiler_generation, 1)
+        self.assertIn("write: External(policy)", failure.detail)
+        self.assertIn(
+            f"evaluator_source={self.source.id.value}",
+            failure.detail,
+        )
+        self.assertIn(
+            "outcome=failure:Raised",
+            failure.detail,
+        )
+        self.assertFalse(any(
+            event.kind == "execute"
+            and event.target_state_id == target_state.id
+            for event in events
+        ))
+
+    def test_copied_deployment_has_no_execution_authority(self) -> None:
+        copied = replace(self.deployment)
+        self.assertIsNot(copied, self.deployment)
+        self.assertIs(copied.artifacts, self.deployment.artifacts)
+
+        with self.assertRaises(AdmissionRejected):
+            self.executor.run(
+                copied, PRED, 3, policy=PURE_POLICY,
+            )
+
+        with self.assertRaises(AdmissionRejected):
+            self.executor.registry({"policy": (copied, PRED)})
+
+        registry = self.executor.registry({
+            "policy": (self.deployment, PRED),
+        })
+        with self.assertRaises(AdmissionRejected):
+            registry.replace("policy", (copied, PRED))
+
+        self.assertEqual(
+            self.executor.run(
+                self.deployment, PRED, 3, policy=PURE_POLICY,
+            ),
+            "satisfied",
+        )
+        accepted = Runtime(State.create({
+            CELL: Value.create(
+                CELL, CellDeclaration(External("policy"), 3),
+            ),
+        }), registry.context)
+        self.assertEqual(accepted.read(CELL), 3)
 
 
 if __name__ == "__main__":

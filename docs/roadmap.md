@@ -880,7 +880,7 @@ refactor.
 
 ### 24. Constraints as functions (handoff)
 
-**Planned.** After task 20. Issue #56.
+**Completed – bounded negative experiment.** After task 20. Issue #56.
 
 Falsification experiment: can the constraint algebra (`constraints.py`, its
 own evaluator, budget and three-valued result) be expressed through the
@@ -1113,7 +1113,7 @@ parity is a task-30 prerequisite.
 
 ### 31. Live evolution on the bootstrap route (handoff)
 
-**Planned.** Issue #67. After task 30. The Plan contract is in
+**Implemented.** Issue #67. After task 30. The Plan contract is in
 live_evolution.md, under D5.
 
 Complete the corpus cases deferred by task 30, including self-modification
@@ -1130,3 +1130,45 @@ dependency-safe artifact reuse, repeated updates and version retirement.
 Done when these cases run through the admitted path without host-lowering
 fallback, with update latency and retained states recorded. D4's soft
 budgets are diagnostic. This completes the hosted-bootstrap milestone.
+
+### 32. Generic restricted execution and SHEAR-defined constraints
+
+**Implemented – pending Publish.** Issue #119. After Task 31.
+The Plan contract is in `restricted_execution.md`.
+
+Demonstrate ordinary SHEAR functions acting as named `External`
+constraint evaluators through authenticated hosted execution. Reuse
+one generic restricted-execution mechanism rather than introducing
+a constraint-specific interpreter.
+
+Preserve immutable constraint identity independently of executable
+deployment. Pin semantic state, node versions, compiler generation
+and artifact lifetimes. Enforce generic capability/effect restrictions
+before execution, including transitive calls and indirect dispatch.
+Resolve initial admission without circular bootstrap or host fallback.
+
+Exercise genuine positive and negative SHEAR predicates during
+initial admission, writes, activation and trials. Preserve three-valued
+results, host-error provenance, atomicity, existing golden records and
+Task 24's frozen negative evidence.
+
+Prove non-constraint reuse, independently verify execution and effect
+isolation, and account for all added, retained, shared and genuinely
+removed mechanisms.
+
+This task demonstrates integration feasibility, not net mechanism
+savings or complete replacement of the incumbent evaluator.
+Generic canonical-content inspection, generic resource budgets and
+full Task 24 B/C replacement remain separate work.
+
+Investigate #107 and #110 as correctness dependencies without
+silently expanding scope. Escalate language-shaping decisions to
+the owner.
+
+Done when the frozen executable acceptance suite establishes
+genuine admitted execution at every required boundary, generic
+reuse, pre-execution isolation, version-safe replacement, independent
+anti-fallback verification and an audited mechanism inventory.
+A negative or inconclusive result requires reproducible evidence,
+the smallest missing generic capability and an actionable successor;
+it does not establish successful integration.

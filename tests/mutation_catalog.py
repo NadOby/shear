@@ -76,6 +76,8 @@ TARGETS = (
     "shear/hosted_bootstrap/command.py",
     "shear/hosted_bootstrap/descriptors.py",
     "shear/hosted_bootstrap/generations.py",
+    "shear/hosted_bootstrap/restricted.py",
+    "shear/hosted_bootstrap/restricted_policy.py",
     "shear/hosted_bootstrap/seed.py",
     "shear/hosted_bootstrap/session.py",
     "shear/hosted_bootstrap/target.py",
@@ -437,6 +439,7 @@ def load_catalog(
         "engine_blob",
         "manifest",
     )
+
     catalog_targets = _require_string_list(
         manifest,
         "catalog_targets",

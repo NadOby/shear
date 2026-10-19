@@ -2020,3 +2020,27 @@ negative and inconclusive experiments.
   substantive post-review changes require another independent Review.
 - Validated the simplified workflow against Task 28 and issue #118.
   No production semantics, tests or golden records changed.
+
+
+## 2026-10-19
+
+### Restricted execution and SHEAR-defined constraints (task 32, GH-119)
+
+- Demonstrated generic restricted execution of ordinary SHEAR functions
+  using the existing compiler and hosted machine, without a separate
+  interpreter, constraint-specific VM or Python predicate fallback.
+- Integrated authenticated SHEAR-defined named `External` evaluators
+  into real cell and relation admission, writes, activation and trials.
+  Verified effect preflight, artifact authority, operation-local
+  evaluator selection, fail-closed behavior and rollback.
+- Retained existing constraint dispatch, evaluation budgets, named
+  authority and three-valued semantics. Added generic effect checks,
+  authenticated deployment, operation-local selection and exact result
+  conversion. No complete constraint replacement or net mechanism
+  savings are claimed.
+- Independent Execute Review approved `e26430c`. All eight ordinary
+  CI lanes and Task 24 golden controls passed. The targeted mutation
+  campaign killed all 200 mutations in the two new restricted modules.
+- Full constraint semantics, canonical-content introspection and
+  generic computation budgeting remain open under #123. Faster,
+  decisive experiment planning is tracked under #124.

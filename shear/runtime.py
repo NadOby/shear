@@ -100,6 +100,24 @@ def listening(listener: VersionListener | None) -> Iterator[None]:
         _LISTENER.reset(token)
 
 
+def _admission_scope(
+    context: EvaluationContext,
+    target_state_id: StateID,
+    operation: str,
+):
+    """Use optional host operation metadata without changing plain contexts.
+
+    One admission operation pins evaluator selections through all its cell
+    and relation checks. The hook is not canonical content, an additional
+    constraint evaluator, or a language-visible effect.
+    """
+
+    operation_scope = getattr(context, "operation_scope", None)
+    if operation_scope is None:
+        return contextlib.nullcontext()
+    return operation_scope(target_state_id, operation)
+
+
 class CellError(ValueError):
     """A cell operation named an entity that is not a mutable cell."""
 
@@ -410,7 +428,8 @@ class Runtime:
         context: EvaluationContext | None = None,
     ) -> None:
         self._context = context or EvaluationContext()
-        self._active = Version._load(state, self._context)
+        with _admission_scope(self._context, state.id, "load"):
+            self._active = Version._load(state, self._context)
         self._active._runtime = self
         self._versions: list[Version] = [self._active]
         # Every result activated, in order, so that a result built from an
@@ -485,29 +504,32 @@ class Runtime:
         ``StateID`` are unchanged either way.
         """
 
-        self._active_cell(cell)
-        canonical = canonicalize(content)
-        _check_content(
-            cell,
-            self._active._declarations[cell],
-            canonical,
-            self._context,
-            "write",
-        )
+        with _admission_scope(self._context, self._active.id, "write"):
+            self._active_cell(cell)
+            canonical = canonicalize(content)
+            _check_content(
+                cell,
+                self._active._declarations[cell],
+                canonical,
+                self._context,
+                "write",
+            )
 
-        staged = dict(self._active._cells)
-        staged[cell] = canonical
-        failure = _failed_constraint_relation(
-            self._active.state,
-            staged,
-            self._context,
-            touching=cell,
-        )
+            staged = dict(self._active._cells)
+            staged[cell] = canonical
+            failure = _failed_constraint_relation(
+                self._active.state,
+                staged,
+                self._context,
+                touching=cell,
+            )
 
-        if failure is not None:
-            raise RelationConstraintRejected(*failure, f"write of {cell.value}")
+            if failure is not None:
+                raise RelationConstraintRejected(
+                    *failure, f"write of {cell.value}"
+                )
 
-        self._active._cells[cell] = canonical
+            self._active._cells[cell] = canonical
 
     def enter(self, entity: EntityID) -> Frame:
         """Start a simulated frame executing code of an entity."""
@@ -553,36 +575,39 @@ class Runtime:
         active = self._active
         result, available = self._prepare(target, converters)
 
-        if self.previous is not None:
-            raise ActivationRejected(
-                "the previous version is still held"
+        with _admission_scope(
+            self._context, result.destination.id, "activate",
+        ):
+            if self.previous is not None:
+                raise ActivationRejected(
+                    "the previous version is still held"
+                )
+
+            contents = self._stage_cells(result, available, self._context)
+            self._check_staged_relations(result, contents, self._context)
+            references = self._stage_references(
+                result,
+                reject_untransferable_references,
             )
 
-        contents = self._stage_cells(result, available, self._context)
-        self._check_staged_relations(result, contents, self._context)
-        references = self._stage_references(
-            result,
-            reject_untransferable_references,
-        )
+            new = Version(result.destination, contents)
+            new._runtime = self
+            listener = _LISTENER.get()
 
-        new = Version(result.destination, contents)
-        new._runtime = self
-        listener = _LISTENER.get()
+            if listener is not None:
+                # Everything is staged and accepted; nothing has changed yet.
+                listener.candidate(self, new, "activate")
 
-        if listener is not None:
-            # Everything is staged and accepted; nothing has changed yet.
-            listener.candidate(self, new, "activate")
+            for kept, reference in references:
+                kept._reference = reference
+                kept._move(new)
 
-        for kept, reference in references:
-            kept._reference = reference
-            kept._move(new)
+            self._versions = [new, active]
+            self._active = new
+            self._history.append(result)
+            self._retire_if_unused(active)
 
-        self._versions = [new, active]
-        self._active = new
-        self._history.append(result)
-        self._retire_if_unused(active)
-
-        return new
+            return new
 
     def trial(
         self,
@@ -607,20 +632,24 @@ class Runtime:
 
         result, available = self._prepare(target, converters)
         trial_context = context or self._context
-        contents = self._stage_cells(result, available, trial_context)
-        self._check_staged_relations(result, contents, trial_context)
 
-        isolated = Runtime._isolated(
-            result.destination,
-            contents,
-            trial_context,
-        )
-        listener = _LISTENER.get()
+        with _admission_scope(
+            trial_context, result.destination.id, "trial",
+        ):
+            contents = self._stage_cells(result, available, trial_context)
+            self._check_staged_relations(result, contents, trial_context)
 
-        if listener is not None:
-            listener.candidate(self, isolated.active, "trial")
+            isolated = Runtime._isolated(
+                result.destination,
+                contents,
+                trial_context,
+            )
+            listener = _LISTENER.get()
 
-        return isolated
+            if listener is not None:
+                listener.candidate(self, isolated.active, "trial")
+
+            return isolated
 
     def end_trial(self) -> None:
         """Tell the listener that the run of this trial, a runtime that
