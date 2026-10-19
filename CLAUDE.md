@@ -24,14 +24,18 @@ holds one spec per concept; `CHANGES.md` is the architectural log.
   merges, conversions. Ambiguity is rejected, never silently resolved.
 - Constraints are semantic values; executable evaluators are separate and
   referenced by name.
-- Be pragmatic, not pure: prefer the smallest change that works, defer design
-  decisions until a real program needs them, and change the vision where it
-  contradicts reality.
-- Spend cheap implementation on evidence, not on accumulated code. When
-  bounded competing implementations can settle an architectural question,
-  prefer the experiment to argument, but fix the discriminator and the
-  predictions before building them and name what would falsify the current
-  design; a revision is recorded with its reason before the rerun.
+- Be pragmatic, not pure: minimize the time and implementation needed to
+  reach an architectural decision, not merely the size of each task. Defer
+  choices experiments do not require; revise the vision when evidence demands.
+- Start with the architectural question, falsifiable decision criteria and the
+  shortest high-information experiment. Prefer decisive end-to-end tests over
+  low-information microtasks, even across module boundaries. Split only when
+  necessary, naming the dependency and immediate successor.
+- Spend cheap implementation on evidence, not accumulated infrastructure.
+  Be less conservative about experimental scope, never about evidence, safety,
+  frozen acceptance, independent Review or owner authority. Fix discriminators,
+  predictions and falsifiers before testing; record reasons for revisions
+  before reruns.
 
 ## Workflow
 
