@@ -39,12 +39,13 @@ holds one spec per concept; `CHANGES.md` is the architectural log.
 
 ## Workflow
 
-- Work follows `docs/roadmap.md`: its task order, and the five task roles
-  its Workflow section defines: Plan, Execute, Review, Resolve and Publish.
-  These are responsibilities, not mandatory separate chats.
+- Work follows `docs/roadmap.md` for Workflow, decisions and historical
+  tasks; `docs/roadmap_active.md` holds unfinished task order, priorities
+  and dependencies. The five roles are Plan, Execute, Review, Resolve
+  and Publish – responsibilities, not mandatory separate chats.
   "Plan task N", "Execute task N", "Review task N", "Resolve task N" and
-  "Publish task N" remain sufficient instructions; read the roadmap's
-  contracts when given one.
+  "Publish task N" remain sufficient instructions; read the Workflow
+  contracts and relevant active task definition.
 - Execute may be skipped when Plan already contains the complete deliverable
   and no substantive implementation remains. Resolve is needed only when
   Review findings require changes. Publish may run in the same context as
