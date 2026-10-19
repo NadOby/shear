@@ -2044,3 +2044,17 @@ negative and inconclusive experiments.
 - Full constraint semantics, canonical-content introspection and
   generic computation budgeting remain open under #123. Faster,
   decisive experiment planning is tracked under #124.
+
+### Decisive experiment planning and active roadmap (GH-124)
+
+- Prioritized falsifiable architectural questions and short,
+  high-information end-to-end experiments over microtask size.
+- Allowed cross-module experimental scope without relaxing evidence,
+  safety, frozen acceptance, independent Review or owner authority.
+- Separated unfinished work into `docs/roadmap_active.md`; retained
+  Workflow, architectural decisions and completed task definitions
+  in `docs/roadmap.md`.
+- Moved Tasks 25–26 into the active backlog alongside #123.
+- Reconciled Task 32's merged status (PR #125) without changing
+  historical evidence or technical acceptance.
+- No production semantics, tests or golden records changed.

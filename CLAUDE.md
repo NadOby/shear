@@ -24,23 +24,28 @@ holds one spec per concept; `CHANGES.md` is the architectural log.
   merges, conversions. Ambiguity is rejected, never silently resolved.
 - Constraints are semantic values; executable evaluators are separate and
   referenced by name.
-- Be pragmatic, not pure: prefer the smallest change that works, defer design
-  decisions until a real program needs them, and change the vision where it
-  contradicts reality.
-- Spend cheap implementation on evidence, not on accumulated code. When
-  bounded competing implementations can settle an architectural question,
-  prefer the experiment to argument, but fix the discriminator and the
-  predictions before building them and name what would falsify the current
-  design; a revision is recorded with its reason before the rerun.
+- Be pragmatic, not pure: minimize the time and implementation needed to
+  reach an architectural decision, not merely the size of each task. Defer
+  choices experiments do not require; revise the vision when evidence demands.
+- Start with the architectural question, falsifiable decision criteria and the
+  shortest high-information experiment. Prefer decisive end-to-end tests over
+  low-information microtasks, even across module boundaries. Split only when
+  necessary, naming the dependency and immediate successor.
+- Spend cheap implementation on evidence, not accumulated infrastructure.
+  Be less conservative about experimental scope, never about evidence, safety,
+  frozen acceptance, independent Review or owner authority. Fix discriminators,
+  predictions and falsifiers before testing; record reasons for revisions
+  before reruns.
 
 ## Workflow
 
-- Work follows `docs/roadmap.md`: its task order, and the five task roles
-  its Workflow section defines: Plan, Execute, Review, Resolve and Publish.
-  These are responsibilities, not mandatory separate chats.
+- Work follows `docs/roadmap.md` for Workflow, decisions and historical
+  tasks; `docs/roadmap_active.md` holds unfinished task order, priorities
+  and dependencies. The five roles are Plan, Execute, Review, Resolve
+  and Publish – responsibilities, not mandatory separate chats.
   "Plan task N", "Execute task N", "Review task N", "Resolve task N" and
-  "Publish task N" remain sufficient instructions; read the roadmap's
-  contracts when given one.
+  "Publish task N" remain sufficient instructions; read the Workflow
+  contracts and relevant active task definition.
 - Execute may be skipped when Plan already contains the complete deliverable
   and no substantive implementation remains. Resolve is needed only when
   Review findings require changes. Publish may run in the same context as
@@ -60,6 +65,13 @@ holds one spec per concept; `CHANGES.md` is the architectural log.
   it delivers its output in its reply (findings, `handoff.md` text, issue or
   PR text) for the owner or a write-capable role to record, and never says
   something is recorded, opened or pushed unless it checked.
+- For mobile-only editing, minimize the number and size of file edits.
+  Prefer complete replacement of files under roughly 300 lines. For
+  larger files, exact line-numbered edits applied bottom-to-top against
+  a verified commit are an equally valid alternative. Prefer append-only
+  changes to historical logs. Provide clickable edit links, copyable
+  commit messages and content without leading or trailing empty lines.
+  Make one commit at a time and verify it before proceeding.
 - Work is tracked in GitHub issues: every roadmap task and every other change
   has an issue before work starts, and a follow-up found while working becomes
   a `follow-up` issue, not a note in a file or a chat. The roadmap's Workflow

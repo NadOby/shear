@@ -1,9 +1,9 @@
 # Roadmap
 
-**Status: provisional.** The order of work after the code-as-graph spike
-(PR #17, docs/spikes/code_as_graph.md on that branch). Tasks are done in
-order unless marked independent; each one has a GitHub issue, is a PR and
-follows CLAUDE.md.
+**Status: provisional.** This file retains the Workflow, architectural
+decisions and historical task definitions. The current unfinished backlog,
+priorities and dependencies are in [Active Roadmap](roadmap_active.md).
+GitHub issues track individual tasks; `CHANGES.md` records outcomes.
 
 ## Workflow
 
@@ -17,12 +17,13 @@ mandatory; the context that produced a deliverable cannot certify it.
 No background agents.
 
 The owner starts or resumes a role with "Plan task N", "Execute task N",
-"Review task N", "Resolve task N" or "Publish task N"; the contracts below
-make each instruction sufficient. Every participating context fetches the
-repository and reads CLAUDE.md, this section, the task's roadmap entry
-and `handoff.md`. A handoff records material decisions, state and the next
-action when another context needs them, not empty role transitions.
-`handoff.md` is a checkpoint of claims, not evidence that they hold.
+"Review task N", "Resolve task N" or "Publish task N". For unnumbered
+issues, the same roles accept "Plan issue #123" and equivalent commands.
+Every participating context fetches the repository and reads CLAUDE.md,
+this Workflow, the authoritative task issue, and `handoff.md`. The active
+roadmap supplies priorities and dependencies when relevant. A handoff
+records material decisions, state and next actions, not empty role
+transitions. `handoff.md` is a checkpoint of claims, not evidence.
 
 **Decided.** No role may assume write access to GitHub or to the repository.
 A role states in its reply what it needs to write, and when it lacks the
@@ -32,14 +33,16 @@ that has the access, records it. A role never reports something as recorded,
 opened or pushed unless it checked. Review needs no write access at all: its
 findings are its reply.
 
-**Decided.** Work is tracked in GitHub issues. Each roadmap task not yet
-done has an issue labelled `task`, named in its entry's status line; any
-other change gets an issue before work starts, and a follow-up found during
-a task becomes an issue labelled `follow-up`. An issue holds the goal, the
-status and the discussion. This roadmap remains the order and the task
-definitions, the specifications the design, `CHANGES.md` the log and
-`handoff.md` the checkpoint between chats. Commits and PRs name their issue
-as CLAUDE.md describes.
+**Decided.** Work is tracked in GitHub issues. Unfinished numbered
+roadmap tasks have issues labelled `task`; selected architectural
+follow-ups may also appear in `roadmap_active.md` with their existing
+`follow-up` labels. Other changes get an issue before work starts;
+newly discovered follow-ups become issues labelled `follow-up`.
+The active roadmap holds current priorities and dependencies. This
+file retains Workflow, decisions and historical task definitions;
+specifications hold design, `CHANGES.md` the log and `handoff.md`
+the checkpoint between chats. Commits and PRs name their issue as
+CLAUDE.md describes.
 
 **Decided.** A Plan that already contains the full proposed deliverable
 may go directly to independent Review, then Publish. State briefly why
@@ -98,8 +101,16 @@ obtain a preferred result, or retroactively rewrite evidence.
 1. **Plan** (`Plan task N`). A fresh context, preferably with the strongest
    reasoning model available. No production changes.
    - Inspect the current repository rather than relying on earlier context;
-     read the roadmap task, the relevant specifications, CLAUDE.md and
-     `handoff.md`.
+     read `roadmap_active.md` for unfinished work, the historical roadmap
+     entry when relevant, the task issue, applicable specifications,
+     CLAUDE.md and `handoff.md`.
+   - Start with the architectural question, falsifiable decision criteria
+     and the shortest high-information experiment. Minimize time and
+     implementation to a decision, not merely task size. Prefer decisive
+     end-to-end tests of plausible capabilities, even across module
+     boundaries, over low-information microtasks. Split only when needed;
+     identify dependencies and the immediate successor. Task 32 (#119)
+     established integration feasibility; full equivalence remains #123.
    - Treat the roadmap entry as a goal to validate, not a recipe to obey:
      check that its assumptions still hold, and find contradictions,
      underspecified semantics, scope hazards and decisions that need the
@@ -122,9 +133,10 @@ obtain a preferred result, or retroactively rewrite evidence.
      impossibility.
    - Name the important claims Review must verify independently, and keep
      required work apart from useful follow-ups.
-   - Find the task's issue, or create it with the `task` label and name it
-     in the roadmap entry; without issue write access, give the owner the
-     issue title and body to create.
+   - Find the task's issue or provide its details for the owner to create.
+     Numbered tasks use the `task` label; follow-ups retain `follow-up`.
+     Update `roadmap_active.md` only when priorities or dependencies change.
+     Do not duplicate authoritative issue specifications in the index.
    - Write the spec and acceptance tests on a branch `task/<n>-<name>`,
      and record the frozen Plan head and Plan-owned files in `handoff.md`.
      This is the contract for any later Execute and Review. Plan owns the
@@ -247,10 +259,14 @@ obtain a preferred result, or retroactively rewrite evidence.
      descriptive negative verdict.
    - Open a ready PR (without PR access, give the owner its title and
      description) whose description closes the task's issue
-     (`Closes #<n>`), then mark its roadmap entry Implemented with the PR's
-     number when it has one. The PR states intentionally deferred limitations
-     and follow-ups separately from defects; each deferred follow-up links
-     an existing tracking issue or receives a new `follow-up` issue.
+     (`Closes #<n>`). GitHub issues and PRs are authoritative for task
+     status and completion. Do not edit either roadmap merely to record
+     completion; update the active index only when the actual backlog,
+     priorities or dependencies change. Historical task definitions and
+     frozen evidence remain unchanged. The PR states intentionally
+     deferred limitations and follow-ups separately from defects;
+     each follow-up links an existing tracking issue or receives a new
+     `follow-up` issue.
 
 The owner merges, or pushes back, and says so.
 
@@ -900,41 +916,15 @@ budget; strong-Kleene behaviour comes from functions and data.
 Done when: the experiment is run against recorded predictions and the
 result – adopt or kill – is recorded.
 
-### 25. Field identity under layout change (handoff)
+### 25. Field identity under layout change
 
-**Planned.** Issue #61. Research input to records; the owner has postponed systems
-data until records exist (Later).
+Definition, experimental controls and current status:
+[Issue #61](https://github.com/NadOby/shear/issues/61).
 
-When records are planned, first run this spike. Scenario: record A `{x, y}`,
-a reference R to `A.y`, and a running old-version frame holding R;
-activation continues A to A' with layout `{x, z, y}` and a converter; new
-code reads `A'.y`, the old frame continues under the old state, and R has an
-explicitly defined fate. Then vary one dimension at a time: moved field,
-deleted field, split record, ownership change, old-version retirement.
+### 26. Content consolidation decision
 
-The central question is the status of `A.y`, to be discriminated rather than
-presupposed: its own semantic identity; no identity (A plus a selector); or
-a logical property with layout and access path separate. It interacts with
-the planned `ref` values. The activation and lifetime protocol is modelled
-in Alloy (the runner from the archived experiment returns here);
-representation and layout are tested in Python.
-
-Done when: the scenario and its variations are run against recorded
-predictions and the result names which `A.y` outcome holds and what records
-need from it.
-
-### 26. Content consolidation decision (one session)
-
-**Planned.** Issue #62.
-
-Decide from task 23's baseline and what tasks 24 and 25 taught whether
-unifying `Value` content, relation records and payloads into one relational
-content form is still justified. It must preserve `EntityID`, reference and
-ownership semantics and show a concrete reduction in production mechanisms
-or conversion paths.
-
-Done when: the decision is recorded; if positive, the refactor becomes its
-own task.
+Decision criteria, dependencies and current status:
+[Issue #62](https://github.com/NadOby/shear/issues/62).
 
 ## I. Hosted bootstrap
 
@@ -1133,7 +1123,7 @@ budgets are diagnostic. This completes the hosted-bootstrap milestone.
 
 ### 32. Generic restricted execution and SHEAR-defined constraints
 
-**Implemented – pending Publish.** Issue #119. After Task 31.
+**Implemented** (PR #125). Issue #119. After Task 31.
 The Plan contract is in `restricted_execution.md`.
 
 Demonstrate ordinary SHEAR functions acting as named `External`
