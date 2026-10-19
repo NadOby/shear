@@ -33,6 +33,7 @@ Much of the design follows from this goal:
 The executable reference model in `shear/` (section 24) now demonstrates
 three of the claims above. Design and history: [`docs/`](docs/),
 [`CHANGES.md`](CHANGES.md), [`docs/roadmap.md`](docs/roadmap.md).
+Current work: [`docs/roadmap_active.md`](docs/roadmap_active.md).
 
 **The graph is the program.** Immutable states with content-derived
 identity; transformations with explicit continuity (renames, merges,
