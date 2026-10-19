@@ -1,13 +1,14 @@
 # Restricted Execution – Task 32
 
-**Status: Plan Resolve – revised acceptance pending independent re-Review.**
+**Status: Execute approved at `e26430c`; Publish preparation pending.**
 
 Issue: GH-119. Baseline: `main` at `d50297cd44db26135bc0b3f9f95e4326c832beb9`.
 
-This document proposes generic restricted execution of ordinary SHEAR
-functions, with named `External` constraint evaluation as its first
-integration use. It does not change Decided semantics or authorize
-Execute before independent Plan Review.
+This document records the frozen Plan for generic restricted execution
+of ordinary SHEAR functions, with named `External` constraint evaluation
+as its first integration use. Independent Plan Review subsequently
+authorized Execute; the approval does not alter Decided semantics or
+the frozen acceptance contract.
 
 ## 1. Question and objective
 
@@ -885,9 +886,11 @@ evaluator-deployment experiment.
 If a decision becomes essential, return to the owner before
 implementing a language-shaping change.
 
-## 17. Plan completion and Review gate
+## 17. Plan completion and Review gate (historical)
 
-Substantive Execute work remains.
+At Plan freeze, substantive Execute work remained. Execute was later
+completed and independently approved at `e26430c`. The original
+pre-Execute checklist below is retained as historical Plan text.
 
 Before freezing the revised Plan:
 
