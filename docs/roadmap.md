@@ -19,10 +19,11 @@ No background agents.
 The owner starts or resumes a role with "Plan task N", "Execute task N",
 "Review task N", "Resolve task N" or "Publish task N"; the contracts below
 make each instruction sufficient. Every participating context fetches the
-repository and reads CLAUDE.md, this section, the task's roadmap entry
-and `handoff.md`. A handoff records material decisions, state and the next
-action when another context needs them, not empty role transitions.
-`handoff.md` is a checkpoint of claims, not evidence that they hold.
+repository and reads CLAUDE.md, this Workflow, the task issue, its active
+roadmap entry or historical definition as applicable, and `handoff.md`.
+A handoff records material decisions, state and the next action when
+another context needs them, not empty role transitions. `handoff.md`
+is a checkpoint of claims, not evidence that they hold.
 
 **Decided.** No role may assume write access to GitHub or to the repository.
 A role states in its reply what it needs to write, and when it lacks the
@@ -32,14 +33,14 @@ that has the access, records it. A role never reports something as recorded,
 opened or pushed unless it checked. Review needs no write access at all: its
 findings are its reply.
 
-**Decided.** Work is tracked in GitHub issues. Each roadmap task not yet
-done has an issue labelled `task`, named in its entry's status line; any
-other change gets an issue before work starts, and a follow-up found during
-a task becomes an issue labelled `follow-up`. An issue holds the goal, the
-status and the discussion. This roadmap remains the order and the task
-definitions, the specifications the design, `CHANGES.md` the log and
-`handoff.md` the checkpoint between chats. Commits and PRs name their issue
-as CLAUDE.md describes.
+**Decided.** Work is tracked in GitHub issues. Each unfinished roadmap
+task has an issue labelled `task` and is listed in `roadmap_active.md`;
+other changes get an issue before work starts, and follow-ups become
+issues labelled `follow-up`. The active roadmap holds current task
+definitions, priorities and dependencies. This file retains Workflow,
+decisions and historical task definitions; specifications hold design,
+`CHANGES.md` the log and `handoff.md` the checkpoint between chats.
+Commits and PRs name their issue as CLAUDE.md describes.
 
 **Decided.** A Plan that already contains the full proposed deliverable
 may go directly to independent Review, then Publish. State briefly why
@@ -98,8 +99,9 @@ obtain a preferred result, or retroactively rewrite evidence.
 1. **Plan** (`Plan task N`). A fresh context, preferably with the strongest
    reasoning model available. No production changes.
    - Inspect the current repository rather than relying on earlier context;
-     read the roadmap task, the relevant specifications, CLAUDE.md and
-     `handoff.md`.
+     read `roadmap_active.md` for unfinished work, the historical roadmap
+     entry when relevant, the task issue, applicable specifications,
+     CLAUDE.md and `handoff.md`.
    - Start with the architectural question, falsifiable decision criteria
      and the shortest high-information experiment. Minimize time and
      implementation to a decision, not merely task size. Prefer decisive
@@ -129,9 +131,10 @@ obtain a preferred result, or retroactively rewrite evidence.
      impossibility.
    - Name the important claims Review must verify independently, and keep
      required work apart from useful follow-ups.
-   - Find the task's issue, or create it with the `task` label and name it
-     in the roadmap entry; without issue write access, give the owner the
-     issue title and body to create.
+   - Find the task's issue, or create it with the `task` label. Name
+     unfinished roadmap tasks in `roadmap_active.md`; other changes need
+     an issue but not a roadmap entry. Without issue write access, give
+     the owner the issue title and body to create.
    - Write the spec and acceptance tests on a branch `task/<n>-<name>`,
      and record the frozen Plan head and Plan-owned files in `handoff.md`.
      This is the contract for any later Execute and Review. Plan owns the
@@ -254,10 +257,12 @@ obtain a preferred result, or retroactively rewrite evidence.
      descriptive negative verdict.
    - Open a ready PR (without PR access, give the owner its title and
      description) whose description closes the task's issue
-     (`Closes #<n>`), then mark its roadmap entry Implemented with the PR's
-     number when it has one. The PR states intentionally deferred limitations
-     and follow-ups separately from defects; each deferred follow-up links
-     an existing tracking issue or receives a new `follow-up` issue.
+     (`Closes #<n>`). Remove completed tasks from `roadmap_active.md`
+     and preserve their definitions in this historical roadmap, appending
+     new entries or updating existing ones with the PR number. Do not
+     rewrite reviewed acceptance or historical evidence. The PR states
+     deferred limitations and follow-ups separately from defects; each
+     follow-up links an existing issue or receives a new one.
 
 The owner merges, or pushes back, and says so.
 
