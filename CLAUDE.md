@@ -65,6 +65,13 @@ holds one spec per concept; `CHANGES.md` is the architectural log.
   it delivers its output in its reply (findings, `handoff.md` text, issue or
   PR text) for the owner or a write-capable role to record, and never says
   something is recorded, opened or pushed unless it checked.
+- For mobile-only editing, minimize the number and size of file edits.
+  Prefer complete replacement of files under roughly 300 lines. For
+  larger files, exact line-numbered edits applied bottom-to-top against
+  a verified commit are an equally valid alternative. Prefer append-only
+  changes to historical logs. Provide clickable edit links, copyable
+  commit messages and content without leading or trailing empty lines.
+  Make one commit at a time and verify it before proceeding.
 - Work is tracked in GitHub issues: every roadmap task and every other change
   has an issue before work starts, and a follow-up found while working becomes
   a `follow-up` issue, not a note in a file or a chat. The roadmap's Workflow
