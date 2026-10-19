@@ -33,14 +33,16 @@ that has the access, records it. A role never reports something as recorded,
 opened or pushed unless it checked. Review needs no write access at all: its
 findings are its reply.
 
-**Decided.** Work is tracked in GitHub issues. Each unfinished roadmap
-task has an issue labelled `task` and is listed in `roadmap_active.md`;
-other changes get an issue before work starts, and follow-ups become
-issues labelled `follow-up`. The active roadmap holds current task
-definitions, priorities and dependencies. This file retains Workflow,
-decisions and historical task definitions; specifications hold design,
-`CHANGES.md` the log and `handoff.md` the checkpoint between chats.
-Commits and PRs name their issue as CLAUDE.md describes.
+**Decided.** Work is tracked in GitHub issues. Unfinished numbered
+roadmap tasks have issues labelled `task`; selected architectural
+follow-ups may also appear in `roadmap_active.md` with their existing
+`follow-up` labels. Other changes get an issue before work starts;
+newly discovered follow-ups become issues labelled `follow-up`.
+The active roadmap holds current priorities and dependencies. This
+file retains Workflow, decisions and historical task definitions;
+specifications hold design, `CHANGES.md` the log and `handoff.md`
+the checkpoint between chats. Commits and PRs name their issue as
+CLAUDE.md describes.
 
 **Decided.** A Plan that already contains the full proposed deliverable
 may go directly to independent Review, then Publish. State briefly why
