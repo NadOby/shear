@@ -399,8 +399,8 @@ and complete producer provenance remain mandatory.
    retained compiler when the program runs `activate` or `trial`: after the
    host stages the candidate and before the switch, or before any candidate
    code runs in a trial. Unchanged nodes reuse their artifacts. A candidate
-   becomes active only when every code node is admitted. The program does
-   not install chunks (D4). Lazy or tiered production is Open: it is
+   becomes active only when every code node is admitted. The program
+   does not install chunks (D4). Lazy or tiered production is Open: it is
    compatible with this rule if everything that can make a node fail to
    compile is decided before the switch.
 2. A candidate that cannot be compiled or admitted is not activated or
@@ -557,10 +557,10 @@ to call a function chosen at run time and to read a function by reference
 
 **Done** (#34). The design is in syntax.md.
 
-A parser from text (syntax_notes.md, Direction A) into the input format and
-a printer from graph form, import-only (syntax.md). Done when the corpus
-round-trips through text by behaviour and by text, and the examples not
-tagged self-modification render without `raw`.
+A parser from text into the input format and a printer from graph form,
+import-only (syntax.md). Done when the corpus round-trips through text
+by behaviour and by text, and the examples not tagged self-modification
+render without `raw`.
 
 ## E. Continuity
 
@@ -631,12 +631,11 @@ captures.
 
 Keep `Function` as code-as-data for program construction and activation.
 Introduce a distinct executable closure value containing code and its captured
-lexical environment. `apply` and `applyv` accept closures as well as existing
-function references.
+lexical environment.
 
 Captures are by value when the closure is created and do not depend on the
 caller's scope. A returned closure remains callable after its creating frame
-has finished. Creating or calling a closure requires no activation capability.
+has finished.
 
 `make_adder` and `compose` are corpus examples; closures can be passed,
 returned, stored and captured as ordinary values; closure calls obey ordinary
@@ -779,14 +778,14 @@ mutation targets are carried or dropped by the task 19 rule.
   Owner's direction from task 20 planning: `ref` makes a distinct reference
   value, so only references follow declared continuity at activation and
   plain entity ids stay data; a reference whose target disappears pins the
-  old version, which needs the two-version bound to become a setting rather
-  than a rule. reference_model.md section 14 lists what this design decides
-  about the version in a reference.
+  old version, which needs the two-version bound to become a setting
+  rather than a rule. reference_model.md section 14 lists what this design
+  decides about the version in a reference.
 - Declared error kinds: program entities, like cells, naming a kind and
   constraining its detail (error_handling.md section 13).
 - Syntax and tooling notes (syntax_notes.md): graph and IR views next to
-  the source view of task 11, and a language server built on the compiler and
-  VM (corpus.md section 7), evaluated first as a tool powered by SHEAR. Part
+  the source view of task 11, and a language server built on the compiler
+  and VM (corpus.md section 7), evaluated first as a tool powered by SHEAR. Part
   of the IDE tooling deferred below; Provisional research only.
 - The program root and modules (ownership_model.md §13), when explicit
   modules or libraries need them.
@@ -795,12 +794,12 @@ mutation targets are carried or dropped by the task 19 rule.
   Self-hosting does not imply it, and it does not require rewriting platform
   services in SHEAR.
 - After hosted bootstrap, not before it (2026-10-08 review): removing
-  Python, native code generation, the final memory manager, concurrency, the
-  full systems-data model, records unless the workload needs them, package
-  management, the final module system, polished final syntax, IDE tooling,
-  complete formal semantics, general theorem proving, a second compiler
-  implementation, a new review workflow, and redesign of identity,
-  continuity or retirement without a concrete counterexample.
+  Python, native code generation, the final memory manager, concurrency,
+  the full systems-data model, records unless the workload needs them,
+  package management, the final module system, polished final syntax, IDE
+  tooling, complete formal semantics, general theorem proving, a second
+  compiler implementation, a new review workflow, and redesign of
+  identity, continuity or retirement without a concrete counterexample.
 - Concurrency starts with a semantic spike, not with thread safety added to
   the current path: two computations reading and writing cells, activation
   while other computations run old code, capability authority across
@@ -880,7 +879,7 @@ refactor.
 
 ### 24. Constraints as functions (handoff)
 
-**Planned.** After task 20. Issue #56.
+**Completed – bounded negative experiment.** After task 20. Issue #56.
 
 Falsification experiment: can the constraint algebra (`constraints.py`, its
 own evaluator, budget and three-valued result) be expressed through the
@@ -908,9 +907,9 @@ data until records exist (Later).
 When records are planned, first run this spike. Scenario: record A `{x, y}`,
 a reference R to `A.y`, and a running old-version frame holding R;
 activation continues A to A' with layout `{x, z, y}` and a converter; new
-code reads `A'.y`, the old frame continues under the old state, and R has an
-explicitly defined fate. Then vary one dimension at a time: moved field,
-deleted field, split record, ownership change, old-version retirement.
+code reads `A'.y`, the old frame continues under the old state, and R has
+an explicitly defined fate. Then vary one dimension at a time: moved
+field, deleted field, split record, ownership change, old-version retirement.
 
 The central question is the status of `A.y`, to be discriminated rather than
 presupposed: its own semantic identity; no identity (A plus a selector); or
@@ -1048,15 +1047,16 @@ running function's links, such as `READ`, `WRITE`, `CODE` and `ACTIVATE`,
 would need it chosen by value in interpreted code (vm_in_shear.md section 8).
 It also includes that the VM's `CALL` runs the callee as installed, so every
 function the workload reaches needs a wrapper, and the wrappers displace
-the semantic source. The spike establishes whether the SHEAR-VM route has a form
-that keeps the source canonical and executable forms derived; if it has none,
-that route stays a candidate only if the owner explicitly changes the first
-acceptance anchor. For host execution, the verifier's admission rule is
-stated: what it checks for a chunk of node N at version V, and who may assert
-that a compiler generation produced that chunk and why program code cannot
-forge the assertion. Host lowering is not part of admission; it stays a test
-oracle. If D4 settles on a workload that differs materially from the
-recommended one, the comparison is redone for it before D3 is accepted.
+the semantic source. The spike establishes whether the SHEAR-VM route has a
+form that keeps the source canonical and executable forms derived; if it
+has none, that route stays a candidate only if the owner explicitly
+changes the first acceptance anchor. For host execution, the verifier's
+admission rule is stated: what it checks for a chunk of node N at version V,
+and who may assert that a compiler generation produced that chunk and why
+program code cannot forge the assertion. Host lowering is not part of
+admission; it stays a test oracle. If D4 settles on a workload that differs
+materially from the recommended one, the comparison is redone for it before
+D3 is accepted.
 
 Done when: the results and a recommendation are recorded, with the admission
 rule and the Provisional items the recommended route makes expensive to
@@ -1113,7 +1113,7 @@ parity is a task-30 prerequisite.
 
 ### 31. Live evolution on the bootstrap route (handoff)
 
-**Planned.** Issue #67. After task 30. The Plan contract is in
+**Implemented.** Issue #67. After task 30. The Plan contract is in
 live_evolution.md, under D5.
 
 Complete the corpus cases deferred by task 30, including self-modification
@@ -1133,8 +1133,8 @@ budgets are diagnostic. This completes the hosted-bootstrap milestone.
 
 ### 32. Generic restricted execution and SHEAR-defined constraints
 
-**Planned.** Issue #119. After Task 31. The Plan contract is in
-`restricted_execution.md`.
+**Implemented – pending Publish.** Issue #119. After Task 31.
+The Plan contract is in `restricted_execution.md`.
 
 Demonstrate ordinary SHEAR functions acting as named `External`
 constraint evaluators through authenticated hosted execution. Reuse
