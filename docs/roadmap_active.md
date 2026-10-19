@@ -14,7 +14,8 @@ Review, evidence integrity, safety and owner authority.
 
 ### Complete constraint semantics with ordinary SHEAR functions
 
-**Open.** Issue #123. Follows Task 32 (#119, PR #125).
+**Open:**
+Issue #123. Follows Task 32 (#119, PR #125).
 
 Determine whether ordinary SHEAR functions can implement the complete
 existing constraint contract without a separate constraint interpreter.
