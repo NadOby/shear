@@ -1,6 +1,6 @@
 # Restricted Execution – Task 32
 
-**Status: Execute approved at `e26430c`; Publish preparation pending.**
+**Status: Implemented (PR #125, merged 2026-10-19); frozen Plan preserved.**
 
 Issue: GH-119. Baseline: `main` at `d50297cd44db26135bc0b3f9f95e4326c832beb9`.
 
