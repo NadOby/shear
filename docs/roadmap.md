@@ -259,13 +259,14 @@ obtain a preferred result, or retroactively rewrite evidence.
      descriptive negative verdict.
    - Open a ready PR (without PR access, give the owner its title and
      description) whose description closes the task's issue
-     (`Closes #<n>`). Remove completed tasks from `roadmap_active.md`
-     and preserve their definitions in this historical roadmap, appending
-     new entries or updating existing ones with the PR number. Do not
-     rewrite reviewed acceptance or historical evidence. The PR states
-     deferred limitations and follow-ups separately from defects; each
-     follow-up links an existing issue or receives a new one.
-
+     (`Closes #<n>`). GitHub issues and PRs are authoritative for task
+     status and completion. Do not edit either roadmap merely to record
+     completion; update the active index only when the actual backlog,
+     priorities or dependencies change. Historical task definitions and
+     frozen evidence remain unchanged. The PR states intentionally
+     deferred limitations and follow-ups separately from defects;
+     each follow-up links an existing tracking issue or receives a new
+     `follow-up` issue.
 The owner merges, or pushes back, and says so.
 
 A chat whose context grows heavy records the material state needed for
