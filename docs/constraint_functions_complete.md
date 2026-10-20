@@ -368,6 +368,8 @@ The additional Plan-owned acceptance suites are:
   – complete existing corpus replay through candidate integration.
 - `tests/constraint_functions_authority_acceptance.py`
   – authenticated artifacts, effects and replacement isolation.
+- `tests/constraint_functions_candidate_effect_acceptance.py`
+  – candidate-derived forbidden dispatch and preflight isolation.
 
 These modules remain outside ordinary test discovery during Plan.
 Execute must supply the real candidate, register the complete
