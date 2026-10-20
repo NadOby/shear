@@ -14,6 +14,7 @@ from importlib import import_module
 import unittest
 from unittest.mock import patch
 
+from shear import bytecode, machine
 from shear.constraints import (
     Constraint,
     IsKind,
@@ -52,15 +53,73 @@ MACHINE_REQUIRED = frozenset({
 })
 
 
+def _no_host_lowering(*args, **kwargs):
+    raise AssertionError("host bytecode lowering during restricted execution")
+
+
 @contextmanager
 def candidate_execution_guard():
-    """Reject incumbent evaluation and independently count VM entry."""
-    runs = []
+    """Observe authentic evaluator entry, not attempted runner calls."""
+    opened = []
+    active = []
+    original_open = machine._open
     original_run = RestrictedExecutor.run
 
-    def traced_run(executor, *args, **kwargs):
-        runs.append((args[0], args[1]))
-        return original_run(executor, *args, **kwargs)
+    def observe_open(activation, args, *rest, **kwargs):
+        chunk, env, node = original_open(
+            activation, args, *rest, **kwargs
+        )
+        if not active:
+            return chunk, env, node
+
+        deployment, entry = active[-1]
+        state = deployment._target.state
+        if activation.hold.version.state.id != deployment.source_state_id:
+            raise AssertionError("restricted execution used wrong state")
+
+        key = (node, state.values[node].version_id)
+        artifact = deployment.artifacts.get(key)
+        if artifact is None or chunk is not artifact.chunk:
+            raise AssertionError("VM opened non-admitted bytecode")
+
+        if (
+            artifact.state_id != state.id
+            or artifact.entity != node
+            or artifact.version != key[1]
+            or artifact.owner != activation.entity
+            or artifact.produced_by != deployment.compiler_generation
+        ):
+            raise AssertionError("admitted artifact provenance mismatch")
+
+        artifact.verify()
+        if activation.entity == entry:
+            opened.append((
+                deployment.source_state_id,
+                entry,
+                node,
+                key[1],
+                artifact.artifact_id,
+            ))
+        return chunk, env, node
+
+    def traced_run(executor, deployment, entry, *args, **kwargs):
+        active.append((deployment, entry))
+        try:
+            with (
+                patch.object(
+                    bytecode, "lower_value",
+                    side_effect=_no_host_lowering,
+                ),
+                patch.object(
+                    bytecode, "chunk_of",
+                    side_effect=_no_host_lowering,
+                ),
+            ):
+                return original_run(
+                    executor, deployment, entry, *args, **kwargs
+                )
+        finally:
+            active.pop()
 
     def forbidden(*args, **kwargs):
         raise AssertionError("incumbent constraint evaluation invoked")
@@ -82,9 +141,12 @@ def candidate_execution_guard():
             )
 
         stack.enter_context(
+            patch.object(machine, "_open", side_effect=observe_open)
+        )
+        stack.enter_context(
             patch.object(RestrictedExecutor, "run", traced_run)
         )
-        yield runs
+        yield opened
 
 
 class CompleteConstraintAcceptance(unittest.TestCase):
