@@ -394,3 +394,77 @@ performance measurements and mechanism accounting.
 
 No Plan acceptance requirement may be weakened during Execute
 without an explicit owner decision and renewed independent Review.
+
+## 15. Capability feasibility amendment
+
+Status: Proposed – requires independent Plan Review.
+
+`docs/constraint_functions_capability_matrix.md` records
+the requirements traced from SHEAR's original vision,
+decided semantics, earlier experiments and current code.
+
+Task 24 had already demonstrated missing generic inspection
+capabilities. Task 32 explicitly deferred their resolution.
+GH-123 must not treat those inherited gaps as solved.
+
+### Feasibility gate
+
+Before resuming dependent implementation:
+
+1. Verify the matrix against the current repository.
+2. Resolve or explicitly experiment on critical prerequisites.
+3. Demonstrate generic inspection on raw canonical subjects,
+   preserving all 15 kinds and existing identity.
+4. Examine external dispatch, exact budgeting, failure
+   boundaries, authenticated execution and admission together.
+5. Identify every necessary language-shaping decision.
+
+G1–G10 in the capability matrix define the required
+discriminators. Unexecuted checks remain unverified.
+
+A bounded feasibility experiment may be part of Execute,
+but its unresolved assumptions cannot be counted as
+existing capabilities or successful implementation.
+
+### Naming and human usability
+
+Audit operations against corresponding semantic concepts.
+
+Names should communicate accepted inputs, returned results,
+effects and identity guarantees to human programmers.
+
+Consider clearer names, prefixes or namespaces where useful.
+No particular naming convention is required.
+
+Do not change established behavior merely for consistency.
+Any public rename requires impact assessment and owner approval.
+
+### Architectural decision pending
+
+D123-7: Select the generic canonical-inspection interface
+after evaluating the complete capability matrix.
+
+A shallow structural-view operation is one candidate.
+Neither a new opcode nor a host-projection workaround is
+authorized by this amendment.
+
+The two provisional Execute files are experimental evidence,
+not an accepted architectural solution.
+
+### Preserved contracts
+
+All 15 original acceptance modules, 56 test methods,
+Task 24 oracles, Task 32 security guarantees and golden
+records remain unchanged.
+
+Any additional acceptance must test generic behavior,
+not introduce constraint-specific exceptions.
+
+The approved 1000x performance ceilings and independent
+mechanism accounting remain in force.
+
+Execute must explicitly register all applicable acceptance
+modules in CI and report their actual execution counts.
+
+Independent Plan Review must approve this amendment before
+dependent Execute work resumes.
