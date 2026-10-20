@@ -4,11 +4,17 @@ Execute supplies:
     evaluate_external(name, subject, budget, callback=None)
         -> Observation
 
-The callback is registered as the named external evaluator.
-It receives canonical subject content and returns ConstraintResult.
-Host exceptions must escape unchanged.
+The callback is a named external evaluator receiving canonical
+subject content and returning ConstraintResult.
 
-This module is outside ordinary CI discovery until Execute.
+The ordinary SHEAR evaluator must execute authenticated bytecode
+before external dispatch. Dispatch itself may cross a host boundary;
+Task 32 does not provide an in-VM Python callback instruction.
+
+Host exceptions must escape unchanged. The callback must not run
+when admitted evaluator execution fails before dispatch.
+
+Outside ordinary CI discovery until Execute.
 """
 
 from importlib import import_module
@@ -20,9 +26,11 @@ import unittest
 from shear import ConstraintResult, canonicalize
 from tests.constraint_function_acceptance import Observation
 from tests.constraint_functions_complete_acceptance import (
+    EvaluatorMachineFault,
     candidate_execution_guard,
     forbid_incumbent,
 )
+
 
 SAT = ConstraintResult.SATISFIED
 VIO = ConstraintResult.VIOLATED
@@ -38,7 +46,7 @@ from importlib import import_module
 from threading import Event
 from unittest.mock import patch
 
-from shear import ConstraintResult, machine
+from shear import canonicalize, machine
 from shear.hosted_bootstrap.restricted import RestrictedExecutor
 from tests.constraint_functions_complete_acceptance import forbid_incumbent
 
@@ -67,22 +75,26 @@ def traced_open(activation, args, *rest, **kwargs):
         artifact = deployment.artifacts[key]
         assert chunk is artifact.chunk
         artifact.verify()
+        assert artifact.state_id == state.id
+        assert artifact.entity == node
+        assert artifact.version == key[1]
+        assert artifact.owner == activation.entity
+        assert artifact.produced_by == deployment.compiler_generation
+
         if activation.entity in adapter.EVALUATOR_ENTRIES:
             opened.append((activation.entity, node))
             print("ADMITTED_EVALUATOR_OPENED", flush=True)
+
     return chunk, env, node
 
+expected = canonicalize({"payload": [1, True]})
+
 def blocked(subject):
-    assert active, "external invoked outside restricted execution"
-    assert opened, "external invoked before evaluator machine entry"
-    assert subject == expected
+    assert opened, "external invoked before admitted evaluator entry"
+    assert subject == expected, "external subject was not canonical"
     print("EXTERNAL_CALLBACK_ENTERED", flush=True)
     Event().wait()
     raise AssertionError("unreachable")
-
-expected = ("__type__", "map", (
-    ("payload", ("__type__", "list", (1, True))),
-))
 
 with (
     forbid_incumbent(),
@@ -199,6 +211,27 @@ class FrozenExternalAcceptance(unittest.TestCase):
         self.assertIs(caught.exception, error)
         self.assertEqual(received, [canonicalize({"x": 3})])
 
+    def test_vm_fault_prevents_external_dispatch(self):
+        calls = []
+
+        def callback(subject):
+            calls.append(subject)
+            return SAT
+
+        with candidate_execution_guard(
+            self.entries, fault=True,
+        ) as opened:
+            with self.assertRaises(EvaluatorMachineFault):
+                self.adapter.evaluate_external(
+                    "policy", 5, 1, callback,
+                )
+
+        self.assertTrue(opened, "VM fault was never injected")
+        self.assertEqual(
+            calls, [],
+            "external callback ran despite evaluator VM fault",
+        )
+
     def test_nonterminating_external_is_isolated(self):
         root = Path(__file__).resolve().parent.parent
 
@@ -233,6 +266,11 @@ class FrozenExternalAcceptance(unittest.TestCase):
         self.assertIn(
             "EXTERNAL_CALLBACK_ENTERED", stdout,
             f"external callback was not entered:\n{stderr}",
+        )
+        self.assertLess(
+            stdout.index("ADMITTED_EVALUATOR_OPENED"),
+            stdout.index("EXTERNAL_CALLBACK_ENTERED"),
+            "external callback preceded admitted execution",
         )
 
 
