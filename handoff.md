@@ -5,78 +5,120 @@
 - Issue: #123 – complete constraint semantics with ordinary SHEAR functions.
 - Branch: `task/123-complete-constraints`.
 - Baseline: `f994a2d59b0f6f890f4800effe209d88e1c838c1`.
-- Reviewed Plan starting head: `b95c05a1822a688264d3aab96d58d40fa5c38134`.
-- Latest substantive Plan head: `ca3454f156fc3bc95691d4c80557673dfee72098`.
+- Latest substantive Plan head: `714a058e98f395d2db970083be476eb8105eb97b`.
 - Role: Plan Resolve – independent re-review required.
 - No production implementation or PR yet.
-- CI results for this head have not been independently verified.
+- Candidate-dependent acceptance has not executed.
+- Final-head CI has not been independently verified.
 
-## Plan-owned contracts
+## Architectural decision
+
+Run one decisive experiment implementing complete constraint
+semantics through ordinary SHEAR functions and Task 32's
+authenticated restricted execution.
+
+Initial hypotheses:
+- No new syntax or VM instructions.
+- Generic immutable canonical-content projection.
+- Existing compiler, VM and restricted runner.
+- Exact semantic budgeting through ordinary computation.
+- Genuine load, write, activation and trial integration.
+
+Hypotheses are falsifiable, not unconditional restrictions.
+Language-shaping decisions return to the owner.
+
+## Plan-owned specification
 
 - `docs/constraint_functions_complete.md`
 - `docs/constraint_functions_complete_coverage.md`
 - `docs/constraint_functions_complete_benchmarks.md`
+
+The main Plan and coverage matrix identify T1–T9 executable
+acceptance requirements and the independent evidence needed.
+
+The owner-approved initial performance ceiling is 1000x
+incumbent warm median and p95 latency. There is no fixed
+generic mechanism-count cap.
+
+## Frozen executable acceptance
+
+Primary:
 - `tests/constraint_functions_complete_acceptance.py`
 - `tests/constraint_functions_complete_projection.py`
 - `tests/constraint_functions_projection_adversarial.py`
 - `tests/constraint_functions_semantic_adversarial.py`
 
-Acceptance modules remain outside ordinary test discovery.
-Execute must provide the candidate implementation and register
-the acceptance tests. Missing executable obligations are not passes.
+Additional:
+- `tests/constraint_functions_import_acceptance.py`
+- `tests/constraint_functions_direct_result_acceptance.py`
+- `tests/constraint_functions_binding_acceptance.py`
+- `tests/constraint_functions_t2_t3_acceptance.py`
+- `tests/constraint_functions_external_acceptance.py`
+- `tests/constraint_functions_identity_acceptance.py`
+- `tests/constraint_functions_runtime_acceptance.py`
+- `tests/constraint_functions_failure_acceptance.py`
+- `tests/constraint_functions_corpus_acceptance.py`
+- `tests/constraint_functions_authority_acceptance.py`
 
-Task 24's frozen semantic oracles, all 17 boundary cases,
-and existing golden records remain unchanged.
+These remain outside ordinary Plan-time test discovery.
+Execute must supply the candidate and register all suites.
 
-## Architectural experiment
+Task 24's immutable semantic oracle and 17 boundary cases,
+Task 32's restricted-execution tests and all existing golden
+records remain mandatory and unchanged.
 
-One decisive end-to-end experiment implementing complete
-constraint semantics through ordinary SHEAR functions and
-Task 32 restricted execution.
+## Previous Review findings
 
-Initial falsifiable hypotheses:
-- No new syntax.
-- No new VM instructions.
-- Generic canonical-content projection.
-- Existing compiler, VM and restricted runner suffice.
-- Exact semantic budgeting through ordinary computation.
+The preceding independent review requested Resolve for:
+- P1: insufficient evaluator-to-machine result authenticity.
+- P1: T1–T9 acceptance obligations deferred without fixtures.
+- P2: projection perturbations could pass for wrong reasons.
+- P2: candidate import poisoning could reuse module cache.
 
-Failure of a hypothesis permits an evidence-based architectural
-decision; it does not authorize silent constraint-specific fallback.
+Resolve added:
+- Fresh-process import testing.
+- Valid-result projection perturbation.
+- Direct admitted evaluator verdict testing.
+- Adapter-to-machine argument and result binding.
+- Concrete malformed-input and budget fixtures.
+- External callback, failure and timeout witnesses.
+- Constraint reconstruction and canonical-identity fixtures.
+- Runtime relation, rename and atomicity scenarios.
+- Real runtime exception-provenance checks.
+- Candidate-backed complete corpus replay.
+- Candidate-specific artifact authority and replacement checks.
 
-## Resolve summary
+These changes require independent verification. Their presence
+does not establish that the previous findings are resolved.
 
-- Removed premature CI discovery of candidate-dependent tests.
-- Added admitted evaluator entry and artifact-provenance checks.
-- Added machine fault injection and verdict perturbation.
-- Added mandatory T1–T9 coverage matrix.
-- Added canonical projection and adversarial structural tests.
-- Added deterministic semantic stress acceptance.
-- Defined reproducible benchmark methodology.
-- Recorded owner-approved initial 1000x warm latency ceiling.
-- Removed fixed generic mechanism-count cap.
+## Review priorities
 
-## Acceptance
+1. Verify the complete branch diff, exact APIs and test syntax.
+2. Check all frozen expected observations against Task 24.
+3. Identify impossible or unnecessarily architecture-specific
+   acceptance conditions.
+4. Verify genuine evaluator-machine-result dependence.
+5. Verify host external dispatch does not bypass SHEAR truth logic.
+6. Verify generic projection tests reject host-only implementations.
+7. Verify runtime admission and corpus integration cannot fall back.
+8. Verify artifact authority, effect isolation and replacement.
+9. Check T1–T9 coverage and all CI registration requirements.
+10. Confirm no Plan-owned fixture silently weakens existing oracles.
 
-- Complete Task 24 semantic and generated-vector obligations.
-- All 17 frozen runtime boundary cases.
-- All additional T1–T9 tests and applicable existing corpora.
-- Genuine load, write, activation and trial.
-- Independent authentication and anti-fallback evidence.
-- Preserved canonical identity, error provenance and atomicity.
-- Reproducible performance and mechanism accounting.
-- Explicit positive, negative or inconclusive conclusion.
+The T9 candidate artifact tests and existing Task 32 policy tests
+have distinct scopes. An independent source-path audit remains
+mandatory during Execute.
 
-The independent reviewer must verify actual Python APIs,
-test correctness, complete coverage, and feasibility.
-The new acceptance suites have not yet been demonstrated
-against a working candidate.
+Minor editorial drift: the coverage matrix currently calls the
+T4 acceptance inventory six tests; it now contains seven.
+This is not evidence of an implementation or semantic failure.
 
 ## Next action
 
-1. Independently re-review the complete branch diff and Plan.
-2. Resolve any remaining P0–P2 findings.
+1. Independent read-only Plan re-review at the final branch head.
+2. Resolve remaining P0–P2 findings, if any.
 3. Freeze the approved Plan.
-4. Execute the decisive experiment in one coherent effort.
+4. Execute the complete experiment.
+5. Independently review the resulting implementation and evidence.
 
 The owner retains architectural and publication authority.
