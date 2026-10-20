@@ -98,6 +98,36 @@ historical evidence. Do not require production changes merely to make a
 negative experiment actionable, revise frozen acceptance criteria to
 obtain a preferred result, or retroactively rewrite evidence.
 
+**Capability and clarity gate.** For tasks depending on existing
+language or architectural capabilities, Plan must:
+
+- Trace requirements from the original vision through decided
+  specifications, earlier experiments and current implementation.
+  Vision alone does not establish a binding requirement.
+- Identify critical prerequisites and inherited limitations.
+  Classify each as demonstrated, exploratory, blocked or
+  legitimately out of scope.
+- Verify claimed existing capabilities with minimal executable
+  witnesses. An unverified prerequisite must become an explicit
+  experiment with a stopping condition, not an assumption.
+- Check overlapping semantic concepts and operation names for
+  human-facing ambiguity: accepted inputs, results, errors,
+  effects and identity guarantees.
+- Prefer clear names, including renames or prefixes where useful.
+  Do not change settled semantics merely for naming consistency.
+
+Plan may combine feasibility experiments with implementation when
+that is the shortest decisive route. An unresolved prerequisite
+cannot silently support claims of implementation readiness.
+
+Independent Plan Review must check these dispositions against
+source documentation, historical negative evidence and executable
+behavior. Missing critical evidence blocks implementation approval
+unless the Plan explicitly makes obtaining it the experiment.
+
+Execute must return material contradictions to Plan and the owner,
+not silently introduce workaround mechanisms or change semantics.
+
 1. **Plan** (`Plan task N`). A fresh context, preferably with the strongest
    reasoning model available. No production changes.
    - Inspect the current repository rather than relying on earlier context;
