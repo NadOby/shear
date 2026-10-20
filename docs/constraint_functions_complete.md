@@ -328,3 +328,37 @@ Every mechanism must be identified, justified and measured.
 
 These preferences may be falsified by the experiment.
 Any replacement language decision returns to the owner.
+
+## 14. Plan-owned verification contracts
+
+The following documents jointly define the frozen acceptance
+obligations for this experiment:
+
+- `docs/constraint_functions_complete_coverage.md`
+  maps every Task 24 T1–T9 obligation to concrete checks.
+- `docs/constraint_functions_complete_benchmarks.md`
+  defines measurement, uncertainty and mechanism accounting.
+- `tests/constraint_functions_complete_acceptance.py`
+  verifies Task 24 semantics, all 17 frozen boundaries,
+  authenticated evaluator execution and verdict dependence.
+- `tests/constraint_functions_complete_projection.py`
+  verifies all 15 canonical kinds and identity preservation.
+- `tests/constraint_functions_projection_adversarial.py`
+  verifies nested canonical access and structural stress.
+- `tests/constraint_functions_semantic_adversarial.py`
+  verifies generated, deep, wide and budgeted semantics.
+
+All four acceptance modules remain outside ordinary test discovery
+during Plan. Execute supplies the candidate implementation, completes
+the remaining coverage-matrix tests and registers the acceptance
+modules in CI.
+
+Existing Task 24 oracles, expected results, boundary scripts and
+golden records remain authoritative and unchanged.
+
+Passing the new suites alone is insufficient: all T1–T9 obligations,
+actual runtime transitions, full applicable corpora and independent
+execution-path audit remain mandatory.
+
+No Plan acceptance requirement may be weakened during Execute
+without an explicit owner decision and renewed independent Review.
