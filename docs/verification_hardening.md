@@ -842,7 +842,21 @@ Moved from CLAUDE.md's Testing section; no rule changed.
       python3 -m tests.mutation_coverage report shear/reconcile.py
       python3 -m tests.mutation_performance mutation-report-*.jsonl
 
-  `SHEAR_MUTATE_REVALIDATE=1` runs reviewed survivors too; use it after any
-  repin. A dispatched campaign turns it on by itself when `tests/mutation.py`
-  or `tests/mutation_catalog_data/` differs from `main`. The dispatch inputs `mutation_revalidate`, `coverage_diagnostics` and
-  `coverage_targets` do the same in CI.
+  `SHEAR_MUTATE_REVALIDATE=1` reruns selected reviewed survivors.
+  A dispatched campaign also enables it automatically when the engine or
+  survivor catalog differs from `main`, but this does not expand selection.
+
+  After repinning, dispatch the campaign on the PR branch with
+  `mutation_batch=0`, `mutation_revalidate=true`, and `mutation_count`
+  large enough to select every site in each affected target. Restrict
+  `mutation_targets` to affected targets for a target-specific repin;
+  an engine repin requires all classified targets. A sampled campaign
+  does not establish complete revalidation.
+
+  Before Review approval, compare the affected classified keys in the
+  catalog with the campaign's JSONL `mutant_outcome` events. Each must
+  have outcome `classified_survivor` from actual execution, with matching
+  source and engine pins. Skipped, timed-out or missing keys do not count.
+  Require a completed successful campaign and reference its run ID.
+  Publish verifies the evidence against the final reviewed PR head.
+  A campaign run only after merging does not satisfy this requirement.

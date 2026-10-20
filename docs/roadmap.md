@@ -194,6 +194,13 @@ obtain a preferred result, or retroactively rewrite evidence.
      in `tests/golden_changes/` without a reason in the plan; incorrect
      mutation-survivor carry-over; CI gaps; accidental semantic or
      public-API changes; replay or reduction mistakes; documentation drift.
+   - When `tests/mutation.py` or `tests/mutation_catalog_data/` changes,
+     require a successful mutation campaign on the reviewed head.
+     Verify that every affected classified survivor was selected,
+     actually executed and survived; an engine change affects all
+     classifications. Skipped survivors, timeouts, sampled coverage
+     and ordinary green CI do not establish revalidation.
+     Missing evidence blocks Review approval.
    - Classify each observation as a verified defect, a limitation, a
      hypothesis or documentation drift. Give each verified defect a severity
      from P0 to P3, its exact location, why it is a defect, a concrete
@@ -238,6 +245,11 @@ obtain a preferred result, or retroactively rewrite evidence.
      applicable CI, reporting missing or pending checks accurately, and
      check that every finding is resolved or explicitly accepted as a
      non-blocking limitation.
+   - For mutation-engine or survivor-catalog repins, verify that the
+     accepted revalidation campaign matches the final PR head and
+     covers every affected classified survivor. A later substantive
+     change invalidates earlier evidence. Without sufficient evidence,
+     do not merge.
    - An actionable conclusion does not replace terminal acceptance.
      A negative or inconclusive result may conclude a task only if it
      satisfies the frozen Plan's terminal acceptance criteria. Otherwise
