@@ -1,222 +1,243 @@
 # GH-123 Complete Acceptance Coverage
 
-Status: Plan-owned acceptance contract, pending independent Review.
+Status: Plan Resolve – pending independent re-review.
 Baseline: f994a2d59b0f6f890f4800effe209d88e1c838c1.
-Task 24 (#56) remains the normative semantic oracle.
-Task 32 (#119) remains the restricted-execution authority.
 
-## Rules
+Task 24 (#56) supplies the frozen semantic and boundary oracles.
+Task 32 (#119) supplies the authenticated restricted execution
+implementation and existing security acceptance.
 
-Every T1–T9 obligation is mandatory. Existing Task 24 oracles,
-expected results, scripts, order and golden records are immutable.
+## 1. Qualification rules
 
-The candidate must execute ordinary SHEAR functions through
-authenticated Task 32 artifacts. Passing incumbent tests alone
-does not establish candidate equivalence.
+T1–T9 are mandatory. The fixtures, expected observations,
+Task 24 oracles, boundary scripts and golden records must not be
+weakened to accommodate the candidate.
 
-The following named tests are required Execute deliverables.
-Implement them under non-discovered Plan-owned acceptance
-modules; register an ordinary CI wrapper only when the candidate
-exists. An unimplemented test is missing evidence, not a pass.
+All `tests/constraint_functions_*acceptance.py` modules and the
+projection and semantic adversarial modules are Plan-owned.
+Their filenames deliberately avoid ordinary `test_` discovery.
 
-## T1 – Three-valued composition
+Execute must implement the real candidate, register every frozen
+suite in CI and complete all applicable existing regressions.
 
-Existing:
+An unexecuted, skipped or unsupported check is not a pass.
+An adapter-reported route, verdict or artifact identity is not
+independent proof of execution.
+
+## 2. T1 – Three-valued composition
+
+Frozen:
 - `CompleteConstraintAcceptance.test_complete_semantic_oracle`
+- `CompleteConstraintAcceptance.test_evaluator_fault_propagates_for_every_operation`
+- `CompleteConstraintAcceptance.test_evaluator_verdict_controls_semantic_result`
+- `DirectEvaluatorAcceptance.test_prepared_evaluators_return_actual_verdicts`
+- `CandidateBindingAcceptance.test_selected_expression_and_subject_control_result`
+- `CandidateBindingAcceptance.test_valid_verdict_perturbation_reaches_observation`
+- All tests in `constraint_functions_semantic_adversarial.py`
 
-Required observations:
-- All frozen logical vectors and both generated families pass.
-- Both operand orders, empty compositions, nested compositions,
-  deduplication and short-circuit outcomes agree with Task 24.
-- All cases execute the intended admitted SHEAR evaluator.
+Expected:
+- Task 24's complete fixed and generated oracle inventory passes.
+- Strong Kleene composition, negation and empty operators agree.
+- Canonical deduplication and permutation invariance hold.
+- Genuine admitted SHEAR computation produces the verdict.
+- Subject-dependent answers cannot be supplied by a constant
+  evaluator followed by an unrelated Python computation.
+- A controlled valid machine verdict changes the observation.
 
-## T2 – Primitive and kind semantics
+## 3. T2 – Primitive and kind semantics
 
-Existing:
-- `CompleteConstraintAcceptance.test_complete_semantic_oracle`
+Frozen:
+- Task 24 primitive and kind vectors.
+- `FrozenPrimitiveBudgetAcceptance.test_malformed_constraint_inputs`
+- `GenericProjectionAcceptance.test_all_fifteen_kinds`
+- `GenericProjectionAcceptance.test_type_sensitive_equality`
 
-Add:
-- `test_malformed_constraint_inputs`
-- `test_generic_projection_all_kinds`
+Expected:
+- All nine constraint families and 15 semantic kinds.
+- Correct primitive boundaries and type-sensitive equality.
+- Invalid construction inputs raise the pinned error classes.
+- Missing or wrongly typed roles are not silently accepted.
+- Unsupported syntax and host errors cannot become Unknown.
 
-Required observations:
-- Every existing primitive and all 15 semantic kinds.
-- Invalid construction arguments retain existing error classes.
-- Type-sensitive equality, including bool versus int.
-- Missing and incorrectly typed role maps are distinguished.
-- Unsupported candidate syntax is never reported as Unknown.
+## 4. T3 – Exact semantic budgets
 
-## T3 – Exact semantic budgets
+Frozen:
+- Task 24 generated-budget vectors.
+- `FrozenPrimitiveBudgetAcceptance.test_budget_consumption_trace`
+- Semantic adversarial budget/depth/width tests.
 
-Existing:
-- All frozen Task 24 budget and generated-budget vectors.
+Expected:
+- Exact consumed constraint-node counts for fixed witnesses.
+- Budgets 0, 1, 2, sufficient and unbounded are distinguished.
+- Short circuits and deduplication follow Task 24 ordering.
+- Semantic budgets do not masquerade as machine fuel limits.
+- Budget traces originate in admitted ordinary SHEAR execution.
 
-Add:
-- `test_budget_consumption_trace`
+## 5. T4 – External evaluators
 
-Required observations:
-- Exact visited-node counts for 0, 1, 2, sufficient and
-  unbounded budgets.
-- Deduplication and short-circuiting preserve existing counts.
-- Exhaustion never creates an unsupported decisive verdict.
-- Machine execution limits remain separate from semantic budgets.
+Frozen:
+- Task 24 external vectors and boundary cases.
+- All six tests in `constraint_functions_external_acceptance.py`
+- Evaluator machine-fault propagation tests.
 
-## T4 – External evaluators
+Expected:
+- Missing, Satisfied, Violated and Unknown external verdicts.
+- Evaluators receive precisely canonicalized subjects.
+- Zero-budget evaluation never calls an external evaluator.
+- Escaped host exceptions retain type and identity.
+- The blocking external runs in a separate process.
+- A supervisor kills it after timeout and verifies both
+  admitted evaluator entry and actual callback entry.
+- Semantic node budgets do not imply external termination.
 
-Existing:
-- Task 24 External vectors and boundary scripts.
-- `test_evaluator_fault_propagates_for_every_operation`
+## 6. T5 – Canonical identity and reconstruction
 
-Add:
-- `test_external_dispatch_and_failure_provenance`
-- `test_nonterminating_external_isolated`
+Frozen:
+- All tests in `constraint_functions_complete_projection.py`
+- All tests in `constraint_functions_projection_adversarial.py`
+- All tests in `constraint_functions_identity_acceptance.py`
+- Task 24 `constraint_identity` and `candidate_version` cases.
 
-Required observations:
-- Absent, decisive, Unknown and raising evaluators.
-- Named evaluator selection and preserved canonical subjects.
-- Escaping host failures do not become semantic Unknown.
-- Nonterminating external execution runs in an isolated process
-  with a supervisor timeout and forced process termination.
-- Record whether execution reached the external evaluator.
-- Do not assert universal termination: the incumbent node
-  budget does not bound external computation.
+Expected:
+- All 15 kinds preserve existing canonical representation.
+- Structural inspection, subtree selection and equality are
+  implemented through admitted ordinary SHEAR computation.
+- Nested data and semantic constraints reconstruct identically.
+- Reordering and duplicate composition preserve identity.
+- Bool/int, byte/text and sequence-kind distinctions survive.
+- Controlled valid VM outputs govern each projection operation.
+- Constraint identity is independent of evaluator deployment.
+- Existing state and version identity rules are unchanged.
 
-## T5 – Canonical identity and reconstruction
+## 7. T6 – Runtime admission and continuity
 
-Add:
-- `test_generic_projection_roundtrip`
-- `test_constraint_reconstruction_identity`
-- `test_constraint_identity_across_versions`
-
-Required observations:
-- Every kind preserves canonical serialization and kind tags.
-- Projection is immutable, generic and independently testable
-  outside constraint evaluation.
-- Nested tuples, lists, maps and semantic records round-trip.
-- Map insertion order cannot change semantic identity.
-- Bytes, text, identifiers and sequence kinds stay distinct.
-- Reconstructed constraints remain canonical semantic data.
-- Evaluation and ordinary unrelated edits cannot change
-  constraint identity or program/version identity.
-
-## T6 – Runtime admission and continuity
-
-Existing:
+Frozen:
 - `CompleteConstraintAcceptance.test_all_frozen_runtime_boundaries`
+- `FrozenRuntimeAcceptance.test_t6_runtime_scenarios`
+- Task 32 runtime-boundary regression suites.
 
-Add:
-- `test_rename_and_reference_continuity`
-- `test_successful_relation_admission`
-- `test_atomicity_and_staged_artifacts`
+Expected:
+- All 17 frozen Task 24 boundary scenarios pass.
+- Seven additional fixed relation, rename and staging cases.
+- Initial and subsequent cell/relation checks use the candidate.
+- Successes and rejections have exact observed outcomes.
+- Explicit continuity rewrites actual relation endpoints.
+- Rename is not simulated by an adapter-only name table.
+- Failed writes, activations and trials preserve live state.
+- Trials preserve existing unrelated cell content.
+- Existing references, holds, active versions and artifact
+  bindings retain their normative atomicity guarantees.
 
-Required observations:
-- Genuine initial cell and relation checks.
-- Successful and rejected writes.
-- Successful and rejected activation and trial.
-- Rename continuity under the existing normative rules.
-- Owned-subtree canonical subject preservation.
-- Rejected operations preserve live state, active version,
-  registered references and admitted artifact bindings.
-- Trials never commit staged changes to the live runtime.
+## 8. T7 – Failure boundaries
 
-## T7 – Failure boundaries
+Frozen:
+- Task 24 exception, catch, Unknown and machine-limit cases.
+- All tests in `constraint_functions_failure_acceptance.py`
+- `FrozenExternalAcceptance.test_host_failure_escapes_unchanged`
+- Task 32 admission/policy/host-failure regressions.
 
-Existing:
-- Task 24 exception, Unknown, call-depth and catch scenarios.
-- `test_evaluator_fault_propagates_for_every_operation`
+Expected:
+- Unknown and Violated remain distinct from host failures.
+- Real Runtime exceptions expose the expected entity,
+  semantic result and public exception class.
+- Runtime admission, restricted-policy and machine-limit
+  failures retain distinct provenance.
+- Escaped evaluator exceptions cannot become catchable
+  SHEAR language errors.
+- Rejected operations do not commit effects.
+- Tail recursion and depth-limit behavior stay unchanged.
 
-Add:
-- `test_failure_provenance_matrix`
+## 9. T8 – Existing language and semantic corpora
 
-Required observations:
-- Distinct Unknown, violation, runtime admission rejection,
-  host failure, machine limit and restricted-policy rejection.
-- Every failure retains its prescribed provenance.
-- No host failure becomes catchable SHEAR error.
-- No failed admission causes observable mutation.
+Frozen:
+- `CandidateCorpusAcceptance.test_complete_existing_example_corpus`
+- `CandidateCorpusAcceptance.test_existing_regressions_remain_mandatory`
+- Original `shear.examples.EXAMPLES` and all step expectations.
+- Existing ordinary CI lane inventory.
+- Existing golden records and comparison procedures.
 
-## T8 – Existing language and semantic corpora
-
-Add:
-- `test_existing_corpora_through_candidate_layer`
-- `test_public_api_and_golden_compatibility`
-
-Required observations:
-- Run all applicable existing semantic/language corpora with
-  candidate-backed admission, not only incumbent admission.
-- Compare results, failure classes, state transitions and
-  relevant canonical identities to baseline observations.
-- Run the complete ordinary CI suite.
+Execute requirements:
+- Replay every existing corpus example and scenario.
+- Construct actual candidate-backed Runtime instances.
+- Check initial constraint admission and subsequent operations.
+- Compare every result and expected live-cell observation.
+- Run `python -m tests.lanes --all` successfully.
+- Run applicable golden, hosted and Task 24 checks.
 - Preserve existing public APIs and golden records.
-- Report every skipped or inapplicable corpus explicitly.
+- Record exact SHAs, CI runs and any excluded diagnostic jobs.
 
-## T9 – Adversarial execution and version authority
+The existing corpus and CI are fixed acceptance inputs,
+not a new set of scenarios delegated to Execute.
+A green incumbent-only CI run is necessary but insufficient.
 
-Existing:
-- Task 24 candidate-effect and candidate-version scenarios.
-- Task 32 restricted-execution regression suites.
+## 10. T9 – Adversarial authority and isolation
 
-Add:
-- `test_adversarial_candidate_authority`
-- `test_admitted_artifact_authentication`
-- `test_evaluator_replacement_and_isolation`
+Frozen:
+- All tests in `constraint_functions_authority_acceptance.py`
+- Task 24 `candidate_effect` and `candidate_version` cases.
+- Existing Task 32 security, boundary and lifecycle suites.
+- `CandidateFreshImportAcceptance.test_import_under_poisoning_in_fresh_process`
 
-Required observations:
-- Attempt unauthorized reads, writes, activation, trials,
-  reflection, dynamic dispatch and undeclared external calls.
-- Reject invalid or unauthorized emitted chunks before effects.
-- No late compilation or fallback following rejection.
-- Verify authenticated node, version, chunk and generation.
-- Replacement cannot alter the selection pinned for an
-  in-progress operation.
-- Constraint identity is independent of deployment identity.
-- Reject mutated, substituted and invalidated artifacts.
+Expected:
+- Wrong issuer, invalidated deployments and rehashed artifact
+  substitutions fail without unauthorized machine execution.
+- Validly structured but unauthorized code is still rejected.
+- Forbidden effects and indirect calls fail closed.
+- Existing Task 32 source, opcode, replacement and admission
+  adversaries remain mandatory.
+- The operation's selected evaluator remains pinned even if
+  registry replacement occurs during its execution.
+- No hidden fallback or late lowering rescues rejection.
+- Candidate imports under incumbent poisoning in a fresh
+  process, not only from an existing Python module cache.
+- Unauthorized reads, writes, activation, trials, reflection
+  or undeclared external dispatch must not gain authority.
 
-## Generic projection discriminator
+## 11. Candidate-to-machine binding
 
-The projection tests are independent of constraint truth results.
+The authenticated execution evidence must identify:
+- Actual selected function entry and semantic operation.
+- Canonicalized subject and expression-associated preparation.
+- Source state, version and compiler generation.
+- Admitted node and exact artifact/chunk identity.
+- Actual returned verdict from the selected machine execution.
+- No unrestricted machine execution or host lowering during
+  observed evaluation.
 
-They must inspect projected content using ordinary SHEAR
-functions and verify their authenticated machine execution.
+The direct-result acceptance prepares an evaluator without
+receiving the subject or expected verdict and invokes that
+same admitted implementation on multiple subjects.
 
-They must cover:
-- All 15 canonical semantic kinds.
-- Nested collections and semantic records.
-- Maps with reversed insertion order.
-- Type-sensitive unequal values.
-- Round-trip canonical byte equivalence.
-- Unchanged EntityID, StateID and VersionID identities.
-- Original canonical values remain unchanged.
+The binding acceptance instruments the adapter's preparation,
+restricted invocation, machine invocation, artifact opening
+and valid-verdict perturbation.
 
-A Python-only projection test is insufficient.
+These are executable discriminators, not a substitute for the
+mandatory independent source-path and fallback audit.
 
-## Execution evidence
+## 12. Evidence and completion
 
-For each test record:
-- Candidate commit and admitted deployment identity.
-- Evaluator entry and opened machine node.
-- Authenticated artifact/version/compiler generation.
-- Actual observation and independent expected result.
-- Zero incumbent constraint-evaluator calls.
-- Whether a failure occurred before or during VM execution.
+Record for every applicable acceptance suite:
+- Candidate and baseline SHAs.
+- Exact executable test inventory.
+- Passed, failed, skipped and unexecuted counts.
+- Candidate deployment, evaluator selection and operation.
+- Real machine-entry and admitted-artifact observations.
+- Expected and observed semantic outcomes.
+- Effects, state/version transitions and failures.
+- Reproduction commands and CI run URLs.
 
-Do not substitute adapter declarations or runner-call counts
-for evidence of execution.
+Performance and mechanism accounting follow
+`docs/constraint_functions_complete_benchmarks.md`.
 
-A test with no observed candidate machine entry cannot establish
-candidate execution. For scenarios intentionally rejected by
-preflight, verify zero machine entry and no observable effects.
+A positive verdict requires all T1–T9 obligations, the
+existing frozen graders, complete applicable CI and
+independent provenance review.
 
-## Qualification
+A failed candidate implementation alone does not establish
+architectural impossibility. A negative verdict needs a
+minimal reproducible discriminator. An inconclusive verdict
+must identify the next decisive experiment.
 
-Positive qualification requires every existing frozen grader
-and every additional named test in this document to pass.
-
-A missing, skipped, unsupported or unimplemented obligation
-prevents a positive verdict.
-
-A negative verdict requires a reproducible discriminator,
-not merely missing implementation.
-
-An inconclusive verdict must identify the missing evidence
-and the next decisive experiment.
+The owner retains authority over language-shaping changes,
+accepted performance exceptions and publication.
