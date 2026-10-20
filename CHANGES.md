@@ -2058,3 +2058,15 @@ negative and inconclusive experiments.
 - Reconciled Task 32's merged status (PR #125) without changing
   historical evidence or technical acceptance.
 - No production semantics, tests or golden records changed.
+
+## 2026-10-20
+
+### Mutation survivor repin verification (GH-107)
+
+- Require complete survivor revalidation before Review approval and
+  Publish when mutation engine or survivor catalog pins change.
+- Use existing targeted CI campaigns and JSONL evidence. Verify actual
+  execution, outcomes, source pins and engine pins on the reviewed head.
+- Reject sampled, skipped or post-merge evidence as insufficient.
+- Ordinary PR testing is unchanged. No new mutation infrastructure,
+  production semantics, tests or golden records were added.
