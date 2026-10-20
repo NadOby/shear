@@ -1,3 +1,4 @@
+
 """Adversarial generic canonical-projection acceptance for SHEAR #123.
 
 Execute must provide:
@@ -23,6 +24,7 @@ from shear import (
     canonical_serialize,
     kind_of,
 )
+from shear.hosted_bootstrap import AdmissionRejected
 from tests.constraint_functions_complete_projection import (
     KINDS,
     NESTED,
@@ -305,28 +307,67 @@ class AdversarialProjectionAcceptance(unittest.TestCase):
                 )
 
     def assert_machine_result_controls(
-        self, operation, arguments, alternative,
+        self, operation, arguments, control_arguments,
     ):
+        """Accept real result dependence or explicit fail-closed validation.
+
+        The alternative must first be observed as a valid output for
+        another input. Arbitrary exceptions are not accepted.
+        """
+        method = getattr(self.candidate, operation)
         baseline = self.execute(operation, *arguments)
+        alternative = self.execute(operation, *control_arguments)
+
         self.assertNotEqual(
             canonical_bytes(baseline),
             canonical_bytes(alternative),
-            "alternative does not distinguish the original result",
+            "control output does not distinguish the baseline",
         )
 
+        # Each observed output must survive controlled transport
+        # when paired with the input that legitimately produced it.
+        for inputs, expected in (
+            (arguments, baseline),
+            (control_arguments, alternative),
+        ):
+            with candidate_execution_guard(
+                self.entries, forced=expected,
+            ) as opened:
+                actual = method(*inputs)
+
+            self.assertTrue(opened)
+            self.assertEqual(
+                canonical_bytes(actual),
+                canonical_bytes(expected),
+            )
+
+        # Substitute a valid output from a different input.
+        # The adapter may propagate it or reject the inconsistency.
+        # Unrelated exceptions are test failures.
+        rejected = None
         with candidate_execution_guard(
             self.entries, forced=alternative,
         ) as opened:
-            actual = getattr(self.candidate, operation)(*arguments)
+            try:
+                actual = method(*arguments)
+            except (ValueError, TypeError, AdmissionRejected) as exc:
+                rejected = exc
 
         self.assertTrue(
             opened, f"{operation}: no admitted evaluator execution",
         )
-        self.assertEqual(
-            canonical_bytes(actual),
-            canonical_bytes(alternative),
-            f"{operation}: actual result ignored controlled VM output",
-        )
+
+        if rejected is None:
+            self.assertEqual(
+                canonical_bytes(actual),
+                canonical_bytes(alternative),
+                f"{operation}: ignored controlled VM output",
+            )
+        else:
+            self.assertTrue(
+                str(rejected).strip(),
+                f"{operation}: validation rejection lacks a reason",
+            )
 
     def test_selection_depends_on_valid_machine_output(self):
         value = {"a": [1, 2], "b": {"c": True}}
@@ -335,24 +376,21 @@ class AdversarialProjectionAcceptance(unittest.TestCase):
             "map",
         )
         self.assert_machine_result_controls(
-            "select_projection", (value, (1,)), "tuple",
-        )
-        self.assert_machine_result_controls(
-            "select_projection", (value, (0,)), "different_tag",
+            "select_projection",
+            (value, (1,)),
+            ((1, 2), (1,)),
         )
 
     def test_inspection_depends_on_valid_machine_output(self):
-        value = {"a": [1, 2], "b": {"c": True}}
-        alternate = ("map", 1, {"a": [1, 2]})
-        self.assert_machine_result_controls(
-            "inspect_projection", (value,), alternate,
-        )
-
-        sequence = (1, 2, 3)
         self.assert_machine_result_controls(
             "inspect_projection",
-            (sequence,),
-            ("tuple", 2, (1, 2)),
+            ({"a": [1, 2], "b": {"c": True}},),
+            ({"a": [1, 2]},),
+        )
+        self.assert_machine_result_controls(
+            "inspect_projection",
+            ((1, 2, 3),),
+            ((1, 2),),
         )
 
     def test_equality_depends_on_valid_machine_output(self):
@@ -361,11 +399,16 @@ class AdversarialProjectionAcceptance(unittest.TestCase):
         different = {"a": 1, "b": 3}
 
         self.assert_machine_result_controls(
-            "equal_projection", (left, reordered), False,
+            "equal_projection",
+            (left, reordered),
+            (left, different),
         )
         self.assert_machine_result_controls(
-            "equal_projection", (left, different), True,
+            "equal_projection",
+            (left, different),
+            (left, reordered),
         )
+
 
 if __name__ == "__main__":
     unittest.main()
