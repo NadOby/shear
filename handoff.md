@@ -1,4 +1,3 @@
-
 # Handoff
 
 ## Current state
@@ -6,7 +5,7 @@
 - Issue: #123 – complete constraint semantics with ordinary SHEAR functions.
 - Branch: `task/123-complete-constraints`.
 - Baseline: `f994a2d59b0f6f890f4800effe209d88e1c838c1`.
-- Latest substantive Plan head: `a689501c556b02e03e692dafa098b4fdfb662ebc`.
+- Latest substantive Plan head: `0564041b2ab68aeb15f67c8366445eb98a8b1eff`.
 - Role: Plan Resolve – independent re-review required.
 - No production implementation or PR yet.
 - Candidate-dependent acceptance has not executed.
@@ -62,7 +61,10 @@ Additional:
 - `tests/constraint_functions_authority_acceptance.py`
 - `tests/constraint_functions_candidate_effect_acceptance.py`
 
-All 15 modules remain outside ordinary Plan-time test discovery.
+The Plan owns 15 candidate-dependent acceptance modules
+containing 56 test methods.
+
+They remain outside ordinary Plan-time test discovery.
 Execute must supply the candidate and register every suite.
 
 Task 24's immutable semantic oracles and 17 boundary cases,
@@ -77,9 +79,9 @@ Initial review identified:
 - P2: projection perturbations could pass for wrong reasons.
 - P2: candidate import poisoning could reuse module cache.
 
-These were substantially resolved through direct admitted
-execution, result binding, frozen T1–T9 fixtures, valid-result
-perturbations and fresh-process import testing.
+Resolve introduced direct admitted execution, machine-result
+binding, concrete T1–T9 fixtures, projection perturbations
+and fresh-process import testing.
 
 The subsequent independent review at `e814375` reported:
 - P1: incorrect budgeted AllOf short-circuit expectation.
@@ -87,43 +89,63 @@ The subsequent independent review at `e814375` reported:
 - P2: forbidden-effect tests did not exercise candidate code.
 - P3: external acceptance count was outdated.
 
-Latest Resolve changes:
-- Corrected the budget-2 subject-20 outcome to Violated.
-- Allowed verified fail-closed projection validation while
-  retaining controlled machine-output dependence.
+Subsequent Resolve changes:
+- Corrected budget-2 subject-20 outcome to Violated.
+- Reworked projection perturbations to use alternative outputs
+  independently observed from valid candidate executions.
 - Added candidate-derived dynamic-dispatch and actual adapter
   preflight-denial acceptance.
-- Registered the new tests in the Plan and coverage matrix.
-- Corrected the external acceptance inventory to seven tests.
+- Registered candidate-effect tests in the main Plan and
+  T9 coverage matrix.
+- Corrected the T4 external acceptance inventory to seven.
 
-These corrections have not yet received independent approval.
-No candidate execution success is claimed.
+A final documentation audit identified:
+- P2: generic processing exceptions could still count as
+  projection validation without sufficient provenance.
+- P3: T5 documentation overstated output propagation.
+
+Latest corrective changes:
+- Projection rejection now requires the operation and exact
+  rejected VM output to be identified on the exception.
+- T5 documentation permits output propagation or explicit
+  fail-closed validation and requires independent verification
+  of the rejection mechanism.
+- The actual file inventory, main Plan and handoff agree on
+  all 15 acceptance modules.
+
+These changes have not received independent Plan approval.
+Structured rejection metadata alone does not prove genuine
+validation. No candidate execution success is claimed.
 
 ## Independent re-review priorities
 
-1. Verify all four findings from the latest review are resolved.
-2. Examine corrected budget expectations against Task 24 ordering.
-3. Verify projection corruption cannot be ignored or excused by
-   unrelated exceptions.
-4. Verify candidate-derived forbidden dispatch is genuinely
+1. Verify the complete Plan diff and the latest fixes.
+2. Check Task 24 budget ordering and exact expected outcomes.
+3. Verify projection-output alternatives are legitimate and
+   rejection handling is neither trivially permissive nor
+   unnecessarily implementation-specific.
+4. Determine whether the projection rejection provenance
+   contract is feasible without imposing unapproved architecture.
+5. Verify candidate-derived unauthorized dispatch is genuinely
    deployable and rejected before machine entry.
-5. Verify forced preflight denial reaches the candidate's actual
-   restricted execution path without hidden fallback.
-6. Check all acceptance modules for correct Python APIs, syntax,
-   consistent expected outcomes and unintended architectural limits.
-7. Confirm T1–T9 coverage and complete test registration.
-8. Confirm frozen Task 24, Task 32, production and golden records
-   remain unchanged.
-9. Verify applicable CI against exact commit SHAs.
+6. Verify forced candidate preflight denial cannot be bypassed.
+7. Check all 15 acceptance modules for valid Python APIs,
+   internally consistent fixtures and executable expectations.
+8. Reconcile T1–T9 coverage with the immutable Task 24 oracles
+   and Task 32 security and boundary tests.
+9. Confirm the branch contains no unintended production,
+   original test or golden-record changes.
+10. Check applicable CI against the exact reviewed SHAs.
 
-An independent implementation-level source-path audit remains
-mandatory during Execute.
+Independent source-path and fallback auditing remains mandatory
+during Execute, including verification that projection rejection
+really originates in validation rather than incidental failure.
 
 ## Next action
 
 1. Independently re-review the final Plan head, read-only.
 2. Resolve any remaining P0–P2 findings if required.
-3. Freeze the approved Plan.
+3. Freeze the independently approved Plan.
 4. Execute the complete architectural experiment.
 5. Independently review implementation and evidence.
 
