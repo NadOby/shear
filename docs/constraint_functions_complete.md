@@ -237,13 +237,17 @@ Measure:
 
 Use repeatable inputs, environment details and raw observations.
 
-The provisional sufficiency ceiling is a 1000-fold warm
-latency ratio for both median and p95. Record measurement
-uncertainty and distinguish preparation from execution.
+The owner-approved initial sufficiency ceiling is 1000x
+the incumbent for both warm median and p95 latency.
+Record measurement uncertainty and distinguish preparation
+from execution. Exceeding this ceiling triggers investigation,
+not automatic termination. A resource-based negative verdict
+requires reproducible evidence and owner confirmation that
+the observed cost is unacceptable.
 
-The target design may add at most two independent generic
-fixed mechanisms beyond Task 32, subject to owner approval
-for language changes.
+There is no fixed limit on the number of new generic mechanisms.
+Count and justify every mechanism independently. A necessary
+language-shaping change still requires owner approval.
 
 Count retained, reused, extended, added, shared and genuinely
 removable mechanisms using Task 24's M1–M4 and N1–N5 taxonomy.
@@ -317,8 +321,10 @@ D123-2: No new syntax or VM instructions initially.
 D123-3: Existing restricted execution preferred.
 D123-4: Exact semantic budgeting through ordinary computation.
 D123-5: Production removal deferred until equivalence is proven.
-D123-6: Complexity/performance bounds require owner approval
-before being treated as final architecture-adoption thresholds.
+D123-6: Owner approves 1000x warm median and p95 latency
+as initial sufficiency ceilings, subject to evidence-based review.
+No hard count limit applies to new generic mechanisms.
+Every mechanism must be identified, justified and measured.
 
 These preferences may be falsified by the experiment.
 Any replacement language decision returns to the owner.
