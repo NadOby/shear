@@ -5,7 +5,7 @@
 - Issue: #123 – complete constraint semantics with ordinary SHEAR functions.
 - Branch: `task/123-complete-constraints`.
 - Baseline: `f994a2d59b0f6f890f4800effe209d88e1c838c1`.
-- Latest substantive Plan head: `0564041b2ab68aeb15f67c8366445eb98a8b1eff`.
+- Latest substantive Plan head: `e35bcb54fec478e7b530b6504a7c2cb9d488401b`.
 - Role: Plan Resolve – independent re-review required.
 - No production implementation or PR yet.
 - Candidate-dependent acceptance has not executed.
@@ -73,9 +73,9 @@ records remain mandatory and unchanged.
 
 ## Independent review history
 
-Initial review identified:
+Initial review findings:
 - P1: insufficient evaluator-to-machine result authenticity.
-- P1: T1–T9 acceptance obligations deferred without fixtures.
+- P1: T1–T9 acceptance obligations lacked concrete fixtures.
 - P2: projection perturbations could pass for wrong reasons.
 - P2: candidate import poisoning could reuse module cache.
 
@@ -83,68 +83,78 @@ Resolve introduced direct admitted execution, machine-result
 binding, concrete T1–T9 fixtures, projection perturbations
 and fresh-process import testing.
 
-The subsequent independent review at `e814375` reported:
+Subsequent review findings:
 - P1: incorrect budgeted AllOf short-circuit expectation.
 - P2: projection perturbation overconstrained validation.
 - P2: forbidden-effect tests did not exercise candidate code.
 - P3: external acceptance count was outdated.
 
-Subsequent Resolve changes:
+Corrections:
 - Corrected budget-2 subject-20 outcome to Violated.
-- Reworked projection perturbations to use alternative outputs
-  independently observed from valid candidate executions.
-- Added candidate-derived dynamic-dispatch and actual adapter
-  preflight-denial acceptance.
-- Registered candidate-effect tests in the main Plan and
-  T9 coverage matrix.
-- Corrected the T4 external acceptance inventory to seven.
+- Used independently observed valid alternative VM outputs.
+- Added candidate-derived dynamic-dispatch and preflight-denial
+  acceptance.
+- Registered candidate-effect tests in the main Plan and T9.
+- Corrected T4 external acceptance inventory to seven tests.
 
-A final documentation audit identified:
-- P2: generic processing exceptions could still count as
-  projection validation without sufficient provenance.
-- P3: T5 documentation overstated output propagation.
+Documentation and evidence audit:
+- Strengthened projection-rejection provenance requirements.
+- Clarified T5 output propagation versus fail-closed validation.
+- Verified all 15 acceptance modules exist and are documented.
+- Retained independent source-path auditing as mandatory.
 
-Latest corrective changes:
-- Projection rejection now requires the operation and exact
-  rejected VM output to be identified on the exception.
-- T5 documentation permits output propagation or explicit
-  fail-closed validation and requires independent verification
-  of the rejection mechanism.
-- The actual file inventory, main Plan and handoff agree on
-  all 15 acceptance modules.
+## Latest independent Plan re-review
 
-These changes have not received independent Plan approval.
-Structured rejection metadata alone does not prove genuine
-validation. No candidate execution success is claimed.
+Reviewed head:
+`0b05d545025e6693999fc624b923c084921ffb7b`
+
+Substantive Plan head:
+`0564041b2ab68aeb15f67c8366445eb98a8b1eff`
+
+Verdict: REQUEST RESOLVE – one new P1.
+
+The reviewer confirmed previous findings were resolved at the
+Plan level but identified a candidate-independent fixture defect:
+
+- A projection stress fixture nested 256 levels deep exceeds
+  Python's standard recursion limit during the existing
+  canonicalization and serialization of expected values.
+- The failure occurs before candidate execution.
+- Task 24 does not require this additional nesting depth.
+
+Latest Resolve corrections:
+- Projection nested depths are now 8, 64 and 128.
+- Semantic negation depths are now 8, 9, 64, 65, 127 and 128.
+- Semantic nested-role depths are now 8, 64 and 128.
+- Width-256 projection and semantic stress cases are preserved.
+- Exact semantic-budget expectations are preserved.
+- Task 24 frozen fixtures and production code are untouched.
+
+These fixes have not yet been independently re-reviewed.
+The candidate-dependent suites remain unexecuted.
 
 ## Independent re-review priorities
 
-1. Verify the complete Plan diff and the latest fixes.
-2. Check Task 24 budget ordering and exact expected outcomes.
-3. Verify projection-output alternatives are legitimate and
-   rejection handling is neither trivially permissive nor
-   unnecessarily implementation-specific.
-4. Determine whether the projection rejection provenance
-   contract is feasible without imposing unapproved architecture.
-5. Verify candidate-derived unauthorized dispatch is genuinely
-   deployable and rejected before machine entry.
-6. Verify forced candidate preflight denial cannot be bypassed.
-7. Check all 15 acceptance modules for valid Python APIs,
-   internally consistent fixtures and executable expectations.
-8. Reconcile T1–T9 coverage with the immutable Task 24 oracles
-   and Task 32 security and boundary tests.
-9. Confirm the branch contains no unintended production,
-   original test or golden-record changes.
-10. Check applicable CI against the exact reviewed SHAs.
+1. Verify the latest two recursion-bound corrections.
+2. Check that remaining mandatory stress fixtures are feasible
+   under the supported Python recursion limit.
+3. Confirm all previously resolved findings remain resolved.
+4. Verify the exact budget expectations and Task 24 ordering.
+5. Confirm projection rejection is not accepted solely because
+   an adapter fabricates provenance metadata.
+6. Check candidate-specific effects and preflight isolation.
+7. Reconcile all 15 modules and 56 methods with T1–T9.
+8. Verify the baseline-to-head diff changes no production code,
+   Task 24 oracle, Task 32 security test or golden record.
+9. Inspect exact CI evidence and identify unexecuted suites.
 
 Independent source-path and fallback auditing remains mandatory
-during Execute, including verification that projection rejection
-really originates in validation rather than incidental failure.
+during Execute.
 
 ## Next action
 
-1. Independently re-review the final Plan head, read-only.
-2. Resolve any remaining P0–P2 findings if required.
+1. Obtain independent read-only Plan re-review.
+2. Resolve any remaining P0–P2 findings, if required.
 3. Freeze the independently approved Plan.
 4. Execute the complete architectural experiment.
 5. Independently review implementation and evidence.
