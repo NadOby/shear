@@ -1,4 +1,3 @@
-
 """Adversarial generic canonical-projection acceptance for SHEAR #123.
 
 Execute must provide:
@@ -10,6 +9,10 @@ as ("__type__", kind, payload). No constraint-specific traversal is allowed.
 
 All candidate methods must execute admitted ordinary SHEAR functions.
 This Plan-owned module is not discovered until Execute registers it.
+
+A candidate may reject an inconsistent machine result, but deliberate
+validation must carry explicit operation and VM-output provenance.
+Generic processing exceptions do not qualify as validation evidence.
 """
 
 from importlib import import_module
@@ -309,10 +312,14 @@ class AdversarialProjectionAcceptance(unittest.TestCase):
     def assert_machine_result_controls(
         self, operation, arguments, control_arguments,
     ):
-        """Accept real result dependence or explicit fail-closed validation.
+        """Require result dependence or explicitly identified rejection.
 
-        The alternative must first be observed as a valid output for
-        another input. Arbitrary exceptions are not accepted.
+        The alternative is independently observed from a different
+        valid input. A rejection must identify both the operation
+        and the exact injected VM output.
+
+        Structured rejection evidence is necessary, but an independent
+        source-path audit must still verify the validation mechanism.
         """
         method = getattr(self.candidate, operation)
         baseline = self.execute(operation, *arguments)
@@ -324,8 +331,6 @@ class AdversarialProjectionAcceptance(unittest.TestCase):
             "control output does not distinguish the baseline",
         )
 
-        # Each observed output must survive controlled transport
-        # when paired with the input that legitimately produced it.
         for inputs, expected in (
             (arguments, baseline),
             (control_arguments, alternative),
@@ -341,9 +346,6 @@ class AdversarialProjectionAcceptance(unittest.TestCase):
                 canonical_bytes(expected),
             )
 
-        # Substitute a valid output from a different input.
-        # The adapter may propagate it or reject the inconsistency.
-        # Unrelated exceptions are test failures.
         rejected = None
         with candidate_execution_guard(
             self.entries, forced=alternative,
@@ -363,11 +365,26 @@ class AdversarialProjectionAcceptance(unittest.TestCase):
                 canonical_bytes(alternative),
                 f"{operation}: ignored controlled VM output",
             )
-        else:
-            self.assertTrue(
-                str(rejected).strip(),
-                f"{operation}: validation rejection lacks a reason",
-            )
+            return
+
+        self.assertEqual(
+            getattr(rejected, "projection_operation", None),
+            operation,
+            "rejection lacks projection-operation provenance",
+        )
+        self.assertTrue(
+            hasattr(rejected, "rejected_vm_output"),
+            "rejection lacks VM-output provenance",
+        )
+        self.assertEqual(
+            canonical_bytes(rejected.rejected_vm_output),
+            canonical_bytes(alternative),
+            "rejection does not identify the injected VM output",
+        )
+        self.assertTrue(
+            str(rejected).strip(),
+            "projection rejection lacks a reason",
+        )
 
     def test_selection_depends_on_valid_machine_output(self):
         value = {"a": [1, 2], "b": {"c": True}}
