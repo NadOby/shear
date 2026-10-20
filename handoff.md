@@ -2,48 +2,56 @@
 
 ## Current state
 
-- Issue: #107 – mutation survivor repin revalidation.
-- Branch: `task/107-repin-revalidation`.
-- Baseline: `4cb022747b80fa94860cb8b97d7992d468de9dde`.
-- Frozen documentation deliverable: `8a0f5a90bd67fde628ea809fc74032801535dcb1`.
-- Plan-owned files: `docs/roadmap.md`,
-  `docs/verification_hardening.md`, `CHANGES.md`.
-- Role: Resolve – independent re-Review required.
-- Independent Review: REQUEST RESOLVE (one P2, one P3).
-- No production, test or golden-record changes.
-- No PR opened.
+- Issue: #123 – complete constraint semantics with ordinary SHEAR functions.
+- Branch: `task/123-complete-constraints`.
+- Baseline: `f994a2d59b0f6f890f4800effe209d88e1c838c1`.
+- Proposed frozen Plan content head: `2ae3099b2a9c0bbadce3bde4266fe593caa5a2ea`.
+- Role: Plan – independent Review pending.
+- No production implementation or PR yet.
 
-## Deliverable
+## Plan-owned files
 
-- Review and Publish reject repins without complete same-head
-  revalidation of affected classified survivors.
-- Existing CI campaigns provide JSONL execution evidence.
-- Review verifies every affected key actually executed and survived
-  with matching source and engine pins.
-- Sampling, skipped mutants and post-merge evidence are insufficient.
-- Ordinary PR testing and mutation infrastructure remain unchanged.
+- `docs/constraint_functions_complete.md`
+- `tests/test_constraint_functions_complete.py`
+- `tests/lanes.py`
 
-## Review resolution
+Task 24's frozen oracles and 17 boundary cases remain unchanged.
 
-- P2 – stale handoff: replaced the #124 checkpoint with this
-  #107 checkpoint. Reviewed deliverable and baseline are identified.
-- P3 – historical wording in `docs/verification_hardening.md`:
-  non-blocking; unchanged. It describes the earlier documentation
-  move, not the new #107 requirements.
-- Full campaigns remain acceptable for infrequent repins.
-  No survivor-only execution mode is introduced.
+## Architectural experiment
 
-## Verification
+Implement complete constraint semantics through ordinary SHEAR
+functions using Task 32 restricted execution.
 
-- Ordinary CI passed at `8a0f5a9`: run `39375493165`.
-- The `tests` job succeeded. Optional mutation campaign was skipped,
-  as expected for this documentation-only change.
-- Final-head CI must be checked after this metadata correction.
+Initial hypotheses:
+- No new syntax.
+- No new VM instructions.
+- Generic canonical-content projection.
+- Existing compiler, VM and restricted runner.
+- Exact semantic budget propagation through ordinary computation.
+
+These are falsifiable hypotheses, not mandatory architectural
+restrictions. Language-shaping decisions remain with the owner.
+
+## Acceptance
+
+- Complete Task 24 semantic/property oracles.
+- All 17 frozen boundary scenarios.
+- Genuine load, write, activation and trial.
+- Independent proof of no Python constraint fallback.
+- Preserved identity, errors, isolation and atomicity.
+- Mechanism accounting and reproducible execution costs.
+- Explicit positive, negative or inconclusive conclusion.
+
+The acceptance tests deliberately fail until Execute supplies
+the candidate implementation.
 
 ## Next action
 
-1. Verify this commit and applicable CI.
-2. Obtain independent re-Review of the complete final diff.
-3. After approval, Publish with `Closes #107`.
+1. Obtain independent Plan Review.
+2. Resolve any blocking findings.
+3. Freeze the approved Plan.
+4. Execute the complete experiment in one coherent effort.
 
-The owner retains publication authority.
+No applicable CI success is claimed.
+
+The owner retains architectural and publication authority.
