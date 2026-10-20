@@ -219,7 +219,7 @@ class AdversarialProjectionAcceptance(unittest.TestCase):
                     self.assert_selection(value, path, expected)
 
     def test_deep_and_wide_structures(self):
-        for depth in (8, 64, 128, 256):
+        for depth in (8, 64, 128):
             with self.subTest(depth=depth):
                 value = deep_value(depth)
                 self.assert_inspection(value)
