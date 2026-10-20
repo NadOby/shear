@@ -1,4 +1,3 @@
-
 # GH-123 Complete Acceptance Coverage
 
 Status: Plan Resolve – pending independent re-review.
@@ -106,7 +105,12 @@ Expected:
 - Nested data and semantic constraints reconstruct identically.
 - Reordering and duplicate composition preserve identity.
 - Bool/int, byte/text and sequence-kind distinctions survive.
-- Controlled valid VM outputs govern each projection operation.
+- Controlled VM output determines the projection result or
+  triggers explicit fail-closed validation.
+- A validation rejection identifies the projection operation
+  and the exact rejected VM output.
+- Independent source-path review must establish that a rejection
+  came from validation, not an unrelated processing failure.
 - Constraint identity is independent of evaluator deployment.
 - Existing state and version identity rules are unchanged.
 
