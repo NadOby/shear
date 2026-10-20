@@ -86,7 +86,7 @@ CASES = (
     DirectCase(
         ("all_of", ("is_kind", "int"),
          ("int_range", 0, 10)), 2, (),
-        ((5, UNK), (20, UNK)),
+        ((5, UNK), (20, VIO)),
     ),
     DirectCase(
         ("all_of", ("is_kind", "int"),
