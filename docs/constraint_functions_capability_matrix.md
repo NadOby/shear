@@ -281,3 +281,67 @@ from this task-specific capability matrix.
 
 All 15 existing GH-123 acceptance modules and Task 24
 frozen oracles remain unchanged.
+
+
+## 11. Human-facing naming and semantic clarity
+
+SHEAR's language surface must be understandable and
+predictable to human programmers, not merely distinguishable
+by parsers, tools or language models.
+
+Naming consistency does not require changing established
+semantics or making all similarly named operations equivalent.
+
+Audit corresponding concepts across:
+- The original architectural vision.
+- Decided semantic specifications.
+- Ordinary SHEAR source operations.
+- Constraint and contract interfaces.
+- The Python reference-model API.
+
+For each ambiguous name, record:
+- The accepted kinds and input domain.
+- The returned result and its semantic category.
+- Failure and resource behavior.
+- Effects and authority requirements.
+- Identity and continuity implications.
+- The likelihood of human misunderstanding.
+
+Initial candidates:
+
+| Names | Clarity risk | Disposition |
+|---|---|---|
+| len / Length | Tuple-only operation versus multi-kind constraint | Review naming and documented domains |
+| eq / semantic equality | Boolean result versus aspirational three-valued reasoning | Distinguish current and future contracts |
+| ref / Reference | Callable EntityID versus state/version-pinned handle | Review names for distinct reference categories |
+| function / Function | Function value versus installed executable definition | Clarify construction and execution |
+| Role / relation role | Canonical-map predicate versus graph endpoint role | Clarify semantic context |
+| IsKind / kind inspection | Constraint predicate versus generic value introspection | Record the missing ordinary capability |
+
+Possible solutions include:
+- Keeping existing names with clearer documentation.
+- Renaming an operation to describe its actual domain.
+- Using a semantic namespace or prefix.
+- Introducing a generic operation while preserving the
+  behavior of existing specialized operations.
+
+Prefer the option that makes ordinary source code clearest
+with the least ongoing complexity.
+
+No renaming, changed semantics, new compatibility layer,
+canonical-identity change or frozen-test change is authorized
+by this audit.
+
+If a proposed rename changes public source syntax or APIs,
+record its migration cost and obtain owner approval.
+
+Independent Plan Review must assess human-facing clarity,
+not only whether names and operations are mechanically
+distinguishable.
+
+A naming issue is blocking only when it materially affects
+the current task's correctness, acceptance or architectural
+decision. Other findings remain explicitly tracked.
+
+The general Plan/Review workflow must require this audit
+when new operations overlap existing semantic concepts.
