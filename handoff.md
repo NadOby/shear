@@ -1,3 +1,4 @@
+
 # Handoff
 
 ## Current state
@@ -5,7 +6,7 @@
 - Issue: #123 – complete constraint semantics with ordinary SHEAR functions.
 - Branch: `task/123-complete-constraints`.
 - Baseline: `f994a2d59b0f6f890f4800effe209d88e1c838c1`.
-- Latest substantive Plan head: `714a058e98f395d2db970083be476eb8105eb97b`.
+- Latest substantive Plan head: `a689501c556b02e03e692dafa098b4fdfb662ebc`.
 - Role: Plan Resolve – independent re-review required.
 - No production implementation or PR yet.
 - Candidate-dependent acceptance has not executed.
@@ -33,14 +34,14 @@ Language-shaping decisions return to the owner.
 - `docs/constraint_functions_complete_coverage.md`
 - `docs/constraint_functions_complete_benchmarks.md`
 
-The main Plan and coverage matrix identify T1–T9 executable
-acceptance requirements and the independent evidence needed.
+The main Plan and coverage matrix define T1–T9 executable
+acceptance requirements and independent evidence obligations.
 
 The owner-approved initial performance ceiling is 1000x
 incumbent warm median and p95 latency. There is no fixed
 generic mechanism-count cap.
 
-## Frozen executable acceptance
+## Plan-owned executable acceptance
 
 Primary:
 - `tests/constraint_functions_complete_acceptance.py`
@@ -59,66 +60,71 @@ Additional:
 - `tests/constraint_functions_failure_acceptance.py`
 - `tests/constraint_functions_corpus_acceptance.py`
 - `tests/constraint_functions_authority_acceptance.py`
+- `tests/constraint_functions_candidate_effect_acceptance.py`
 
-These remain outside ordinary Plan-time test discovery.
-Execute must supply the candidate and register all suites.
+All 15 modules remain outside ordinary Plan-time test discovery.
+Execute must supply the candidate and register every suite.
 
-Task 24's immutable semantic oracle and 17 boundary cases,
-Task 32's restricted-execution tests and all existing golden
+Task 24's immutable semantic oracles and 17 boundary cases,
+Task 32's restricted-execution tests and existing golden
 records remain mandatory and unchanged.
 
-## Previous Review findings
+## Independent review history
 
-The preceding independent review requested Resolve for:
+Initial review identified:
 - P1: insufficient evaluator-to-machine result authenticity.
 - P1: T1–T9 acceptance obligations deferred without fixtures.
 - P2: projection perturbations could pass for wrong reasons.
 - P2: candidate import poisoning could reuse module cache.
 
-Resolve added:
-- Fresh-process import testing.
-- Valid-result projection perturbation.
-- Direct admitted evaluator verdict testing.
-- Adapter-to-machine argument and result binding.
-- Concrete malformed-input and budget fixtures.
-- External callback, failure and timeout witnesses.
-- Constraint reconstruction and canonical-identity fixtures.
-- Runtime relation, rename and atomicity scenarios.
-- Real runtime exception-provenance checks.
-- Candidate-backed complete corpus replay.
-- Candidate-specific artifact authority and replacement checks.
+These were substantially resolved through direct admitted
+execution, result binding, frozen T1–T9 fixtures, valid-result
+perturbations and fresh-process import testing.
 
-These changes require independent verification. Their presence
-does not establish that the previous findings are resolved.
+The subsequent independent review at `e814375` reported:
+- P1: incorrect budgeted AllOf short-circuit expectation.
+- P2: projection perturbation overconstrained validation.
+- P2: forbidden-effect tests did not exercise candidate code.
+- P3: external acceptance count was outdated.
 
-## Review priorities
+Latest Resolve changes:
+- Corrected the budget-2 subject-20 outcome to Violated.
+- Allowed verified fail-closed projection validation while
+  retaining controlled machine-output dependence.
+- Added candidate-derived dynamic-dispatch and actual adapter
+  preflight-denial acceptance.
+- Registered the new tests in the Plan and coverage matrix.
+- Corrected the external acceptance inventory to seven tests.
 
-1. Verify the complete branch diff, exact APIs and test syntax.
-2. Check all frozen expected observations against Task 24.
-3. Identify impossible or unnecessarily architecture-specific
-   acceptance conditions.
-4. Verify genuine evaluator-machine-result dependence.
-5. Verify host external dispatch does not bypass SHEAR truth logic.
-6. Verify generic projection tests reject host-only implementations.
-7. Verify runtime admission and corpus integration cannot fall back.
-8. Verify artifact authority, effect isolation and replacement.
-9. Check T1–T9 coverage and all CI registration requirements.
-10. Confirm no Plan-owned fixture silently weakens existing oracles.
+These corrections have not yet received independent approval.
+No candidate execution success is claimed.
 
-The T9 candidate artifact tests and existing Task 32 policy tests
-have distinct scopes. An independent source-path audit remains
+## Independent re-review priorities
+
+1. Verify all four findings from the latest review are resolved.
+2. Examine corrected budget expectations against Task 24 ordering.
+3. Verify projection corruption cannot be ignored or excused by
+   unrelated exceptions.
+4. Verify candidate-derived forbidden dispatch is genuinely
+   deployable and rejected before machine entry.
+5. Verify forced preflight denial reaches the candidate's actual
+   restricted execution path without hidden fallback.
+6. Check all acceptance modules for correct Python APIs, syntax,
+   consistent expected outcomes and unintended architectural limits.
+7. Confirm T1–T9 coverage and complete test registration.
+8. Confirm frozen Task 24, Task 32, production and golden records
+   remain unchanged.
+9. Verify applicable CI against exact commit SHAs.
+
+An independent implementation-level source-path audit remains
 mandatory during Execute.
-
-Minor editorial drift: the coverage matrix currently calls the
-T4 acceptance inventory six tests; it now contains seven.
-This is not evidence of an implementation or semantic failure.
 
 ## Next action
 
-1. Independent read-only Plan re-review at the final branch head.
-2. Resolve remaining P0–P2 findings, if any.
+1. Independently re-review the final Plan head, read-only.
+2. Resolve any remaining P0–P2 findings if required.
 3. Freeze the approved Plan.
-4. Execute the complete experiment.
-5. Independently review the resulting implementation and evidence.
+4. Execute the complete architectural experiment.
+5. Independently review implementation and evidence.
 
 The owner retains architectural and publication authority.
