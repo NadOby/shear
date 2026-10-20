@@ -1,3 +1,4 @@
+
 # GH-123 Complete Acceptance Coverage
 
 Status: Plan Resolve – pending independent re-review.
@@ -77,7 +78,7 @@ Expected:
 
 Frozen:
 - Task 24 external vectors and boundary cases.
-- All six tests in `constraint_functions_external_acceptance.py`
+- All seven tests in `constraint_functions_external_acceptance.py`
 - Evaluator machine-fault propagation tests.
 
 Expected:
@@ -174,6 +175,7 @@ A green incumbent-only CI run is necessary but insufficient.
 
 Frozen:
 - All tests in `constraint_functions_authority_acceptance.py`
+- All tests in `constraint_functions_candidate_effect_acceptance.py`
 - Task 24 `candidate_effect` and `candidate_version` cases.
 - Existing Task 32 security, boundary and lifecycle suites.
 - `CandidateFreshImportAcceptance.test_import_under_poisoning_in_fresh_process`
@@ -183,6 +185,8 @@ Expected:
   substitutions fail without unauthorized machine execution.
 - Validly structured but unauthorized code is still rejected.
 - Forbidden effects and indirect calls fail closed.
+- Candidate-derived dynamic dispatch and forced preflight
+  denial fail before unauthorized machine execution.
 - Existing Task 32 source, opcode, replacement and admission
   adversaries remain mandatory.
 - The operation's selected evaluator remains pinned even if
