@@ -304,33 +304,68 @@ class AdversarialProjectionAcceptance(unittest.TestCase):
                     False,
                 )
 
-    def test_path_result_depends_on_machine_output(self):
-        value = {"a": [1, 2], "b": {"c": True}}
-        path = (1,)
-        expected = "map"
-
-        self.assertEqual(
-            self.execute("select_projection", value, path),
-            expected,
+    def assert_machine_result_controls(
+        self, operation, arguments, alternative,
+    ):
+        baseline = self.execute(operation, *arguments)
+        self.assertNotEqual(
+            canonical_bytes(baseline),
+            canonical_bytes(alternative),
+            "alternative does not distinguish the original result",
         )
 
         with candidate_execution_guard(
-            self.entries,
-            forced="__corrupted_machine_result__",
+            self.entries, forced=alternative,
         ) as opened:
-            try:
-                actual = self.candidate.select_projection(value, path)
-            except Exception:
-                changed = True
-            else:
-                changed = actual != expected
+            actual = getattr(self.candidate, operation)(*arguments)
 
-        self.assertTrue(opened, "perturbation never reached the evaluator")
         self.assertTrue(
-            changed,
-            "projection result is independent of machine output",
+            opened, f"{operation}: no admitted evaluator execution",
+        )
+        self.assertEqual(
+            canonical_bytes(actual),
+            canonical_bytes(alternative),
+            f"{operation}: actual result ignored controlled VM output",
         )
 
+    def test_selection_depends_on_valid_machine_output(self):
+        value = {"a": [1, 2], "b": {"c": True}}
+        self.assertEqual(
+            self.execute("select_projection", value, (1,)),
+            "map",
+        )
+        self.assert_machine_result_controls(
+            "select_projection", (value, (1,)), "tuple",
+        )
+        self.assert_machine_result_controls(
+            "select_projection", (value, (0,)), "different_tag",
+        )
+
+    def test_inspection_depends_on_valid_machine_output(self):
+        value = {"a": [1, 2], "b": {"c": True}}
+        alternate = ("map", 1, {"a": [1, 2]})
+        self.assert_machine_result_controls(
+            "inspect_projection", (value,), alternate,
+        )
+
+        sequence = (1, 2, 3)
+        self.assert_machine_result_controls(
+            "inspect_projection",
+            (sequence,),
+            ("tuple", 2, (1, 2)),
+        )
+
+    def test_equality_depends_on_valid_machine_output(self):
+        left = {"a": 1, "b": 2}
+        reordered = {"b": 2, "a": 1}
+        different = {"a": 1, "b": 3}
+
+        self.assert_machine_result_controls(
+            "equal_projection", (left, reordered), False,
+        )
+        self.assert_machine_result_controls(
+            "equal_projection", (left, different), True,
+        )
 
 if __name__ == "__main__":
     unittest.main()
