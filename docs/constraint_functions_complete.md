@@ -331,34 +331,64 @@ Any replacement language decision returns to the owner.
 
 ## 14. Plan-owned verification contracts
 
-The following documents jointly define the frozen acceptance
+The following documents jointly define the Plan-owned acceptance
 obligations for this experiment:
 
 - `docs/constraint_functions_complete_coverage.md`
-  maps every Task 24 T1–T9 obligation to concrete checks.
+  maps every Task 24 T1–T9 obligation to executable checks.
 - `docs/constraint_functions_complete_benchmarks.md`
   defines measurement, uncertainty and mechanism accounting.
+
+The existing primary acceptance suites remain mandatory:
+
 - `tests/constraint_functions_complete_acceptance.py`
-  verifies Task 24 semantics, all 17 frozen boundaries,
-  authenticated evaluator execution and verdict dependence.
 - `tests/constraint_functions_complete_projection.py`
-  verifies all 15 canonical kinds and identity preservation.
 - `tests/constraint_functions_projection_adversarial.py`
-  verifies nested canonical access and structural stress.
 - `tests/constraint_functions_semantic_adversarial.py`
-  verifies generated, deep, wide and budgeted semantics.
 
-All four acceptance modules remain outside ordinary test discovery
-during Plan. Execute supplies the candidate implementation, completes
-the remaining coverage-matrix tests and registers the acceptance
-modules in CI.
+The additional Plan-owned acceptance suites are:
 
-Existing Task 24 oracles, expected results, boundary scripts and
-golden records remain authoritative and unchanged.
+- `tests/constraint_functions_import_acceptance.py`
+  – fresh-process import under incumbent poisoning.
+- `tests/constraint_functions_direct_result_acceptance.py`
+  – direct results from subject-independent admitted preparation.
+- `tests/constraint_functions_binding_acceptance.py`
+  – exact operation, subject and actual machine-result binding.
+- `tests/constraint_functions_t2_t3_acceptance.py`
+  – malformed inputs and exact semantic budget witnesses.
+- `tests/constraint_functions_external_acceptance.py`
+  – external dispatch, canonical subjects, failures and timeout.
+- `tests/constraint_functions_identity_acceptance.py`
+  – semantic constraint reconstruction and canonical identity.
+- `tests/constraint_functions_runtime_acceptance.py`
+  – relation admission, explicit rename and staged operations.
+- `tests/constraint_functions_failure_acceptance.py`
+  – actual runtime exception and failure provenance.
+- `tests/constraint_functions_corpus_acceptance.py`
+  – complete existing corpus replay through candidate integration.
+- `tests/constraint_functions_authority_acceptance.py`
+  – authenticated artifacts, effects and replacement isolation.
 
-Passing the new suites alone is insufficient: all T1–T9 obligations,
-actual runtime transitions, full applicable corpora and independent
-execution-path audit remain mandatory.
+These modules remain outside ordinary test discovery during Plan.
+Execute must supply the real candidate, register the complete
+acceptance inventory and run all applicable existing CI lanes.
+
+The acceptance tests specify observations, not a required
+internal evaluator architecture. Their candidate-facing adapters
+may not substitute Python truth evaluation for SHEAR execution.
+
+Task 24's frozen semantic oracles, all 17 boundary cases,
+expected results and golden records remain authoritative.
+
+The new suites are not demonstrated merely by being committed.
+Before Execute, independent Review must check their consistency,
+feasibility, completeness and ability to reject incorrect
+candidate implementations.
+
+During Execute, qualification additionally requires independent
+source-path and fallback audit, genuine runtime transitions,
+authenticated execution evidence, complete applicable corpora,
+performance measurements and mechanism accounting.
 
 No Plan acceptance requirement may be weakened during Execute
 without an explicit owner decision and renewed independent Review.
