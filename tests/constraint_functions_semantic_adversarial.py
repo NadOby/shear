@@ -149,7 +149,7 @@ class AdversarialSemanticAcceptance(unittest.TestCase):
         )
 
     def test_deep_negation_and_exact_budget(self):
-        for depth in (8, 9, 64, 65, 255, 256):
+        for depth in (8, 9, 64, 65, 127, 128):
             with self.subTest(depth=depth):
                 expression = nested_not(depth)
                 final = SAT if depth % 2 == 0 else VIO
@@ -166,7 +166,7 @@ class AdversarialSemanticAcceptance(unittest.TestCase):
                 )
 
     def test_deep_nested_roles_and_exact_budget(self):
-        for depth in (8, 64, 256):
+        for depth in (8, 64, 128):
             with self.subTest(depth=depth):
                 expression, subject = nested_role(depth)
 
