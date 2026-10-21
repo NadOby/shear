@@ -280,7 +280,7 @@ reach nested semantic contents, including values canonicalized
 during record construction. Passing shallow paths alone is
 insufficient.
 
-## 9. Generalized operation and resource acceptance
+## 9. Generalized operations and resource acceptance
 
 The following additional Plan-owned modules are mandatory for T5:
 
@@ -288,11 +288,10 @@ The following additional Plan-owned modules are mandatory for T5:
     tests/constraint_functions_resource_acceptance.py
 
 Together with the nested-record module in section 8, they extend
-the candidate-dependent inventory to 18 modules and 78 test methods
-at HEAD f8ccc488f4d2424672b02d3894fb428efc588914.
+the candidate-dependent inventory to 18 modules and 78 test methods.
 
-These counts describe the current Plan inventory, not executed
-test results. Earlier inventory counts remain historical baselines.
+These counts describe the Plan inventory, not executed test
+results. The original 15 modules and 56 tests remain mandatory.
 
 ### Generalized sequence operations
 
@@ -300,38 +299,89 @@ Execute must supply:
 
     sequence_projection(value, operation, *arguments)
 
-The supported operations are "len" and "slice". They must execute
+The supported operations are "len" and "slice". Both must execute
 through authenticated ordinary SHEAR computation.
 
 Mandatory witnesses include semantic result kinds, Unicode code
 points, bytes, maps, record field ordering, half-open bounds,
 invalid inputs and ordinary LanguageError behavior.
 
-Machine-result perturbation must use actual authenticated VM
-returns without imposing a single-invocation architecture.
+Machine-result perturbation must observe actual authenticated VM
+returns without imposing a single-invocation architecture or
+assuming that a machine return equals the adapter observation.
 
-Independent source-path auditing must establish that the requested
-operations, rather than unrelated admitted code or Python host
-projection, determine the observations.
+Independent causal dependency is required for each supported
+indexable semantic kind:
+
+- str
+- bytes
+- tuple
+- list
+- map
+- cell
+- constraint
+- relation
+
+A successful perturbation for one kind does not qualify another
+kind, even when both use the same public operation.
+
+### Constraint reconstruction
+
+The existing identity acceptance must preserve all original
+canonical witnesses, equivalence checks and distinctions.
+
+Machine-result dependency must be established independently for
+all nine supported constraint forms:
+
+- is_kind
+- int_range
+- length
+- one_of
+- all_of
+- any_of
+- not
+- role
+- external
+
+Each form must supply distinct valid control expressions and a
+compatible observed machine-return substitution that either
+changes the reconstruction observation or triggers explicit
+provenance-bearing validation rejection.
+
+One successful reconstruction witness cannot qualify every form.
+
+The permitted rejection path must identify the requested
+operation and exact substituted VM return.
 
 ### Resource efficiency
 
 Execute must supply:
 
     prepare_resource_probe(canonical_value, operation)
-    INSPECTION_RESOURCE_BOUNDARIES
 
-These are test instrumentation contracts, not additional public
-SHEAR language operations.
+The adapter returns a reusable callable accepting one argument.
 
-Preparation and input canonicalization must be separated from
-measured inspection.
+The test-owned "control" mode must use the same canonical input,
+admitted invocation path and fixed execution machinery without
+performing subject inspection. It is not a public SHEAR operation.
 
-Resource measurements must be obtained independently of
-candidate-reported counters.
+The resource test owns every measurement interval. It does not
+trust candidate-reported resource counters or candidate-selected
+Python instrumentation boundaries.
 
-The acceptance must enforce bounded attributable inspection
-work and allocation across different collection sizes, including:
+Whole prepared invocations are measured using process CPU time,
+peak Python-traced allocation and Python/native call profiling.
+
+Matched admitted control invocations estimate fixed overhead.
+Synthetic large-copy and native-sort negative controls calibrate
+whether the measurement can detect relevant scaling.
+
+Input canonicalization and compiler/admission preparation occur
+before the measured invocation. Invocation and execution overhead
+remaining inside the measured interval must be accounted for
+through independently measured controls.
+
+Required resource witnesses cover:
 
 - Repeated canonical-order map indexing.
 - Indexed access to large sequences.
@@ -339,29 +389,39 @@ work and allocation across different collection sizes, including:
 - Large constraint-operand collections.
 - Shallow inspection of large canonical values.
 
-Complete semantic results must be verified independently.
+Semantic result contents and ordering must be checked independently,
+not inferred from reported resource consumption.
 
-The registered instrumentation boundaries must cover all
-relevant generic execution work, including delegated helpers,
-native operations, sorting, serialization and allocation.
+Resource acceptance must distinguish allocation explicitly
+required by an output from avoidable copying of existing semantic
+contents. Measurements must not impose constant-output cost on
+operations that explicitly request proportional-size output.
 
-Python opcode tracing alone does not establish these guarantees.
-Independent source-path review must validate boundary completeness
-and identify any unmeasured work.
-
-Candidate execution, authenticated admission, compiler preparation
-and initial canonicalization costs must be accounted for separately.
+Whole-invocation measurement does not by itself prove that a
+candidate uses the authorized inspection path. Independent source
+audit must examine delegated and native operations, sorting,
+serialization, canonicalization, fallback and control equivalence.
 
 ### Acceptance gates
 
 All three new T5 modules are mandatory and candidate-dependent.
 
-No new module may be skipped, silently excluded or counted as
-passing solely because ordinary CI succeeds.
+No module may be skipped, silently excluded or counted as passing
+solely because ordinary CI succeeds.
+
+Independent Review must verify:
+
+- Per-kind sequence machine-result dependency.
+- Per-form reconstruction machine-result dependency.
+- Genuine authenticated returns and unchanged-return controls.
+- Completeness and representativeness of resource measurements.
+- Calibration sensitivity and measurement noise.
+- Separation of preparation, invocation and inspection costs.
+- Correct treatment of requested proportional-size outputs.
+- No unrelated admitted work or host-side semantic fallback.
 
 The original T5 semantic, security and execution-authenticity
 obligations remain unchanged.
 
-Independent Review must explicitly assess instrumentation
-completeness, machine-result dependency and the absence of
-host-side semantic fallback before approving Execute.
+Candidate-dependent acceptance has not run during Plan.
+No implementation success is implied by this mapping.
