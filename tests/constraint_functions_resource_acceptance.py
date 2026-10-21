@@ -1,98 +1,119 @@
-"""Independent inspection-resource acceptance for SHEAR GH-123.
+"""Independent T5 inspection resource acceptance for SHEAR GH-123.
 
-Plan-owned candidate tests, outside ordinary CI discovery.
-Preparation and canonicalization precede measured access.
-No resource counter supplied by the candidate is trusted.
+Plan-owned candidate-dependent tests; excluded from ordinary discovery.
+The test owns every measurement window. No candidate-reported work or
+allocation counters are accepted as evidence.
+
+Execute supplies prepare_resource_probe(canonical_value, operation),
+returning a reusable callable taking one argument. The test-only
+"control" operation uses the same admitted invocation and canonical
+argument path as the inspected operation, but returns a fixed value.
+It must not inspect the subject; source audit verifies that contract.
+Neither name adds a public SHEAR operation.
 """
 
 from importlib import import_module
+from statistics import median
+from time import process_time_ns
 import sys
 import tracemalloc
 import unittest
 
-from shear import (
-    EntityID,
-    OneOf,
-    Relation,
-    canonicalize,
-)
+from shear import EntityID, OneOf, Relation, canonicalize
 from tests.constraint_functions_complete_acceptance import (
     candidate_execution_guard,
     forbid_incumbent,
 )
-from tests.constraint_functions_projection_adversarial import (
-    canonical_bytes,
-)
+from tests.constraint_functions_projection_adversarial import canonical_bytes
 
 
 SMALL = 128
-LARGE = 4096
-MAX_OPCODE_RATIO = 8
-MAX_EXTRA_PEAK_BYTES = 12 * 1024
+LARGE = 8192
+REPEATS = 8
+SAMPLES = 5
+WORK_RATIO_LIMIT = 8
+ALLOCATION_GROWTH_LIMIT = 16 * 1024
 
 
-class BoundaryMeter:
-    """Test-owned instrumentation of generic implementation frames."""
+class WholeInvocationProfile:
+    """Observe all Python and C call boundaries, not nominated functions."""
 
-    def __init__(self, functions):
-        self.codes = {function.__code__ for function in functions}
-        if not self.codes:
-            raise AssertionError("no generic inspection boundaries")
-        self.opcodes = 0
-        self.entries = 0
-        self.peak_bytes = 0
-        self.active = 0
-        self.baseline = 0
+    def __init__(self):
+        self.python_calls = 0
+        self.native_calls = 0
+        self.modules = set()
 
-    def trace(self, frame, event, arg):
+    def observe(self, frame, event, arg):
         if event == "call":
-            if frame.f_code not in self.codes:
-                return None
-            frame.f_trace_opcodes = True
-            frame.f_trace_lines = False
-            self.entries += 1
-            if self.active == 0:
-                self.baseline = tracemalloc.get_traced_memory()[0]
-                tracemalloc.reset_peak()
-            self.active += 1
-            return self.trace
-
-        if event == "opcode":
-            self.opcodes += 1
-
-        if event == "return":
-            _, peak = tracemalloc.get_traced_memory()
-            self.peak_bytes = max(
-                self.peak_bytes,
-                max(0, peak - self.baseline),
-            )
-            self.active -= 1
-
-        return self.trace
+            self.python_calls += 1
+            module = frame.f_globals.get("__name__")
+            if isinstance(module, str):
+                self.modules.add(module)
+        elif event == "c_call":
+            self.native_calls += 1
 
     def run(self, operation):
-        previous = sys.gettrace()
-        if previous is not None:
-            raise AssertionError(
-                "resource acceptance requires exclusive tracing"
-            )
-        tracemalloc.start()
+        if sys.getprofile() is not None:
+            raise AssertionError("resource profiling requires exclusive use")
         try:
-            sys.settrace(self.trace)
-            try:
-                result = operation()
-            finally:
-                sys.settrace(None)
+            sys.setprofile(self.observe)
+            return operation()
         finally:
-            tracemalloc.stop()
+            sys.setprofile(None)
 
-        if self.active:
-            raise AssertionError("unbalanced inspection boundaries")
-        if not self.entries or not self.opcodes:
-            raise AssertionError(
-                "no instrumented generic inspection executed"
-            )
-        return result
+
+class WholeInvocationMeasurement:
+    """End-to-end prepared invocation, with no interior reset points.
+
+    The restricted guard is installed outside the measured interval.
+    Results and authentication assertions are checked afterward.
+    A matched constant-work admitted invocation measures the fixed
+    machine/invocation overhead on the same canonical input.
+    """
+
+    def __init__(self, entries):
+        self.entries = entries
+
+    def run(self, prepared, argument):
+        with candidate_execution_guard(self.entries) as opened:
+            prepared(argument)  # Warm the prepared admitted path.
+
+            cpu_samples = []
+            for _ in range(SAMPLES):
+                start = process_time_ns()
+                for _ in range(REPEATS):
+                    result = prepared(argument)
+                elapsed = process_time_ns() - start
+                cpu_samples.append(elapsed / REPEATS)
+
+            peaks = []
+            for _ in range(SAMPLES):
+                tracemalloc.start()
+                try:
+                    baseline, _ = tracemalloc.get_traced_memory()
+                    tracemalloc.reset_peak()
+                    result = prepared(argument)
+                    _, peak = tracemalloc.get_traced_memory()
+                    peaks.append(max(0, peak - baseline))
+                finally:
+                    tracemalloc.stop()
+
+            profile = WholeInvocationProfile()
+            result = profile.run(lambda: prepared(argument))
+
+        if not opened:
+            raise AssertionError("no authenticated SHEAR evaluator entered")
+        if not profile.python_calls or not profile.native_calls:
+            raise AssertionError("incomplete whole-invocation call coverage")
+        if not any(name.startswith("shear.") for name in profile.modules):
+            raise AssertionError("no SHEAR implementation frames observed")
+
+        return result, median(cpu_samples), median(peaks), profile
+
+
+def overhead_adjusted(measured, control):
+    """Subtract matched invocation overhead; never invent negative cost."""
+    return max(0, measured - control)
 
 
 class InspectionResourceAcceptance(unittest.TestCase):
@@ -102,165 +123,176 @@ class InspectionResourceAcceptance(unittest.TestCase):
             cls.candidate = import_module(
                 "tests.constraint_functions_complete_candidate"
             )
-
         cls.entries = cls.candidate.EVALUATOR_ENTRIES
-
         if not callable(getattr(
             cls.candidate, "prepare_resource_probe", None
         )):
-            raise AssertionError(
-                "candidate lacks prepare_resource_probe"
-            )
-
-        cls.boundaries = getattr(
-            cls.candidate, "INSPECTION_RESOURCE_BOUNDARIES", None
-        )
-        if not cls.boundaries:
-            raise AssertionError(
-                "generic inspection boundaries not registered"
-            )
-
-        for function in cls.boundaries:
-            if not callable(function) or not hasattr(
-                function, "__code__"
-            ):
-                raise AssertionError(
-                    "resource boundary must be a Python function"
-                )
-            if not function.__module__.startswith("shear."):
-                raise AssertionError(
-                    "resource boundary must belong to SHEAR"
-                )
+            raise AssertionError("candidate lacks prepare_resource_probe")
 
     def prepare(self, value, operation):
+        # All canonicalization and compiler/admission preparation occurs
+        # before measurement. Both callables retain the same input.
         canonical = canonicalize(value)
-        prepared = self.candidate.prepare_resource_probe(
+        inspected = self.candidate.prepare_resource_probe(
             canonical, operation
         )
-        if not callable(prepared):
-            raise AssertionError("invalid prepared resource operation")
-        return prepared
+        control = self.candidate.prepare_resource_probe(
+            canonical, "control"
+        )
+        if not callable(inspected) or not callable(control):
+            raise AssertionError("resource probe did not prepare callables")
+        return inspected, control
 
-    def measure(self, prepared, argument):
-        meter = BoundaryMeter(self.boundaries)
-
-        def execute():
-            with candidate_execution_guard(self.entries) as opened:
-                result = prepared(argument)
-            self.assertTrue(
-                opened,
-                "resource operation bypassed admitted SHEAR",
-            )
-            return result
-
-        result = meter.run(execute)
-        return result, meter
-
-    def assert_access(self, prepared, argument, expected):
-        result, meter = self.measure(prepared, argument)
+    def observation_prepared(self, inspected, control, argument, expected):
+        meter = WholeInvocationMeasurement(self.entries)
+        result, cpu, peak, profile = meter.run(inspected, argument)
         self.assertEqual(
-            canonical_bytes(result),
-            canonical_bytes(expected),
+            canonical_bytes(result), canonical_bytes(expected),
+            "resource observation has incorrect semantic content",
         )
-        return meter
+        _, control_cpu, control_peak, control_profile = meter.run(
+            control, argument
+        )
+        return {
+            "cpu": overhead_adjusted(cpu, control_cpu),
+            "peak": overhead_adjusted(peak, control_peak),
+            "cpu_total": cpu,
+            "control_cpu": control_cpu,
+            "python_calls": profile.python_calls,
+            "native_calls": profile.native_calls,
+            "control_python_calls": control_profile.python_calls,
+            "control_native_calls": control_profile.native_calls,
+            "inspected": inspected,
+            "control": control,
+            "argument": argument,
+        }
 
-    def assert_scaling(self, small, large):
+    def observation(self, value, operation, argument, expected):
+        inspected, control = self.prepare(value, operation)
+        return self.observation_prepared(
+            inspected, control, argument, expected
+        )
+
+    def assert_scaling(self, small, large, *, label):
+        """Require an observable discriminator, not a noise-only pass."""
+        cpu_ceiling = max(
+            small["cpu"] * WORK_RATIO_LIMIT,
+            small["control_cpu"] * 0.05,
+        )
+        memory_ceiling = small["peak"] + ALLOCATION_GROWTH_LIMIT
+
+        # A full copy must not disappear behind the fixed VM overhead.
+        # A synthetic full-size copy tests the same measurement window.
+        probe = WholeInvocationMeasurement(self.entries)
+        synthetics = []
+        for row, count in ((small, SMALL), (large, LARGE)):
+            def copied(argument, row=row, count=count):
+                temporary = [None] * count
+                result = row["inspected"](argument)
+                if len(temporary) != count:
+                    raise AssertionError("synthetic copy did not execute")
+                return result
+
+            _, _, copy_peak, _ = probe.run(
+                copied, row["argument"]
+            )
+            synthetics.append(copy_peak)
+
+        self.assertGreater(
+            synthetics[1] - synthetics[0],
+            ALLOCATION_GROWTH_LIMIT,
+            f"{label}: instrumentation cannot detect full copying",
+        )
+
+        # Native sort cost must be visible in the whole-call CPU window.
+        # A negative-control operation is never counted as candidate work.
+        cpu_negative = []
+        for row, count in ((small, SMALL), (large, LARGE)):
+            def sorted_call(argument, row=row, count=count):
+                ordered = sorted(range(count, 0, -1))
+                result = row["inspected"](argument)
+                if len(ordered) != count:
+                    raise AssertionError("synthetic sort did not execute")
+                return result
+
+            _, sort_cpu, _, _ = probe.run(
+                sorted_call, row["argument"]
+            )
+            cpu_negative.append(sort_cpu)
+
+        self.assertGreater(
+            overhead_adjusted(cpu_negative[1], large["control_cpu"]),
+            cpu_ceiling,
+            f"{label}: timing cannot detect a native whole-container sort",
+        )
         self.assertLessEqual(
-            large.opcodes,
-            small.opcodes * MAX_OPCODE_RATIO,
-            "inspection work scales with complete container size",
+            large["cpu"], cpu_ceiling,
+            f"{label}: inspection work scales with container size",
         )
         self.assertLessEqual(
-            large.peak_bytes,
-            small.peak_bytes + MAX_EXTRA_PEAK_BYTES,
-            "inspection allocates proportional container storage",
+            large["peak"], memory_ceiling,
+            f"{label}: avoidable full-container allocation",
         )
 
-    def test_repeated_map_access(self):
-        measurements = []
-
+    def test_repeated_canonical_map_index(self):
+        rows = []
         for size in (SMALL, LARGE):
-            value = {
-                f"key-{index:06d}": index
-                for index in range(size)
-            }
+            value = {f"key-{i:06d}": i for i in range(size)}
             ordered = sorted(value, key=canonical_bytes)
-            prepared = self.prepare(value, "item")
-            meters = []
-
-            for _ in range(8):
+            # Repeated accesses share one prepared deployment.
+            inspected, control = self.prepare(value, "item")
+            observed = []
+            for _ in range(3):
                 for index in (0, size // 2, size - 1):
-                    key = ordered[index]
-                    meters.append(self.assert_access(
-                        prepared,
-                        index,
-                        (key, value[key]),
-                    ))
+                    row = self.observation_prepared(
+                        inspected, control, index,
+                        (ordered[index], value[ordered[index]]),
+                    )
+                    observed.append(row)
+            rows.append(max(observed, key=lambda row: row["cpu"]))
+        self.assert_scaling(*rows, label="repeated map item")
 
-            measurements.append((
-                max(m.opcodes for m in meters),
-                max(m.peak_bytes for m in meters),
-            ))
-
-        small, large = measurements
-        self.assertLessEqual(
-            large[0], small[0] * MAX_OPCODE_RATIO,
-        )
-        self.assertLessEqual(
-            large[1], small[1] + MAX_EXTRA_PEAK_BYTES,
-        )
-
-    def test_sequence_index_scaling(self):
-        meters = []
-
+    def test_large_sequence_index(self):
+        rows = []
         for size in (SMALL, LARGE):
             value = tuple(range(size))
-            prepared = self.prepare(value, "item")
-            meters.append(self.assert_access(
-                prepared, size // 2, value[size // 2],
+            rows.append(self.observation(
+                value, "item", size // 2, value[size // 2],
             ))
+        self.assert_scaling(*rows, label="tuple item")
 
-        self.assert_scaling(*meters)
-
-    def test_relation_role_contents_and_order(self):
+    def test_relation_role_contents_order_and_scaling(self):
+        rows = []
         for size in (SMALL, LARGE):
             roles = {
-                f"role-{index:06d}": EntityID(str(index))
-                for index in range(size)
+                f"role-{i:06d}": EntityID(str(i))
+                for i in range(size)
             }
-            relation = Relation("large", roles)
+            value = Relation("large", roles)
             expected = tuple(sorted(roles.items()))
-            prepared = self.prepare(relation, "roles")
+            rows.append(self.observation(
+                value, "roles", None, expected,
+            ))
+        self.assert_scaling(*rows, label="relation roles")
 
-            for _ in range(4):
-                self.assert_access(
-                    prepared, None, expected,
-                )
-
-    def test_constraint_operand_contents(self):
+    def test_constraint_operands_contents_and_scaling(self):
+        rows = []
         for size in (SMALL, LARGE):
-            constraint = OneOf(*range(size))
-            expected = (constraint.values,)
-            prepared = self.prepare(
-                constraint, "arguments",
-            )
+            value = OneOf(*range(size))
+            rows.append(self.observation(
+                value, "arguments", None, (value.values,),
+            ))
+        self.assert_scaling(*rows, label="constraint operands")
 
-            for _ in range(4):
-                self.assert_access(
-                    prepared, None, expected,
-                )
-
-    def test_shallow_inspect_scaling(self):
-        meters = []
-
+    def test_shallow_inspection_scaling(self):
+        rows = []
         for size in (SMALL, LARGE):
             value = tuple(range(size))
-            prepared = self.prepare(value, "inspect")
-            meters.append(self.assert_access(
-                prepared, None, ("tuple", canonicalize(value)),
+            rows.append(self.observation(
+                value, "inspect", None,
+                ("tuple", canonicalize(value)),
             ))
-
-        self.assert_scaling(*meters)
+        self.assert_scaling(*rows, label="shallow inspect")
 
 
 if __name__ == "__main__":
