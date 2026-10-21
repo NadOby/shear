@@ -184,13 +184,25 @@ def semantic_children(value):
 
 
 def semantic_paths(value):
-    """Enumerate public semantic paths independent of the candidate."""
+    """Enumerate finite public semantic paths independent of the candidate.
+
+    A code-point selection returns a string, even for a one-code-point
+    string. Stop recursive test enumeration at that character: otherwise
+    indexing "a" at zero would generate (0, 0, 0, ...) indefinitely.
+    """
     paths = []
 
-    def visit(current, path):
+    def visit(current, path, descend=True):
         paths.append((path, current))
+        if not descend:
+            return
+
         for component, child in semantic_children(current):
-            visit(child, path + (component,))
+            visit(
+                child,
+                path + (component,),
+                descend=not isinstance(current, str),
+            )
 
     visit(value, ())
     return tuple(paths)
