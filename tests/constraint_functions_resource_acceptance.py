@@ -1,22 +1,20 @@
-"""Resource-efficiency acceptance for SHEAR GH-123 T5.
+"""Independent inspection-resource acceptance for SHEAR GH-123.
 
-Plan-owned, candidate-dependent, outside ordinary discovery.
-Resource counters are independently checked against observed
-memory and CPU scaling. Source-path audit remains mandatory.
+Plan-owned candidate tests, outside ordinary CI discovery.
+Preparation and canonicalization precede measured access.
+No resource counter supplied by the candidate is trusted.
 """
 
 from importlib import import_module
-from statistics import median
-from time import process_time_ns
+import sys
 import tracemalloc
 import unittest
 
 from shear import (
-    AllOf,
     EntityID,
-    IsKind,
     OneOf,
     Relation,
+    canonicalize,
 )
 from tests.constraint_functions_complete_acceptance import (
     candidate_execution_guard,
@@ -27,6 +25,76 @@ from tests.constraint_functions_projection_adversarial import (
 )
 
 
+SMALL = 128
+LARGE = 4096
+MAX_OPCODE_RATIO = 8
+MAX_EXTRA_PEAK_BYTES = 12 * 1024
+
+
+class BoundaryMeter:
+    """Test-owned instrumentation of generic implementation frames."""
+
+    def __init__(self, functions):
+        self.codes = {function.__code__ for function in functions}
+        if not self.codes:
+            raise AssertionError("no generic inspection boundaries")
+        self.opcodes = 0
+        self.entries = 0
+        self.peak_bytes = 0
+        self.active = 0
+        self.baseline = 0
+
+    def trace(self, frame, event, arg):
+        if event == "call":
+            if frame.f_code not in self.codes:
+                return None
+            frame.f_trace_opcodes = True
+            frame.f_trace_lines = False
+            self.entries += 1
+            if self.active == 0:
+                self.baseline = tracemalloc.get_traced_memory()[0]
+                tracemalloc.reset_peak()
+            self.active += 1
+            return self.trace
+
+        if event == "opcode":
+            self.opcodes += 1
+
+        if event == "return":
+            _, peak = tracemalloc.get_traced_memory()
+            self.peak_bytes = max(
+                self.peak_bytes,
+                max(0, peak - self.baseline),
+            )
+            self.active -= 1
+
+        return self.trace
+
+    def run(self, operation):
+        previous = sys.gettrace()
+        if previous is not None:
+            raise AssertionError(
+                "resource acceptance requires exclusive tracing"
+            )
+        tracemalloc.start()
+        try:
+            sys.settrace(self.trace)
+            try:
+                result = operation()
+            finally:
+                sys.settrace(None)
+        finally:
+            tracemalloc.stop()
+
+        if self.active:
+            raise AssertionError("unbalanced inspection boundaries")
+        if not self.entries or not self.opcodes:
+            raise AssertionError(
+                "no instrumented generic inspection executed"
+            )
+        return result
+
+
 class InspectionResourceAcceptance(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -34,163 +102,165 @@ class InspectionResourceAcceptance(unittest.TestCase):
             cls.candidate = import_module(
                 "tests.constraint_functions_complete_candidate"
             )
+
         cls.entries = cls.candidate.EVALUATOR_ENTRIES
 
-        if not callable(
-            getattr(cls.candidate, "resource_probe", None)
-        ):
-            raise AssertionError("candidate lacks resource_probe")
-
-    def probe(self, value, operation, argument):
-        """Return independently auditable per-operation measurements.
-
-        The candidate resource_probe must return:
-            (result, counters)
-
-        counters must expose:
-            inspected_items
-            full_container_copies
-            whole_container_sorts
-            whole_container_serializations
-
-        Counters cover the requested inspection operation only,
-        excluding canonicalization, preparation and admission.
-        They must come from instrumented generic implementation
-        boundaries, not candidate-estimated complexity.
-        """
-        with candidate_execution_guard(self.entries) as opened:
-            result, counters = self.candidate.resource_probe(
-                value, operation, argument
+        if not callable(getattr(
+            cls.candidate, "prepare_resource_probe", None
+        )):
+            raise AssertionError(
+                "candidate lacks prepare_resource_probe"
             )
-        self.assertTrue(opened)
-        self.assertIsInstance(counters, dict)
-        for key in (
-            "inspected_items",
-            "full_container_copies",
-            "whole_container_sorts",
-            "whole_container_serializations",
-        ):
-            self.assertIn(key, counters)
-            self.assertIs(type(counters[key]), int)
-            self.assertGreaterEqual(counters[key], 0)
-        return result, counters
 
-    def assert_shallow(self, counters, collection_size):
-        self.assertLessEqual(
-            counters["inspected_items"], 8,
+        cls.boundaries = getattr(
+            cls.candidate, "INSPECTION_RESOURCE_BOUNDARIES", None
         )
-        for key in (
-            "full_container_copies",
-            "whole_container_sorts",
-            "whole_container_serializations",
-        ):
-            self.assertEqual(
-                counters[key], 0,
-                f"{key} on {collection_size} elements",
+        if not cls.boundaries:
+            raise AssertionError(
+                "generic inspection boundaries not registered"
             )
 
-    def test_map_repeated_index_access(self):
-        for size in (128, 1024, 4096):
+        for function in cls.boundaries:
+            if not callable(function) or not hasattr(
+                function, "__code__"
+            ):
+                raise AssertionError(
+                    "resource boundary must be a Python function"
+                )
+            if not function.__module__.startswith("shear."):
+                raise AssertionError(
+                    "resource boundary must belong to SHEAR"
+                )
+
+    def prepare(self, value, operation):
+        canonical = canonicalize(value)
+        prepared = self.candidate.prepare_resource_probe(
+            canonical, operation
+        )
+        if not callable(prepared):
+            raise AssertionError("invalid prepared resource operation")
+        return prepared
+
+    def measure(self, prepared, argument):
+        meter = BoundaryMeter(self.boundaries)
+
+        def execute():
+            with candidate_execution_guard(self.entries) as opened:
+                result = prepared(argument)
+            self.assertTrue(
+                opened,
+                "resource operation bypassed admitted SHEAR",
+            )
+            return result
+
+        result = meter.run(execute)
+        return result, meter
+
+    def assert_access(self, prepared, argument, expected):
+        result, meter = self.measure(prepared, argument)
+        self.assertEqual(
+            canonical_bytes(result),
+            canonical_bytes(expected),
+        )
+        return meter
+
+    def assert_scaling(self, small, large):
+        self.assertLessEqual(
+            large.opcodes,
+            small.opcodes * MAX_OPCODE_RATIO,
+            "inspection work scales with complete container size",
+        )
+        self.assertLessEqual(
+            large.peak_bytes,
+            small.peak_bytes + MAX_EXTRA_PEAK_BYTES,
+            "inspection allocates proportional container storage",
+        )
+
+    def test_repeated_map_access(self):
+        measurements = []
+
+        for size in (SMALL, LARGE):
             value = {
                 f"key-{index:06d}": index
                 for index in range(size)
             }
-            ordered = sorted(
-                value, key=canonical_bytes,
-            )
-            positions = (0, size // 2, size - 1)
+            ordered = sorted(value, key=canonical_bytes)
+            prepared = self.prepare(value, "item")
+            meters = []
 
             for _ in range(8):
-                for index in positions:
-                    result, counters = self.probe(
-                        value, "item", index,
-                    )
-                    self.assertEqual(
-                        canonical_bytes(result),
-                        canonical_bytes(
-                            (ordered[index], value[ordered[index]])
-                        ),
-                    )
-                    self.assert_shallow(counters, size)
+                for index in (0, size // 2, size - 1):
+                    key = ordered[index]
+                    meters.append(self.assert_access(
+                        prepared,
+                        index,
+                        (key, value[key]),
+                    ))
 
-    def test_large_sequence_access(self):
-        for size in (128, 1024, 4096):
+            measurements.append((
+                max(m.opcodes for m in meters),
+                max(m.peak_bytes for m in meters),
+            ))
+
+        small, large = measurements
+        self.assertLessEqual(
+            large[0], small[0] * MAX_OPCODE_RATIO,
+        )
+        self.assertLessEqual(
+            large[1], small[1] + MAX_EXTRA_PEAK_BYTES,
+        )
+
+    def test_sequence_index_scaling(self):
+        meters = []
+
+        for size in (SMALL, LARGE):
             value = tuple(range(size))
-            for index in (0, size // 2, size - 1):
-                result, counters = self.probe(
-                    value, "item", index,
-                )
-                self.assertEqual(result, value[index])
-                self.assert_shallow(counters, size)
+            prepared = self.prepare(value, "item")
+            meters.append(self.assert_access(
+                prepared, size // 2, value[size // 2],
+            ))
 
-    def test_large_relation_roles(self):
-        for size in (128, 1024):
+        self.assert_scaling(*meters)
+
+    def test_relation_role_contents_and_order(self):
+        for size in (SMALL, LARGE):
             roles = {
                 f"role-{index:06d}": EntityID(str(index))
                 for index in range(size)
             }
-            value = Relation("large", roles)
-            for _ in range(8):
-                result, counters = self.probe(
-                    value, "field", "roles",
+            relation = Relation("large", roles)
+            expected = tuple(sorted(roles.items()))
+            prepared = self.prepare(relation, "roles")
+
+            for _ in range(4):
+                self.assert_access(
+                    prepared, None, expected,
                 )
-                self.assertEqual(len(result), size)
-                self.assert_shallow(counters, size)
 
-    def test_large_constraint_operands(self):
-        for size in (128, 1024):
-            # Use semantically distinct constraints so canonical
-            # deduplication cannot collapse the collection.
-            value = OneOf(*range(size))
-            for _ in range(8):
-                result, counters = self.probe(
-                    value, "field", "arguments",
+    def test_constraint_operand_contents(self):
+        for size in (SMALL, LARGE):
+            constraint = OneOf(*range(size))
+            expected = (constraint.values,)
+            prepared = self.prepare(
+                constraint, "arguments",
+            )
+
+            for _ in range(4):
+                self.assert_access(
+                    prepared, None, expected,
                 )
-                self.assertEqual(len(result), 1)
-                self.assert_shallow(counters, size)
 
-    def test_inspection_scaling(self):
-        observations = []
+    def test_shallow_inspect_scaling(self):
+        meters = []
 
-        for size in (128, 4096):
+        for size in (SMALL, LARGE):
             value = tuple(range(size))
-
-            # Preparation and first access are outside measurement.
-            self.probe(value, "inspect", None)
-
-            samples = []
-            for _ in range(7):
-                tracemalloc.start()
-                start = process_time_ns()
-
-                for _ in range(16):
-                    result, counters = self.probe(
-                        value, "inspect", None,
-                    )
-                    self.assert_shallow(counters, size)
-
-                elapsed = process_time_ns() - start
-                _, peak = tracemalloc.get_traced_memory()
-                tracemalloc.stop()
-                samples.append((elapsed, peak))
-
-            observations.append((
-                median(sample[0] for sample in samples),
-                median(sample[1] for sample in samples),
+            prepared = self.prepare(value, "inspect")
+            meters.append(self.assert_access(
+                prepared, None, ("tuple", canonicalize(value)),
             ))
 
-        small, large = observations
-
-        # Deliberately generous limits to distinguish proportional
-        # reconstruction from fixed execution overhead.
-        self.assertLess(
-            large[0], small[0] * 8,
-            "inspection CPU work scales with container size",
-        )
-        self.assertLess(
-            large[1], small[1] + 262144,
-            "inspection allocates proportional container storage",
-        )
+        self.assert_scaling(*meters)
 
 
 if __name__ == "__main__":
