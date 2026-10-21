@@ -90,28 +90,50 @@ Expected:
   admitted evaluator entry and actual callback entry.
 - Semantic node budgets do not imply external termination.
 
-## 6. T5 – Canonical identity and reconstruction
+## 6. T5 – Semantic inspection, identity and reconstruction
 
-Frozen:
-- All tests in `constraint_functions_complete_projection.py`
-- All tests in `constraint_functions_projection_adversarial.py`
-- All tests in `constraint_functions_identity_acceptance.py`
+Owner-approved representation correction:
+- `docs/constraint_functions_t5_semantic_mapping.md`
+  defines the mandatory old-to-new test correspondence.
+- Private CanonicalNode paths are superseded by public
+  semantic inspection and demand-driven field access.
+- The correction does not relax canonical identity,
+  execution authenticity or adversarial test strength.
+
+Mandatory:
+- All amended tests in `constraint_functions_complete_projection.py`
+- All amended tests in `constraint_functions_projection_adversarial.py`
+- All amended tests in `constraint_functions_identity_acceptance.py`
 - Task 24 `constraint_identity` and `candidate_version` cases.
 
 Expected:
-- All 15 kinds preserve existing canonical representation.
-- Structural inspection, subtree selection and equality are
-  implemented through admitted ordinary SHEAR computation.
-- Nested data and semantic constraints reconstruct identically.
+- All 15 kinds retain canonical identities and semantic types.
+- Admitted ordinary SHEAR computation performs inspection,
+  semantic-path selection and type-sensitive equality.
+- Opaque values remain leaves without private serialization,
+  identity-payload or closure-internal access.
+- Nested data and semantic constraints reconstruct identically
+  wherever reconstruction is semantically meaningful.
 - Reordering and duplicate composition preserve identity.
 - Bool/int, byte/text and sequence-kind distinctions survive.
-- Controlled VM output determines the projection result or
-  triggers explicit fail-closed validation.
-- A validation rejection identifies the projection operation
-  and the exact rejected VM output.
-- Independent source-path review must establish that a rejection
-  came from validation, not an unrelated processing failure.
-- Constraint identity is independent of evaluator deployment.
+- Unicode code points and byte values remain distinct.
+- Map entries follow canonical-key ordering without exposing
+  serialized keys or host insertion order.
+- Cell, constraint and relation access uses approved fields.
+- Deep, wide, nested, generated, collision and large-value
+  adversaries retain or strengthen their prior coverage.
+- Demand-driven access avoids eager proportional copying and
+  repeated whole-map sorting or serialization.
+- Controlled VM output determines the selection, inspection,
+  equality or reconstruction result, or triggers explicit
+  fail-closed validation.
+- A validation rejection identifies the operation and the
+  exact rejected VM output.
+- Independent source-path review verifies that rejection arose
+  from validation and not an unrelated processing failure.
+- No subject-dependent Python projection, incumbent fallback
+  or forged machine-entry evidence is permitted.
+- Constraint identity remains independent of deployment.
 - Existing state and version identity rules are unchanged.
 
 ## 7. T6 – Runtime admission and continuity
