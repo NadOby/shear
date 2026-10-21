@@ -7,10 +7,10 @@ Execute supplies:
 Both outputs must originate from admitted SHEAR computation and
 retain canonical semantic identity.
 
-Machine-output perturbation targets an actual authenticated VM
-return, not an assumed adapter return shape or invocation count.
+Every supported constraint form requires independent evidence
+of dependency on actual authenticated VM results.
 
-Host-generated expected values and forged execution do not qualify.
+No fixed invocation count or machine-return shape is assumed.
 Independent source-path and fallback audit remains mandatory.
 
 This module is outside ordinary Plan-time discovery.
@@ -116,6 +116,55 @@ DISTINCT = (
     (("external", "a"), ("external", "b")),
 )
 
+# Two valid, canonically distinct expressions for each of the
+# nine normative constraint forms.
+#
+# Same-form controls are preferred over arbitrary cross-form
+# substitutions to avoid conflating different semantic contracts.
+
+CAUSAL_FORMS = {
+    "is_kind": (
+        ("is_kind", "int"),
+        ("is_kind", "bool"),
+    ),
+    "int_range": (
+        ("int_range", 0, 10),
+        ("int_range", 1, 10),
+    ),
+    "length": (
+        ("length", 1, 3),
+        ("length", 2, 3),
+    ),
+    "one_of": (
+        ("one_of", (True, 1, "x")),
+        ("one_of", (False, 2, "y")),
+    ),
+    "all_of": (
+        ("all_of", ("is_kind", "int"),
+         ("int_range", 0, 10)),
+        ("all_of", ("is_kind", "str"),
+         ("length", 0, 5)),
+    ),
+    "any_of": (
+        ("any_of", ("is_kind", "int"),
+         ("is_kind", "str")),
+        ("any_of", ("is_kind", "bool"),
+         ("is_kind", "str")),
+    ),
+    "not": (
+        ("not", ("is_kind", "int")),
+        ("not", ("is_kind", "bool")),
+    ),
+    "role": (
+        ("role", "item", ("is_kind", "int")),
+        ("role", "item", ("is_kind", "str")),
+    ),
+    "external": (
+        ("external", "policy"),
+        ("external", "alternative"),
+    ),
+}
+
 
 def encoded(value):
     return canonical_serialize(value)
@@ -187,12 +236,11 @@ class FrozenConstraintIdentityAcceptance(unittest.TestCase):
     def observed_reconstruction(self, expression, substitution=None):
         """Observe actual admitted machine returns.
 
-        A substitution is:
+        Substitution:
             (ordinal, entry, original_vm_output, replacement)
 
-        The ordinal counts admitted evaluator returns only.
-        Every original VM invocation still executes and passes
-        through the existing authenticated execution guard.
+        Ordinals count admitted evaluator returns only.
+        The genuine machine invocation always executes first.
         """
         returns = []
         substituted = False
@@ -235,7 +283,7 @@ class FrozenConstraintIdentityAcceptance(unittest.TestCase):
                 )
                 self.assertIs(
                     type(result), type(replacement),
-                    "substitution changes the machine return type",
+                    "substitution changes machine return type",
                 )
 
                 substituted = True
@@ -265,7 +313,7 @@ class FrozenConstraintIdentityAcceptance(unittest.TestCase):
         if substitution is not None:
             self.assertTrue(
                 substituted,
-                "selected machine return was not substituted",
+                "selected machine result was not substituted",
             )
 
         if rejection is None:
@@ -287,122 +335,143 @@ class FrozenConstraintIdentityAcceptance(unittest.TestCase):
         self.assertEqual(
             encoded(rejected.rejected_vm_output),
             encoded(replacement),
-            "rejection identifies the wrong VM output",
+            "rejection identifies the wrong substituted VM output",
         )
         self.assertTrue(
             str(rejected).strip(),
             "reconstruction rejection lacks an explanation",
         )
 
+    def compatible_substitutions(self, baseline_returns, control_returns):
+        """Yield same-entry, same-kind, distinct valid VM returns."""
+        for ordinal, (entry, original) in enumerate(baseline_returns):
+            for control_entry, replacement in control_returns:
+                if entry != control_entry:
+                    continue
+                if type(original) is not type(replacement):
+                    continue
+
+                try:
+                    compatible = (
+                        kind_of(original) == kind_of(replacement)
+                    )
+                    distinct = encoded(original) != encoded(replacement)
+                except (TypeError, ValueError):
+                    continue
+
+                if compatible and distinct:
+                    yield (
+                        ordinal, entry, original, replacement
+                    )
+
     def test_reconstruction_depends_on_valid_machine_output(self):
-        expressions = (
-            ("is_kind", "int"),
-            ("is_kind", "bool"),
-            ("int_range", 0, 10),
-            ("int_range", 1, 10),
-            ("length", 1, 3),
-            ("length", 2, 3),
-        )
+        forms = frozenset({
+            "is_kind", "int_range", "length", "one_of",
+            "all_of", "any_of", "not", "role", "external",
+        })
+        self.assertEqual(set(CAUSAL_FORMS), forms)
 
-        observations = []
-        for expression in expressions:
-            result, returns, rejected = (
-                self.observed_reconstruction(expression)
-            )
-            self.assertIsNone(rejected)
-            self.assertEqual(
-                encoded(result[0]), encoded(result[1]),
-            )
-            observations.append((expression, result, returns))
+        established = set()
 
-        # Select alternatives actually returned by authenticated
-        # executions. Never use the assembled adapter pair as an
-        # assumed RestrictedExecutor.run() result.
-        candidates = []
+        for form, expressions in CAUSAL_FORMS.items():
+            with self.subTest(form=form):
+                self.assertEqual(len(expressions), 2)
+                self.assertTrue(
+                    all(expression[0] == form for expression in expressions)
+                )
 
-        for expression, baseline, returns in observations:
-            for control, alternative, control_returns in observations:
-                if expression == control:
-                    continue
-                if encoded(baseline) == encoded(alternative):
-                    continue
+                observations = []
 
-                for ordinal, (entry, original) in enumerate(returns):
-                    for control_entry, replacement in control_returns:
-                        if entry != control_entry:
-                            continue
-                        if type(original) is not type(replacement):
-                            continue
+                for expression in expressions:
+                    result, returns, rejected = (
+                        self.observed_reconstruction(expression)
+                    )
+                    self.assertIsNone(rejected)
 
-                        try:
-                            same_kind = (
-                                kind_of(original)
-                                == kind_of(replacement)
-                            )
-                            distinct = (
-                                encoded(original)
-                                != encoded(replacement)
-                            )
-                        except TypeError:
-                            continue
+                    original, rebuilt = result
+                    self.assertEqual(kind_of(original), "constraint")
+                    self.assertEqual(kind_of(rebuilt), "constraint")
+                    self.assertEqual(
+                        encoded(original), encoded(rebuilt),
+                    )
+                    observations.append(
+                        (expression, result, returns)
+                    )
 
-                        if same_kind and distinct:
-                            candidates.append((
+                self.assertNotEqual(
+                    encoded(observations[0][1]),
+                    encoded(observations[1][1]),
+                    "same-form controls lack distinct results",
+                )
+
+                compatible_count = 0
+                successful = False
+
+                # Both directions must be eligible, but a single
+                # demonstrated causal witness establishes dependency
+                # for this specific constraint form.
+                for index in (0, 1):
+                    if successful:
+                        break
+
+                    expression, baseline, returns = observations[index]
+                    _, _, controls = observations[1 - index]
+
+                    for substitution in self.compatible_substitutions(
+                        returns, controls
+                    ):
+                        compatible_count += 1
+                        ordinal, entry, original, replacement = (
+                            substitution
+                        )
+
+                        # Replacing the VM result with itself must
+                        # preserve the original observation.
+                        unchanged, _, unchanged_error = (
+                            self.observed_reconstruction(
                                 expression,
-                                baseline,
-                                ordinal,
-                                entry,
-                                original,
-                                replacement,
-                            ))
+                                (ordinal, entry, original, original),
+                            )
+                        )
 
-        self.assertTrue(
-            candidates,
-            "no distinct compatible authenticated VM returns "
-            "were observed; reconstruction dependency cannot "
-            "be established",
-        )
+                        self.assertIsNone(unchanged_error)
+                        self.assertEqual(
+                            encoded(unchanged),
+                            encoded(baseline),
+                            "unchanged VM result altered reconstruction",
+                        )
 
-        for (
-            expression, baseline, ordinal,
-            entry, original, replacement,
-        ) in candidates:
-            substitution = (
-                ordinal, entry, original, replacement
-            )
+                        actual, _, rejected = (
+                            self.observed_reconstruction(
+                                expression, substitution
+                            )
+                        )
 
-            # An unchanged genuine return must reproduce the
-            # original observation. This controls for the
-            # interception mechanism itself.
-            unchanged, _, unchanged_error = (
-                self.observed_reconstruction(
-                    expression,
-                    (ordinal, entry, original, original),
+                        if rejected is not None:
+                            self.assert_rejection_provenance(
+                                rejected, replacement
+                            )
+                            successful = True
+                            break
+
+                        if encoded(actual) != encoded(baseline):
+                            successful = True
+                            break
+
+                self.assertGreater(
+                    compatible_count, 0,
+                    f"{form}: no compatible authenticated "
+                    "machine-return alternatives were observed",
                 )
-            )
-            self.assertIsNone(unchanged_error)
-            self.assertEqual(
-                encoded(unchanged), encoded(baseline),
-                "unchanged VM-output control altered reconstruction",
-            )
-
-            actual, _, rejected = self.observed_reconstruction(
-                expression, substitution
-            )
-
-            if rejected is not None:
-                self.assert_rejection_provenance(
-                    rejected, replacement
+                self.assertTrue(
+                    successful,
+                    f"{form}: reconstruction ignored every "
+                    "compatible controlled machine result",
                 )
-                return
 
-            if encoded(actual) != encoded(baseline):
-                return
+                established.add(form)
 
-        self.fail(
-            "all compatible controlled VM-output substitutions "
-            "were ignored by reconstruction"
-        )
+        self.assertEqual(established, forms)
 
 
 if __name__ == "__main__":
