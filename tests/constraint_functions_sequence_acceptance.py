@@ -1,11 +1,14 @@
 """Generalized len and slice acceptance for SHEAR GH-123.
 
 Plan-owned candidate tests; outside ordinary CI discovery.
-The adapter must use authenticated SHEAR execution, not host
-implementations of the requested operations.
+Operations must execute through authenticated ordinary SHEAR.
 
-Machine perturbation observes actual RestrictedExecutor returns.
-No single-invocation or adapter-return-shape assumption is made.
+Machine-result dependency is required separately for every
+supported indexable semantic kind and each operation.
+
+Perturbation uses genuine authenticated VM returns without
+assuming a single invocation or a fixed adapter return shape.
+
 Independent source-path and fallback audit remains mandatory.
 """
 
@@ -31,6 +34,12 @@ from tests.constraint_functions_complete_acceptance import (
 from tests.constraint_functions_projection_adversarial import (
     canonical_bytes,
 )
+
+
+INDEXABLE_KINDS = frozenset({
+    "str", "bytes", "tuple", "list", "map",
+    "cell", "constraint", "relation",
+})
 
 
 class SequenceOperationAcceptance(unittest.TestCase):
@@ -88,10 +97,9 @@ class SequenceOperationAcceptance(unittest.TestCase):
                     (0, 0), (0, size),
                     (1, 2), (size, size),
                 ):
-                    expected = value[start:stop]
                     self.assert_result(
                         value, "slice",
-                        (start, stop), expected,
+                        (start, stop), value[start:stop],
                     )
 
     def test_map_order_and_result_kind(self):
@@ -182,10 +190,9 @@ class SequenceOperationAcceptance(unittest.TestCase):
                     self.assert_error(value, "slice", *bounds)
 
     def test_unsupported_operand_kinds(self):
-        values = (
+        for value in (
             None, True, 42, EntityID("opaque"),
-        )
-        for value in values:
+        ):
             with self.subTest(kind=kind_of(value)):
                 self.assert_error(value, "len")
                 self.assert_error(value, "slice", 0, 0)
@@ -193,13 +200,13 @@ class SequenceOperationAcceptance(unittest.TestCase):
     def observed_operation(
         self, value, operation, arguments, substitution=None
     ):
-        """Capture genuine authenticated machine returns.
+        """Observe actual authenticated machine results.
 
-        substitution is:
+        substitution:
             (ordinal, entry, original_output, replacement)
 
-        Only the selected admitted evaluator return is replaced.
-        The original machine invocation always executes first.
+        Only the selected evaluator return is replaced.
+        The original machine invocation always executes.
         """
         returns = []
         replaced = False
@@ -300,121 +307,196 @@ class SequenceOperationAcceptance(unittest.TestCase):
             "rejection lacks an explanation",
         )
 
-    def assert_machine_dependency(self, operation, cases):
+    def dependency_cases(self, operation):
+        """Two distinct inputs per semantic kind.
+
+        Controls from other kinds may supply compatible VM
+        returns when a kind has a fixed public field count.
+        """
+        samples = (
+            ("str", "abc", "abcdef"),
+            ("bytes", b"abc", b"abcdef"),
+            ("tuple", (1, 2), (1, 2, 3, 4)),
+            ("list", [1, 2], [1, 2, 3, 4]),
+            ("map", {"a": 1}, {"a": 1, "b": 2, "c": 3}),
+            (
+                "cell",
+                CellDeclaration(IsKind("int"), 5),
+                CellDeclaration(IsKind("bool"), True),
+            ),
+            (
+                "constraint",
+                IntRange(0, 9),
+                IsKind("int"),
+            ),
+            (
+                "relation",
+                Relation("first", {"a": EntityID("a")}),
+                Relation(
+                    "second",
+                    {"b": EntityID("b")},
+                    [1, 2],
+                ),
+            ),
+        )
+
+        cases = []
+
+        for label, first, second in samples:
+            self.assertEqual(kind_of(first), label)
+            self.assertEqual(kind_of(second), label)
+
+            for value, position in ((first, 0), (second, 1)):
+                if operation == "len":
+                    arguments = ()
+                elif label in ("cell", "constraint"):
+                    arguments = (
+                        (0, 1) if position == 0 else (1, 2)
+                    )
+                elif label == "relation":
+                    arguments = (
+                        (0, 2) if position == 0 else (1, 3)
+                    )
+                else:
+                    arguments = (
+                        (0, 1) if position == 0 else (1, 2)
+                    )
+
+                cases.append((label, value, arguments))
+
+        self.assertEqual(
+            {case[0] for case in cases},
+            INDEXABLE_KINDS,
+        )
+        return tuple(cases)
+
+    def assert_machine_dependency(self, operation):
         observations = []
 
-        for value, arguments in cases:
+        for label, value, arguments in self.dependency_cases(
+            operation
+        ):
             result, returns, rejected = self.observed_operation(
                 value, operation, arguments
             )
             self.assertIsNone(rejected)
             observations.append((
-                value, arguments, result, returns
+                label, value, arguments, result, returns
             ))
 
-        candidates = []
+        # Every kind must establish its own causal witness.
+        # Success for str cannot qualify bytes, maps or records.
+        established = set()
 
-        for value, arguments, baseline, returns in observations:
-            for _, _, alternative, control_returns in observations:
-                if canonical_bytes(baseline) == canonical_bytes(
-                    alternative
-                ):
-                    continue
+        for semantic_kind in sorted(INDEXABLE_KINDS):
+            subjects = [
+                item for item in observations
+                if item[0] == semantic_kind
+            ]
+            self.assertEqual(len(subjects), 2)
 
-                for ordinal, (entry, original) in enumerate(returns):
-                    for control_entry, replacement in control_returns:
-                        if entry != control_entry:
-                            continue
-                        if type(original) is not type(replacement):
-                            continue
+            compatible_count = 0
+            successful = False
 
-                        try:
-                            compatible = (
-                                kind_of(original)
-                                == kind_of(replacement)
+            for _, value, arguments, baseline, returns in subjects:
+                if successful:
+                    break
+
+                for _, _, _, alternative, control_returns in observations:
+                    if successful:
+                        break
+
+                    if canonical_bytes(baseline) == canonical_bytes(
+                        alternative
+                    ):
+                        continue
+
+                    for ordinal, (entry, original) in enumerate(returns):
+                        if successful:
+                            break
+
+                        for control_entry, replacement in control_returns:
+                            if entry != control_entry:
+                                continue
+                            if type(original) is not type(replacement):
+                                continue
+
+                            try:
+                                compatible = (
+                                    kind_of(original)
+                                    == kind_of(replacement)
+                                )
+                                distinct = (
+                                    canonical_bytes(original)
+                                    != canonical_bytes(replacement)
+                                )
+                            except (TypeError, ValueError):
+                                continue
+
+                            if not compatible or not distinct:
+                                continue
+
+                            compatible_count += 1
+                            substitution = (
+                                ordinal, entry, original, replacement
                             )
-                            distinct = (
-                                canonical_bytes(original)
-                                != canonical_bytes(replacement)
+
+                            unchanged, _, unchanged_error = (
+                                self.observed_operation(
+                                    value, operation, arguments,
+                                    (ordinal, entry, original, original),
+                                )
                             )
-                        except (TypeError, ValueError):
-                            continue
 
-                        if compatible and distinct:
-                            candidates.append((
-                                value, arguments, baseline,
-                                ordinal, entry, original, replacement,
-                            ))
+                            self.assertIsNone(unchanged_error)
+                            self.assertEqual(
+                                canonical_bytes(unchanged),
+                                canonical_bytes(baseline),
+                                "unchanged VM result changed observation",
+                            )
 
-        self.assertTrue(
-            candidates,
-            f"{operation}: no distinct compatible authenticated "
-            "VM outputs found for controlled substitution",
-        )
+                            actual, _, rejected = self.observed_operation(
+                                value, operation, arguments,
+                                substitution,
+                            )
 
-        for (
-            value, arguments, baseline,
-            ordinal, entry, original, replacement
-        ) in candidates:
-            unchanged, _, unchanged_error = self.observed_operation(
-                value, operation, arguments,
-                (ordinal, entry, original, original),
-            )
-            self.assertIsNone(unchanged_error)
-            self.assertEqual(
-                canonical_bytes(unchanged),
-                canonical_bytes(baseline),
-                "unchanged VM-output control changed observation",
-            )
+                            if rejected is not None:
+                                self.assert_rejection_provenance(
+                                    rejected, operation, replacement
+                                )
+                                successful = True
+                                break
 
-            actual, _, rejected = self.observed_operation(
-                value, operation, arguments,
-                (ordinal, entry, original, replacement),
-            )
+                            if canonical_bytes(actual) != canonical_bytes(
+                                baseline
+                            ):
+                                successful = True
+                                break
 
-            if rejected is not None:
-                self.assert_rejection_provenance(
-                    rejected, operation, replacement
+            with self.subTest(
+                operation=operation, kind=semantic_kind
+            ):
+                self.assertGreater(
+                    compatible_count, 0,
+                    "no compatible authenticated VM control; "
+                    "dependency evidence is missing",
                 )
-                return
+                self.assertTrue(
+                    successful,
+                    f"{operation} for {semantic_kind} ignores "
+                    "all compatible machine-result substitutions",
+                )
 
-            if canonical_bytes(actual) != canonical_bytes(baseline):
-                return
+            if successful:
+                established.add(semantic_kind)
 
-        self.fail(
-            f"{operation}: all controlled VM-output substitutions "
-            "were ignored"
-        )
+        self.assertEqual(established, INDEXABLE_KINDS)
 
     def test_len_depends_on_machine_output(self):
-        self.assert_machine_dependency(
-            "len",
-            (
-                ("a", ()),
-                ("abcd", ()),
-                (b"ab", ()),
-                (b"abcdef", ()),
-                ((1, 2), ()),
-                ((1, 2, 3, 4), ()),
-                ({"a": 1}, ()),
-                ({"a": 1, "b": 2, "c": 3}, ()),
-            ),
-        )
+        self.assert_machine_dependency("len")
 
     def test_slice_depends_on_machine_output(self):
-        self.assert_machine_dependency(
-            "slice",
-            (
-                ("abcdef", (0, 2)),
-                ("abcdef", (2, 4)),
-                (b"abcdef", (0, 2)),
-                (b"abcdef", (2, 4)),
-                ((1, 2, 3, 4), (0, 2)),
-                ((1, 2, 3, 4), (2, 4)),
-                ([1, 2, 3, 4], (0, 2)),
-                ([1, 2, 3, 4], (2, 4)),
-            ),
-        )
+        self.assert_machine_dependency("slice")
 
 
 if __name__ == "__main__":
