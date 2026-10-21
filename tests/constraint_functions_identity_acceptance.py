@@ -1,4 +1,4 @@
-"""Frozen T5 constraint identity acceptance for SHEAR #123.
+"""T5 semantic constraint identity acceptance for SHEAR #123.
 
 Execute supplies:
     reconstruct_constraint(expression)
@@ -29,6 +29,7 @@ from shear import (
     OneOf,
     Role,
     canonical_serialize,
+    kind_of,
 )
 from tests.constraint_functions_complete_acceptance import (
     candidate_execution_guard,
@@ -150,9 +151,7 @@ class FrozenConstraintIdentityAcceptance(unittest.TestCase):
         original, rebuilt = result
 
         for value in (original, rebuilt):
-            self.assertIsInstance(value, tuple)
-            self.assertEqual(value[0], "__type__")
-            self.assertEqual(value[1], "constraint")
+            self.assertEqual(kind_of(value), "constraint")
 
         self.assertEqual(encoded(original), encoded(rebuilt))
         return encoded(original)
@@ -164,7 +163,7 @@ class FrozenConstraintIdentityAcceptance(unittest.TestCase):
             with self.subTest(expression=expression):
                 self.assertEqual(
                     self.reconstruct(expression),
-                    encoded(expected.canonical_node()),
+                    encoded(expected),
                 )
 
     def test_canonical_equivalence(self):
