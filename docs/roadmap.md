@@ -98,7 +98,7 @@ historical evidence. Do not require production changes merely to make a
 negative experiment actionable, revise frozen acceptance criteria to
 obtain a preferred result, or retroactively rewrite evidence.
 
-**Capability and clarity gate.** For tasks depending on existing
+**Provisional – pending independent Review.** For tasks depending on existing
 language or architectural capabilities, Plan must:
 
 - Trace requirements from the original vision through decided
