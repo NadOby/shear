@@ -62,28 +62,27 @@ Do not silently invent constraint-specific facilities.
 
 ## 4. Canonical-content access
 
-Use the existing canonical representation as the source.
+The admitted SHEAR function receives the original canonical
+subject. Host-side subject-specific preprojection is not allowed.
 
-Provide a generic, deterministic, immutable projection into
-ordinary inspectable values where existing VM data operations
-cannot inspect canonical nodes directly.
+Owner-approved D123-7 visibility:
+- Ordinary functions may inspect the semantic structure of
+  supplied values across all 15 supported canonical kinds.
+- Inspection is immutable, generic and type-preserving.
+- Expose semantic fields, not Python serialization internals.
+- Preserve canonical identity and opaque-value boundaries.
+- Inspection grants no runtime-state, graph-reflection or
+  external-resource authority.
 
-Preserve semantic kinds, including distinctions between:
-- bool and int;
-- string code points and encoded bytes;
-- tuple, list and map;
-- entity, state and version identities;
-- canonical records and their tagged payloads.
+Text inspection concerns code points; byte inspection concerns
+bytes. Maps expose semantic entries and records expose defined
+semantic fields.
 
-Preserve canonical map entries, nested data, and owned-subtree
-structures without changing canonical identity.
+The exact operation names, return shapes and VM/compiler
+implementation remain undecided.
 
-This projection is a generic data facility, not a constraint
-parser or interpreter.
-
-Test equivalent structural inspection outside constraints.
-
-No alternative canonical identity format is authorized.
+Any new language operation requires owner approval.
+Test generic inspection on non-constraint values.
 
 ## 5. Ordinary SHEAR evaluator
 
@@ -395,76 +394,81 @@ performance measurements and mechanism accounting.
 No Plan acceptance requirement may be weakened during Execute
 without an explicit owner decision and renewed independent Review.
 
-## 15. Capability feasibility amendment
+## 15. Architectural feasibility amendment
 
-Status: Proposed – requires independent Plan Review.
+Status: Plan Resolve – independent Review required.
 
-`docs/constraint_functions_capability_matrix.md` records
-the requirements traced from SHEAR's original vision,
-decided semantics, earlier experiments and current code.
+`docs/constraint_functions_capability_matrix.md` identifies
+inherited limitations and separates host, VM, compiler,
+restricted-policy and end-to-end capabilities.
 
-Task 24 had already demonstrated missing generic inspection
-capabilities. Task 32 explicitly deferred their resolution.
-GH-123 must not treat those inherited gaps as solved.
+### Owner decisions
 
-### Feasibility gate
+D123-7a – Approved: semantic visibility defined in section 4.
 
-Before resuming dependent implementation:
+D123-7b – Pending: select the exact generic inspection
+interface and its compiler/VM implementation.
 
-1. Verify the matrix against the current repository.
-2. Resolve or explicitly experiment on critical prerequisites.
-3. Demonstrate generic inspection on raw canonical subjects,
-   preserving all 15 kinds and existing identity.
-4. Examine external dispatch, exact budgeting, failure
-   boundaries, authenticated execution and admission together.
-5. Identify every necessary language-shaping decision.
+Before D123-7b, Execute may analyze existing facilities,
+run bounded experiments and compare proposed mechanisms.
+It may not introduce normative language operations or
+promote provisional projection code as the solution.
 
-G1–G10 in the capability matrix define the required
-discriminators. Unexecuted checks remain unverified.
+### First decisive experiment
 
-A bounded feasibility experiment may be part of Execute,
-but its unresolved assumptions cannot be counted as
-existing capabilities or successful implementation.
+The initial implementation witness must exercise:
 
-### Naming and human usability
+Raw canonical subject → authenticated admitted SHEAR function
+→ generic inspection → composite constraint evaluation
+→ exact budget accounting → three-valued result.
 
-Audit operations against corresponding semantic concepts.
+Use one compiled evaluator on independently chosen strings,
+bytes, maps and nested semantic values.
 
-Names should communicate accepted inputs, returned results,
-effects and identity guarantees to human programmers.
+Verify G1–G6, G8 and G10 together, including:
+- Original subject reaches the machine unchanged.
+- Semantic inspection works outside constraints.
+- Composite and short-circuit budgets are exact.
+- Compiler, verifier and VM support the mechanism.
+- No Python predicate evaluation or host preprojection occurs.
 
-Consider clearer names, prefixes or namespaces where useful.
-No particular naming convention is required.
+An inspection-only demonstration is insufficient.
 
-Do not change established behavior merely for consistency.
-Any public rename requires impact assessment and owner approval.
+### External evaluation
 
-### Architectural decision pending
+Test whether existing static calls and authorized host
+dispatch satisfy every frozen External case.
 
-D123-7: Select the generic canonical-inspection interface
-after evaluating the complete capability matrix.
+Host-boundary callbacks after admitted execution are
+permitted by existing acceptance.
 
-A shallow structural-view operation is one candidate.
-Neither a new opcode nor a host-projection workaround is
-authorized by this amendment.
+Verify selection, missing evaluators, Unknown, canonical
+subjects, budget behavior and escaping host exceptions.
 
-The two provisional Execute files are experimental evidence,
-not an accepted architectural solution.
+If existing dispatch is insufficient, demonstrate the
+smallest counterexample. Obtain owner approval before
+adding invocation authority or changing effect semantics.
 
-### Preserved contracts
+G7 and G9, including genuine initial admission and
+subsequent runtime operations, remain mandatory.
 
-All 15 original acceptance modules, 56 test methods,
-Task 24 oracles, Task 32 security guarantees and golden
-records remain unchanged.
+### Naming clarity
 
-Any additional acceptance must test generic behavior,
-not introduce constraint-specific exceptions.
+Review overlapping operation names for human ambiguity.
+Prefixes, namespaces or renames are possible.
 
-The approved 1000x performance ceilings and independent
-mechanism accounting remain in force.
+Prefer the clearest solution with minimal complexity.
+No unrelated rename or semantic change is authorized.
 
-Execute must explicitly register all applicable acceptance
-modules in CI and report their actual execution counts.
+### Preserved acceptance
 
-Independent Plan Review must approve this amendment before
-dependent Execute work resumes.
+All 15 candidate-dependent modules, 56 tests, Task 24
+oracles, Task 32 security requirements, golden records
+and approved 1000x performance ceilings remain unchanged.
+
+A known defective acceptance fixture requires independent
+review before any correction; its security assertion must
+not be weakened.
+
+Independent Plan Review must accept this amendment before
+dependent implementation resumes.
