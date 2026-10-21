@@ -1,130 +1,112 @@
-
 # Handoff
 
 ## Current state
 
-- Issue: #123 – complete constraints with ordinary SHEAR functions.
+- Issue: #123 – complete constraint semantics with ordinary SHEAR functions.
 - Branch: `task/123-complete-constraints`.
 - Baseline: `f994a2d59b0f6f890f4800effe209d88e1c838c1`.
-- Earlier Plan head: `90426a708152364fa8289324c0ea1bcedb5e6f8b`.
-- Provisional Execute head: `26327534a146fd261770c2b655f78c6e41b1dd02`.
-- Latest Plan Resolve head: `ed41f70106a6af4867bbf6b265aa33fa7f0dc10`.
-- Role: Plan Resolve – independent re-review required.
+- Earlier approved Plan: `90426a708152364fa8289324c0ea1bcedb5e6f8b`.
+- Architectural Plan Review at `23b4559a0111f2a8409d1f8b5bac256f927050a5`: REQUEST RESOLVE.
+- Latest substantive Resolve: `6a59b8724a5438900244dbbccbd28a8270695054`.
 - Execute paused. No accepted implementation or PR.
 
-The earlier Plan was not independently approved;
-Review requested Resolve.
+The earlier Plan was independently approved, then superseded
+by architectural amendments requiring renewed Review.
 
-## Architectural findings
+## Architecture
 
-Task 24 identified missing generic canonical inspection.
-Task 32 established restricted execution but deferred
-those capabilities.
+Task 24 demonstrated missing generic canonical inspection.
+Task 32 established authenticated restricted execution but
+deferred complete inspection and constraint replacement.
 
-The existing tuple operations are insufficient.
-Host-side subject projection cannot replace genuine
-SHEAR inspection of the original canonical value.
+The updated capability matrix distinguishes the original
+vision, decided semantics, available mechanisms and
+unverified end-to-end capabilities.
 
-Two provisional Execute files remain unapproved:
-- `shear/canonical_projection.py`
-- `shear/constraint_function_projection.py`
+D123-7a – Approved: ordinary SHEAR functions may inspect
+the immutable semantic structure of supplied values across
+all 15 canonical kinds. Inspection preserves types and
+opacity and grants no additional runtime or graph authority.
 
-## Plan Resolve
+D123-7b – Pending: select the generic inspection interface
+and its compiler/VM implementation after feasibility evidence.
 
-Updated:
-- `docs/constraint_functions_capability_matrix.md`
-- `docs/constraint_functions_complete.md`
-- `docs/roadmap.md`
-
-The capability matrix now separates:
-- Host capabilities.
-- VM operations.
-- Compiler support.
-- Restricted-execution permissions.
-- End-to-end evidence.
-
-The new repository-wide workflow gate remains provisional
-pending independent Review.
-
-## Owner decisions
-
-D123-7a – Approved.
-
-Ordinary SHEAR functions may inspect the semantic structure
-of supplied values across all 15 canonical kinds.
-
-Inspection is immutable, generic and type-preserving.
-It exposes semantic fields, not serialization internals.
-
-This does not authorize privileged graph reflection,
-runtime-state access, external resources or expansion
-of opaque representations.
-
-D123-7b – Pending.
-
-Select the generic inspection interface and its
-compiler/VM implementation based on feasibility evidence.
-
-No new opcode, public operation or naming change
-has been approved.
+No new opcode, public operation or naming change is approved.
+Naming decisions prioritize clarity for human programmers
+without unnecessary changes to settled semantics.
 
 ## Decisive experiment
 
-The first integrated witness must demonstrate:
+Demonstrate one compiled, authenticated SHEAR evaluator:
 
 Raw canonical subject
-→ authenticated SHEAR execution
-→ generic inspection
-→ composite constraint
-→ exact semantic budget
-→ three-valued result.
+→ generic semantic inspection
+→ composite constraint computation
+→ exact semantic budgeting
+→ Satisfied / Violated / Unknown.
 
-Use one compiled evaluator on independently selected
-strings, bytes, maps and nested values.
+Use independent strings, bytes, maps and nested values.
+Verify G1–G6, G8 and G10 together, including compiler,
+verifier and VM support, without host-side projection
+or Python predicate substitution.
 
-Verify G1–G6, G8 and G10 together.
-
-Then demonstrate:
-- G7 – named external dispatch and failure provenance.
+Also verify:
+- G7 – External dispatch and failure provenance.
 - G9 – genuine admission, writes, activation and trials.
 
-Existing authenticated host-boundary dispatch is permitted
-where it satisfies the frozen External contract.
+Existing authorized host-boundary dispatch may be reused.
+New invocation authority requires owner approval.
 
-A new invocation mechanism requires a demonstrated need
-and owner approval.
+## Latest Review findings and Resolve
 
-## Frozen requirements
+Review at `23b4559` approved the architectural direction
+but identified three blocking defects:
 
-Preserve:
-- 15 candidate-dependent acceptance modules and 56 tests.
-- Task 24 semantic oracles and 17 boundary cases.
+1. P1 – Two unapproved projection modules broke the
+   mandatory mutation inventory. Both were deleted.
+2. P2 – The capability matrix had a leading empty line.
+   Its heading is now the first line.
+3. P2 – The preflight-denial test incorrectly prohibited
+   compilation during evaluator preparation. That guard
+   was removed from this test; denial and the prohibition
+   on machine entry remain.
+
+The separate test against late lowering remains intact.
+The changed Plan-owned acceptance test requires fresh
+independent verification.
+
+P3 – Corrected handoff chronology and removed its own
+leading empty line.
+
+The deleted experimental modules remain available through
+Git history; neither is an approved architectural solution.
+
+## Preserved requirements
+
+- 15 candidate-dependent acceptance modules, 56 tests.
+- Task 24 frozen oracles and 17 boundary cases.
 - Task 32 authentication and security guarantees.
 - Canonical identities and golden records.
-- 1000x warm median and p95 performance ceilings.
+- Approved 1000x warm median and p95 performance ceilings.
+- Independent source-path, authority and fallback auditing.
 
-Candidate-dependent tests have not executed.
-No successful final-head CI run has been established.
+Candidate-dependent suites have not executed.
 
-The reported preflight-denial fixture issue requires
-independent verification before any test correction.
+## CI evidence
 
-## Independent Review priorities
+- `7fc26f3` – ordinary CI passed.
+- `6a59b87` – CI running at the last check.
 
-1. Verify D123-7a visibility and opacity boundaries.
-2. Check capability classifications against implementation.
-3. Assess the integrated feasibility experiment.
-4. Verify External authority and failure requirements.
-5. Check that D123-7b remains owner-controlled.
-6. Review the provisional repository workflow amendment.
-7. Confirm frozen tests and specifications were preserved.
-8. Verify exact-head CI evidence and remaining defects.
+Exact final-head CI and independent Review are still required.
+No unexecuted test is considered passed.
 
 ## Next action
 
-Obtain independent read-only Plan re-review.
-
-Do not resume dependent implementation until the amended
-Plan and required architectural decisions are accepted.
+1. Confirm CI on the latest Resolve.
+2. Obtain fresh independent read-only Plan Review.
+3. Resolve any remaining blockers.
+4. Obtain owner decision D123-7b before introducing
+   normative inspection operations.
+5. Resume the integrated feasibility experiment.
 
 The owner retains architectural and publication authority.
