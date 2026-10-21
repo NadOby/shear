@@ -246,3 +246,36 @@ inspection is authorized by this mapping.
 
 Execute remains blocked until the amended acceptance
 contract and public inspection interface are approved.
+
+## 8. Generated nested-record acceptance
+
+The following Plan-owned module is mandatory for T5:
+    tests/constraint_functions_nested_record_acceptance.py
+
+Execute must register and run every test in this module alongside
+the existing T5 acceptance modules.
+
+The independent semantic-path oracle derives expected values from
+original semantic fixtures, not candidate results or private
+CanonicalNode serialization.
+
+Required coverage:
+
+- Deterministic generated collections nested in Cell.initial.
+- Generated collections nested in Relation.payload.
+- Nested constraint forms and operand paths.
+- Mixed record, map, list and tuple traversal.
+- Both named and positional record-field access.
+- Authenticated SHEAR execution for every selected path.
+- Canonical semantic equivalence of selected values.
+
+The existing adversarial module remains mandatory and unchanged.
+Neither module substitutes for the other.
+
+The new module is candidate-dependent and is not considered passed
+by ordinary incumbent-only CI.
+
+Independent Review must verify that generated samples actually
+reach nested semantic contents, including values canonicalized
+during record construction. Passing shallow paths alone is
+insufficient.
