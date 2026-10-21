@@ -406,6 +406,12 @@ The additional Plan-owned acceptance suites are:
   – authenticated artifacts, effects and replacement isolation.
 - `tests/constraint_functions_candidate_effect_acceptance.py`
   – candidate-derived forbidden dispatch and preflight isolation.
+- `tests/constraint_functions_nested_record_acceptance.py`
+  – generated public traversal of nested semantic records.
+- `tests/constraint_functions_sequence_acceptance.py`
+  – generalized len/slice semantics and VM-result dependency.
+- `tests/constraint_functions_resource_acceptance.py`
+  – independent inspection-resource instrumentation.
 
 These modules remain outside ordinary test discovery during Plan.
 Execute must supply the real candidate, register the complete
@@ -568,8 +574,11 @@ No unrelated rename or semantic change is authorized.
 
 ### Preserved acceptance
 
-All 15 candidate-dependent modules, 56 tests, Task 24
-oracles, Task 32 security requirements, golden records
+The original 15 candidate-dependent modules and 56 tests remain
+mandatory. The expanded inventory comprises 18 modules and 78
+test methods, including three additional T5 acceptance suites.
+
+Task 24 oracles, Task 32 security requirements, golden records
 and approved 1000x performance ceilings remain unchanged.
 
 The corrected preflight-denial and execution-isolation
