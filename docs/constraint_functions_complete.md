@@ -78,10 +78,10 @@ Text inspection concerns code points; byte inspection concerns
 bytes. Maps expose semantic entries and records expose defined
 semantic fields.
 
-The exact operation names, return shapes and VM/compiler
-implementation remain undecided.
+D123-7b approves the generic `inspect(value)` operation
+specified in section 15.
 
-Any new language operation requires owner approval.
+No other new language operation is authorized.
 Test generic inspection on non-constraint values.
 
 ## 5. Ordinary SHEAR evaluator
@@ -315,8 +315,9 @@ without the owner's decision.
 
 ## 13. Owner decisions
 
-D123-1: Generic canonical projection preferred.
+D123-1: Generic canonical projection preferred initially.
 D123-2: No new syntax or VM instructions initially.
+Both preferences are superseded by D123-7b.
 D123-3: Existing restricted execution preferred.
 D123-4: Exact semantic budgeting through ordinary computation.
 D123-5: Production removal deferred until equivalence is proven.
@@ -396,7 +397,8 @@ without an explicit owner decision and renewed independent Review.
 
 ## 15. Architectural feasibility amendment
 
-Status: Plan Resolve – independent Review required.
+Status: Plan Resolve – independently approved; D123-7b
+owner decision recorded for Execute.
 
 `docs/constraint_functions_capability_matrix.md` identifies
 inherited limitations and separates host, VM, compiler,
@@ -406,13 +408,45 @@ restricted-policy and end-to-end capabilities.
 
 D123-7a – Approved: semantic visibility defined in section 4.
 
-D123-7b – Pending: select the exact generic inspection
-interface and its compiler/VM implementation.
+D123-7b – Approved by owner.
 
-Before D123-7b, Execute may analyze existing facilities,
-run bounded experiments and compare proposed mechanisms.
-It may not introduce normative language operations or
-promote provisional projection code as the solution.
+Introduce `inspect(value)` as one generic, pure operation.
+
+Input form: `("inspect", expression)`.
+Result: `(semantic_kind, members)`.
+
+`semantic_kind` is one of the 15 defined canonical kinds.
+`members` is an ordinary immutable tuple:
+
+- String: Unicode code points.
+- Bytes: integer byte values.
+- Tuple/list: elements in order.
+- Map: `(key, value)` pairs.
+- Semantic record: `(field_name, value)` pairs exposing
+  defined immutable semantic fields.
+- Atomic or opaque value: no exposed internal members.
+
+Inspection is shallow. Nested values preserve their
+semantic kinds and identities.
+
+Inspection does not expose canonical serialization layout,
+Python implementation details, live runtime state or
+unrelated graph entities.
+
+Implement the generic operation in the source language,
+compiler, VM and restricted execution policy.
+
+Existing operations and semantic identities remain unchanged.
+No constraint-specific inspection primitives are authorized.
+
+Frozen canonical-path compatibility must be derived from
+generic inspection, not imposed as its public representation.
+
+Exact record field layouts may be established provisionally
+during Execute, subject to these semantic boundaries and
+independent Review.
+
+The first integrated feasibility witness remains mandatory.
 
 ### First decisive experiment
 
