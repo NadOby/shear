@@ -283,57 +283,151 @@ Additional mandatory modules:
 - `tests/constraint_functions_sequence_acceptance.py`
 - `tests/constraint_functions_resource_acceptance.py`
 
-The complete candidate-dependent inventory at HEAD f8ccc488
-contains 18 modules and 78 test methods. The previous 15-module,
-56-test inventory is the historical frozen baseline, not the
-complete current acceptance inventory.
+The expanded Plan inventory comprises 18 candidate-dependent
+modules and 78 test methods.
 
-All three new modules must be registered in Execute CI and run
-with the existing acceptance suites. Unexecuted, skipped or
-unsupported tests do not constitute acceptance.
+The original 15 modules and 56 tests remain mandatory.
+Inventory counts are not execution results.
 
-### T5 additional obligations
+Execute must register and run all 18 modules. Unexecuted,
+skipped or unsupported tests do not constitute acceptance.
 
-Nested semantic-record traversal must preserve public kinds,
-canonical identity and independently derived expected values.
-Private canonical serialization must not become language-visible.
+### Nested semantic records
 
-Generalized len and slice must preserve result kinds, Unicode
-code-point semantics, byte values, canonical map order, record
-field order, half-open bounds and ordinary LanguageError behavior.
+Generated nested-record tests must establish traversal of
+actual semantic contents, including canonically normalized
+nested values.
 
-Authenticated machine-result perturbation must establish a
-causal connection to observed sequence and reconstruction results.
-Tests must not assume a fixed number of VM invocations or that
-the VM returns the complete adapter observation.
+Expected paths and values must be derived independently from
+original semantic fixtures, not candidate-generated paths or
+private canonical serialization.
 
-Resource acceptance must independently measure attributable
-inspection work and allocations. Candidate-reported counters
-alone cannot establish efficiency.
+Named and positional field access, mixed container nesting,
+canonical identities and semantic result kinds remain mandatory.
 
-The measurement contract must separate input canonicalization,
-preparation, admission, invocation and inspection. The generic
-instrumentation boundaries must cover delegated helpers and
-native work, including copying, sorting and serialization.
+### Generalized sequence operations
 
-Large relation-role and constraint-operand collections must be
-checked for exact semantic contents, not just collection size.
+Generalized len and slice must preserve Unicode code-point
+semantics, bytes, canonical map order, record field ordering,
+half-open bounds, result kinds and LanguageError behavior.
 
-Every T5 operation requires authentic admitted SHEAR execution.
-Independent source-path and fallback auditing remains mandatory.
-No unrelated machine execution, host-side semantic projection or
-forged execution evidence can satisfy the contract.
+Independent causal dependency is required separately for each
+supported indexable semantic kind:
 
-These tests introduce no additional public SHEAR operation and
-do not authorize changes to Task 24 semantics, Task 32 security,
-17 frozen boundary cases, existing canonical identities or
-golden records.
+- str
+- bytes
+- tuple
+- list
+- map
+- cell
+- constraint
+- relation
 
-### Evidence and approval
+A machine-result perturbation for one kind cannot establish
+dependency for another.
 
-The inventory count is not an execution result. Candidate-dependent
-suites remain unexecuted during Plan.
+The perturbation must substitute genuine authenticated machine
+returns of a compatible machine-level contract.
 
-Independent Review must validate test non-vacuity, operation
-provenance, measurement boundaries, registration and consistency
-with `docs/semantic_inspection.md` before Execute approval.
+No fixed number of evaluator invocations or assumption about
+the complete adapter-return shape is permitted.
+
+### Constraint reconstruction
+
+Preserve all original canonical reconstruction witnesses,
+equivalence cases and type-sensitive distinctions.
+
+Independently establish machine-result dependency for each
+of the nine supported constraint forms:
+
+- is_kind
+- int_range
+- length
+- one_of
+- all_of
+- any_of
+- not
+- role
+- external
+
+For each form, compatible genuine machine-output substitution
+must change the observation or produce explicit fail-closed
+validation rejection with exact substituted-output provenance.
+
+A single successful form cannot qualify the complete inventory.
+
+### Resource efficiency
+
+The resource acceptance uses test-owned whole-invocation
+measurement, not candidate-reported counters or nominated
+Python tracing boundaries.
+
+Execute supplies reusable prepared operations through:
+
+    prepare_resource_probe(canonical_value, operation)
+
+A test-only "control" mode provides matched admitted invocation
+overhead without subject inspection.
+
+Resource measurements must account for:
+
+- Input canonicalization and preparation before measurement.
+- Authenticated execution and invocation overhead.
+- Whole-invocation process CPU time.
+- Peak Python-traced allocation.
+- Python and native call coverage.
+- Matched control overhead.
+- Measurement noise and calibration sensitivity.
+
+Synthetic large-copy and native-sort controls must demonstrate
+that the measurement can detect relevant scaling defects.
+
+Required witnesses include repeated map indexing, large sequence
+access, relation-role contents, constraint operands and shallow
+inspection.
+
+Complete semantic contents and ordering must be verified,
+not merely result sizes.
+
+Resource bounds must distinguish avoidable copying from storage
+and processing necessarily required to materialize explicitly
+requested proportional-size results.
+
+An implementation satisfying the public semantic and resource
+contract must not fail merely because its representation
+requires legitimate output materialization.
+
+Independent source-path auditing must examine delegated helpers,
+native operations, sorting, serialization, control equivalence
+and possible unmeasured or host-side semantic work.
+
+Whole-invocation measurement is not independent proof of
+execution authenticity.
+
+### Preserved requirements
+
+The expanded T5 suite introduces no additional public SHEAR
+operation beyond the separately approved inspection interface.
+
+Task 24 semantics, Task 32 security, all 17 frozen boundary
+cases, canonical identities and golden records remain unchanged.
+
+All authenticated execution, no-fallback and independent
+provenance requirements remain mandatory.
+
+### Review and approval
+
+Independent Review must verify:
+
+- Test completeness and non-vacuity.
+- Per-kind and per-form causal dependency.
+- Genuine VM returns and unchanged-return controls.
+- Measurement completeness and noise sensitivity.
+- Correct treatment of proportional-size requested outputs.
+- Compatibility with `docs/semantic_inspection.md`.
+- Registration of the complete acceptance inventory.
+
+Candidate-dependent suites remain unexecuted during Plan.
+Ordinary CI success does not establish their correctness.
+
+Execute remains blocked until independent Plan approval.
