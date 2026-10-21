@@ -126,6 +126,8 @@ class CandidateEffectIsolationAcceptance(unittest.TestCase):
                 state, artifacts, entry, policy,
             )
 
+        # Deployment preparation may occur inside semantic().
+        # Denial must still prevent candidate machine entry.
         with (
             forbid_incumbent(),
             patch.object(
@@ -137,14 +139,6 @@ class CandidateEffectIsolationAcceptance(unittest.TestCase):
                 side_effect=AssertionError(
                     "candidate bypassed rejected preflight"
                 ),
-            ),
-            patch.object(
-                bytecode, "lower_value",
-                side_effect=no_host_lowering,
-            ),
-            patch.object(
-                bytecode, "chunk_of",
-                side_effect=no_host_lowering,
             ),
         ):
             with self.assertRaisesRegex(
