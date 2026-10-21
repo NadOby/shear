@@ -398,30 +398,187 @@ contents. Measurements must not impose constant-output cost on
 operations that explicitly request proportional-size output.
 
 Whole-invocation measurement does not by itself prove that a
-candidate uses the authorized inspection path. Independent source
-audit must examine delegated and native operations, sorting,
-serialization, canonicalization, fallback and control equivalence.
+candidate uses the authorized inspection ## 9. Generalized operations and resource acceptance
+
+The following additional Plan-owned modules are mandatory for T5:
+
+    tests/constraint_functions_sequence_acceptance.py
+    tests/constraint_functions_resource_acceptance.py
+
+Together with the nested-record module in section 8, they extend
+the candidate-dependent inventory to 18 modules and 78 test methods.
+
+The original 15 modules and 56 tests remain mandatory.
+Inventory counts are not execution results.
+
+### Generalized sequence operations
+
+Execute must supply:
+
+    sequence_projection(value, operation, *arguments)
+
+The supported operations are "len" and "slice". Both must execute
+through authenticated ordinary SHEAR computation.
+
+Mandatory semantic witnesses include Unicode code points, bytes,
+maps, record fields, result kinds, half-open bounds, invalid
+inputs and ordinary LanguageError behavior.
+
+Authenticated execution-dependency evidence is required separately
+for both operations on all eight indexable semantic kinds:
+
+- str
+- bytes
+- tuple
+- list
+- map
+- cell
+- constraint
+- relation
+
+The tests observe actual admitted VM returns and inject a unique
+fault immediately after a genuine admitted machine invocation.
+
+The injected fault must propagate without being swallowed,
+translated or bypassed by host-side fallback.
+
+Where controls have distinct semantic results, the admitted
+machine-return observations must also be distinguishable.
+
+Constant-result operations, including len on fixed-field records,
+do not require impossible distinct legitimate VM returns.
+
+No shared evaluator entry, fixed invocation count, common machine
+return schema or complete adapter-return shape is assumed.
+
+Fault propagation and differing VM observations are necessary
+execution-dependency evidence, not sufficient evidence that the
+admitted program implements the requested semantic operation.
+
+Independent source-path review must establish that actual
+SHEAR computation determines len and slice results.
+
+### Constraint reconstruction
+
+The original reconstruction witnesses, canonical equivalence
+checks and type-sensitive distinctions remain mandatory.
+
+Independent authenticated execution-dependency evidence is
+required for all nine constraint forms:
+
+- is_kind
+- int_range
+- length
+- one_of
+- all_of
+- any_of
+- not
+- role
+- external
+
+Each form requires distinct valid reconstruction controls,
+genuine authenticated machine-return observations and
+controlled VM-return fault propagation.
+
+No arbitrary cross-entry or cross-schema machine-result
+substitution is required.
+
+A fault must propagate without host fallback.
+
+Machine-return observations must distinguish the two valid
+control expressions for each form.
+
+These discriminators cannot independently establish that both
+reconstruction outputs were computed by SHEAR. The mandatory
+source-path and provenance audit must establish that requirement.
+
+### Resource efficiency
+
+Execute must supply:
+
+    prepare_resource_probe(canonical_value, operation)
+
+The adapter returns a reusable callable accepting one argument.
+
+A test-only "control" mode must use the same prepared canonical
+input and admitted invocation machinery without inspecting the
+subject. It adds no public language operation.
+
+The test owns its measurement windows and does not trust
+candidate-reported resource counters.
+
+First-use and warm invocations are measured separately.
+No unmeasured warm-up may hide inspection work.
+
+Every sampled candidate invocation must independently establish
+authenticated evaluator entry.
+
+Warm CPU measurements use paired, interleaved inspected and
+control invocations. Measurement noise is recorded explicitly.
+
+Resource measurements include whole-invocation process CPU
+time, Python-traced peak allocations and supplemental Python
+and C-call profiling.
+
+Python allocation tracing and C-call profiling do not prove
+coverage of arbitrary native allocations. Independent native
+allocation and source-path auditing remains mandatory.
+
+Deterministically shuffled comparison sorting and synthetic
+large-copy controls calibrate measurement sensitivity.
+
+Required witnesses include:
+
+- Repeated canonical-map indexing.
+- Single-element sequence access.
+- Relation-role contents and ordering.
+- Shallow OneOf operand access.
+- Increasing-arity composite operands.
+- Shallow inspection of large collections.
+
+The resource contract distinguishes constant-output access
+from explicitly requested output-proportional materialization.
+
+OneOf.arguments is a fixed-size outer operand tuple whose
+nested collection must remain shallow. Its access must not
+copy the complete nested value collection.
+
+Increasing-arity AllOf arguments may require output-proportional
+materialization, subject to independently reviewed bounds.
+
+Relation-role enumeration must not perform avoidable complete
+cloning or repeated sorting. Any output-proportional allowance
+must correspond to materialization genuinely required by the
+approved public representation.
+
+Canonicalization and compiler/admission preparation are
+separate from measured prepared invocation costs.
+
+Residual invocation overhead is evaluated against matched
+controls. Negative subtraction artifacts, timing noise and
+measurement sensitivity must be reviewed independently.
 
 ### Acceptance gates
 
-All three new T5 modules are mandatory and candidate-dependent.
+All three additional T5 modules are mandatory and
+candidate-dependent.
 
-No module may be skipped, silently excluded or counted as passing
-solely because ordinary CI succeeds.
+No module may be skipped, silently excluded or counted as
+passing solely because ordinary CI succeeds.
 
-Independent Review must verify:
+Independent Review must assess:
 
-- Per-kind sequence machine-result dependency.
-- Per-form reconstruction machine-result dependency.
-- Genuine authenticated returns and unchanged-return controls.
-- Completeness and representativeness of resource measurements.
-- Calibration sensitivity and measurement noise.
-- Separation of preparation, invocation and inspection costs.
-- Correct treatment of requested proportional-size outputs.
-- No unrelated admitted work or host-side semantic fallback.
+- Per-kind and per-form execution-dependency evidence.
+- Propagation of unique authenticated VM-return faults.
+- Distinct VM observations where semantic outputs differ.
+- Measurement coverage, calibration and noise sensitivity.
+- First-use and warm-operation resource behavior.
+- Native allocation visibility and required source auditing.
+- Constant-output versus output-proportional resource bounds.
+- Absence of unrelated admitted execution or host fallback.
 
-The original T5 semantic, security and execution-authenticity
-obligations remain unchanged.
+The original T5 semantics, Task 24 oracles, Task 32 security,
+all 17 frozen boundary cases and golden records remain unchanged.
 
-Candidate-dependent acceptance has not run during Plan.
-No implementation success is implied by this mapping.
+Candidate-dependent acceptance remains unexecuted during Plan.
+Execute requires independent Plan approval.
