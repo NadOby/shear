@@ -10,6 +10,10 @@ returning a reusable callable taking one argument. The test-only
 argument path as the inspected operation, but returns a fixed value.
 It must not inspect the subject; source audit verifies that contract.
 Neither name adds a public SHEAR operation.
+
+Shallow inspection and single-element access have constant-output
+resource expectations. Explicitly requested whole-field results have
+output-proportional resource allowances, not constant-work limits.
 """
 
 from importlib import import_module
@@ -33,6 +37,13 @@ REPEATS = 8
 SAMPLES = 5
 WORK_RATIO_LIMIT = 8
 ALLOCATION_GROWTH_LIMIT = 16 * 1024
+
+# These limits apply only when the complete field is explicitly
+# requested. They permit a bounded output representation, not an
+# unbounded number of whole-container intermediate copies.
+OUTPUT_CPU_SLOPE_TOLERANCE = 3
+ROLE_BYTES_PER_ITEM = 96
+OPERAND_BYTES_PER_ITEM = 24
 
 
 class WholeInvocationProfile:
@@ -63,7 +74,7 @@ class WholeInvocationProfile:
 
 
 class WholeInvocationMeasurement:
-    """End-to-end prepared invocation, with no interior reset points.
+    """Measure complete prepared invocations without interior resets.
 
     The restricted guard is installed outside the measured interval.
     Results and authentication assertions are checked afterward.
@@ -76,7 +87,7 @@ class WholeInvocationMeasurement:
 
     def run(self, prepared, argument):
         with candidate_execution_guard(self.entries) as opened:
-            prepared(argument)  # Warm the prepared admitted path.
+            prepared(argument)
 
             cpu_samples = []
             for _ in range(SAMPLES):
@@ -130,8 +141,6 @@ class InspectionResourceAcceptance(unittest.TestCase):
             raise AssertionError("candidate lacks prepare_resource_probe")
 
     def prepare(self, value, operation):
-        # All canonicalization and compiler/admission preparation occurs
-        # before measurement. Both callables retain the same input.
         canonical = canonicalize(value)
         inspected = self.candidate.prepare_resource_probe(
             canonical, operation
@@ -145,14 +154,17 @@ class InspectionResourceAcceptance(unittest.TestCase):
 
     def observation_prepared(self, inspected, control, argument, expected):
         meter = WholeInvocationMeasurement(self.entries)
+
         result, cpu, peak, profile = meter.run(inspected, argument)
         self.assertEqual(
             canonical_bytes(result), canonical_bytes(expected),
             "resource observation has incorrect semantic content",
         )
+
         _, control_cpu, control_peak, control_profile = meter.run(
             control, argument
         )
+
         return {
             "cpu": overhead_adjusted(cpu, control_cpu),
             "peak": overhead_adjusted(peak, control_peak),
@@ -174,17 +186,16 @@ class InspectionResourceAcceptance(unittest.TestCase):
         )
 
     def assert_scaling(self, small, large, *, label):
-        """Require an observable discriminator, not a noise-only pass."""
+        """Constant-output operations must avoid container-sized work."""
         cpu_ceiling = max(
             small["cpu"] * WORK_RATIO_LIMIT,
             small["control_cpu"] * 0.05,
         )
         memory_ceiling = small["peak"] + ALLOCATION_GROWTH_LIMIT
 
-        # A full copy must not disappear behind the fixed VM overhead.
-        # A synthetic full-size copy tests the same measurement window.
         probe = WholeInvocationMeasurement(self.entries)
         synthetics = []
+
         for row, count in ((small, SMALL), (large, LARGE)):
             def copied(argument, row=row, count=count):
                 temporary = [None] * count
@@ -204,8 +215,6 @@ class InspectionResourceAcceptance(unittest.TestCase):
             f"{label}: instrumentation cannot detect full copying",
         )
 
-        # Native sort cost must be visible in the whole-call CPU window.
-        # A negative-control operation is never counted as candidate work.
         cpu_negative = []
         for row, count in ((small, SMALL), (large, LARGE)):
             def sorted_call(argument, row=row, count=count):
@@ -221,7 +230,9 @@ class InspectionResourceAcceptance(unittest.TestCase):
             cpu_negative.append(sort_cpu)
 
         self.assertGreater(
-            overhead_adjusted(cpu_negative[1], large["control_cpu"]),
+            overhead_adjusted(
+                cpu_negative[1], large["control_cpu"]
+            ),
             cpu_ceiling,
             f"{label}: timing cannot detect a native whole-container sort",
         )
@@ -234,35 +245,91 @@ class InspectionResourceAcceptance(unittest.TestCase):
             f"{label}: avoidable full-container allocation",
         )
 
+    def assert_output_scaling(
+        self, small, large, *, label, bytes_per_item
+    ):
+        """Permit bounded materialization of explicitly requested output.
+
+        The complete field contains O(n) semantic values. Comparing it
+        against constant-work shallow inspection would reject legitimate
+        representations that must construct the requested output.
+
+        This bound constrains growth to output-proportional work and
+        storage. Avoidable repeated sorting and extra copies still
+        require independent source-path auditing.
+        """
+        self.assertGreater(bytes_per_item, 0)
+
+        size_ratio = LARGE / SMALL
+        baseline_cpu = max(
+            small["cpu"],
+            small["control_cpu"] * 0.1,
+            1,
+        )
+        cpu_ceiling = (
+            baseline_cpu
+            * size_ratio
+            * OUTPUT_CPU_SLOPE_TOLERANCE
+        )
+
+        allocation_ceiling = (
+            small["peak"]
+            + ALLOCATION_GROWTH_LIMIT
+            + (LARGE - SMALL) * bytes_per_item
+        )
+
+        self.assertLessEqual(
+            large["cpu"],
+            cpu_ceiling,
+            f"{label}: cost exceeds output-proportional bound",
+        )
+        self.assertLessEqual(
+            large["peak"],
+            allocation_ceiling,
+            f"{label}: allocation exceeds output materialization bound",
+        )
+
     def test_repeated_canonical_map_index(self):
         rows = []
+
         for size in (SMALL, LARGE):
-            value = {f"key-{i:06d}": i for i in range(size)}
+            value = {
+                f"key-{i:06d}": i for i in range(size)
+            }
             ordered = sorted(value, key=canonical_bytes)
-            # Repeated accesses share one prepared deployment.
+
             inspected, control = self.prepare(value, "item")
             observed = []
+
             for _ in range(3):
                 for index in (0, size // 2, size - 1):
-                    row = self.observation_prepared(
+                    observed.append(self.observation_prepared(
                         inspected, control, index,
                         (ordered[index], value[ordered[index]]),
-                    )
-                    observed.append(row)
-            rows.append(max(observed, key=lambda row: row["cpu"]))
-        self.assert_scaling(*rows, label="repeated map item")
+                    ))
+
+            rows.append(
+                max(observed, key=lambda row: row["cpu"])
+            )
+
+        self.assert_scaling(
+            *rows, label="repeated map item"
+        )
 
     def test_large_sequence_index(self):
         rows = []
+
         for size in (SMALL, LARGE):
             value = tuple(range(size))
             rows.append(self.observation(
                 value, "item", size // 2, value[size // 2],
             ))
+
         self.assert_scaling(*rows, label="tuple item")
 
     def test_relation_role_contents_order_and_scaling(self):
         rows = []
+
         for size in (SMALL, LARGE):
             roles = {
                 f"role-{i:06d}": EntityID(str(i))
@@ -270,28 +337,42 @@ class InspectionResourceAcceptance(unittest.TestCase):
             }
             value = Relation("large", roles)
             expected = tuple(sorted(roles.items()))
+
             rows.append(self.observation(
                 value, "roles", None, expected,
             ))
-        self.assert_scaling(*rows, label="relation roles")
+
+        self.assert_output_scaling(
+            *rows,
+            label="relation roles",
+            bytes_per_item=ROLE_BYTES_PER_ITEM,
+        )
 
     def test_constraint_operands_contents_and_scaling(self):
         rows = []
+
         for size in (SMALL, LARGE):
             value = OneOf(*range(size))
             rows.append(self.observation(
                 value, "arguments", None, (value.values,),
             ))
-        self.assert_scaling(*rows, label="constraint operands")
+
+        self.assert_output_scaling(
+            *rows,
+            label="constraint operands",
+            bytes_per_item=OPERAND_BYTES_PER_ITEM,
+        )
 
     def test_shallow_inspection_scaling(self):
         rows = []
+
         for size in (SMALL, LARGE):
             value = tuple(range(size))
             rows.append(self.observation(
                 value, "inspect", None,
                 ("tuple", canonicalize(value)),
             ))
+
         self.assert_scaling(*rows, label="shallow inspect")
 
 
