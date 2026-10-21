@@ -4,12 +4,11 @@ Execute supplies:
     reconstruct_constraint(expression)
         -> (original_canonical, reconstructed_canonical)
 
-Both outputs must originate from actual admitted SHEAR constraint
-construction and reconstruction and retain canonical semantic identity.
+Both outputs must originate from admitted SHEAR computation and
+retain canonical semantic identity.
 
-Machine-output substitution must affect the adapter's observation or
-trigger explicit fail-closed validation with operation and exact rejected
-VM-output provenance.
+Machine-output perturbation targets an actual authenticated VM
+return, not an assumed adapter return shape or invocation count.
 
 Host-generated expected values and forged execution do not qualify.
 Independent source-path and fallback audit remains mandatory.
@@ -18,6 +17,7 @@ This module is outside ordinary Plan-time discovery.
 """
 
 from importlib import import_module
+from unittest.mock import patch
 import unittest
 
 from shear import (
@@ -34,15 +34,13 @@ from shear import (
     kind_of,
 )
 from shear.hosted_bootstrap import AdmissionRejected
+from shear.hosted_bootstrap.restricted import RestrictedExecutor
 from tests.constraint_functions_complete_acceptance import (
     candidate_execution_guard,
     forbid_incumbent,
 )
 
 
-# Expressions follow the existing Task 24 adapter representation.
-# Expected values are constructed independently using normative
-# semantic constructors, never by invoking the candidate.
 WITNESSES = (
     (("is_kind", "int"), IsKind("int")),
     (("int_range", None, 10), IntRange(None, 10)),
@@ -84,9 +82,6 @@ WITNESSES = (
     ),
 )
 
-
-# Canonical equality ignores composition input order and duplicate
-# members while preserving the semantic constraint operation kind.
 EQUIVALENT = (
     (
         ("all_of", ("is_kind", "int"),
@@ -147,7 +142,8 @@ class FrozenConstraintIdentityAcceptance(unittest.TestCase):
             result = self.adapter.reconstruct_constraint(expression)
 
         self.assertTrue(
-            opened, "constraint reconstruction bypassed admitted SHEAR"
+            opened,
+            "constraint reconstruction bypassed admitted SHEAR",
         )
         self.assertIsInstance(result, tuple)
         self.assertEqual(len(result), 2)
@@ -188,62 +184,100 @@ class FrozenConstraintIdentityAcceptance(unittest.TestCase):
                     self.reconstruct(right),
                 )
 
-    def test_reconstruction_depends_on_valid_machine_output(self):
-        operation = "reconstruct_constraint"
-        expression = ("is_kind", "int")
-        control = ("int_range", 0, 10)
+    def observed_reconstruction(self, expression, substitution=None):
+        """Observe actual admitted machine returns.
 
-        baseline = self.execute_reconstruction(expression)
-        alternative = self.execute_reconstruction(control)
+        A substitution is:
+            (ordinal, entry, original_vm_output, replacement)
 
-        self.assertNotEqual(
-            encoded(baseline),
-            encoded(alternative),
-            "reconstruction controls must have distinct results",
-        )
+        The ordinal counts admitted evaluator returns only.
+        Every original VM invocation still executes and passes
+        through the existing authenticated execution guard.
+        """
+        returns = []
+        substituted = False
+        observation = None
+        rejection = None
 
-        # Both valid outputs must survive an unchanged machine-output
-        # substitution for their corresponding inputs.
-        for source, expected in (
-            (expression, baseline),
-            (control, alternative),
-        ):
-            with candidate_execution_guard(
-                self.entries, forced=expected,
-            ) as opened:
-                actual = self.adapter.reconstruct_constraint(source)
+        with candidate_execution_guard(self.entries) as opened:
+            guarded_run = RestrictedExecutor.run
 
-            self.assertTrue(opened)
-            self.assertEqual(encoded(actual), encoded(expected))
+            def observe_run(
+                executor, deployment, entry, *args, **kwargs
+            ):
+                nonlocal substituted
 
-        # Substitute a different but well-formed reconstruction result.
-        # The adapter may accept it as authoritative machine output
-        # or reject it explicitly. It must not silently replace it
-        # with a host-computed answer.
-        rejected = None
-        with candidate_execution_guard(
-            self.entries, forced=alternative,
-        ) as opened:
-            try:
-                actual = self.adapter.reconstruct_constraint(expression)
-            except (ValueError, TypeError, AdmissionRejected) as exc:
-                rejected = exc
+                result = guarded_run(
+                    executor, deployment, entry,
+                    *args, **kwargs
+                )
+
+                if entry not in self.entries:
+                    return result
+
+                ordinal = len(returns)
+                returns.append((entry, result))
+
+                if substitution is None:
+                    return result
+
+                target, expected_entry, original, replacement = (
+                    substitution
+                )
+
+                if ordinal != target:
+                    return result
+
+                self.assertEqual(entry, expected_entry)
+                self.assertEqual(
+                    encoded(result), encoded(original),
+                    "selected VM return changed between executions",
+                )
+                self.assertIs(
+                    type(result), type(replacement),
+                    "substitution changes the machine return type",
+                )
+
+                substituted = True
+                return replacement
+
+            with patch.object(
+                RestrictedExecutor, "run", new=observe_run
+            ):
+                try:
+                    observation = (
+                        self.adapter.reconstruct_constraint(expression)
+                    )
+                except (
+                    ValueError, TypeError, AdmissionRejected
+                ) as exc:
+                    rejection = exc
 
         self.assertTrue(
-            opened, "reconstruction perturbation bypassed admitted SHEAR"
+            opened,
+            "reconstruction bypassed authenticated SHEAR execution",
+        )
+        self.assertTrue(
+            returns,
+            "no admitted evaluator returned a machine result",
         )
 
-        if rejected is None:
-            self.assertEqual(
-                encoded(actual),
-                encoded(alternative),
-                "reconstruction ignored controlled VM output",
+        if substitution is not None:
+            self.assertTrue(
+                substituted,
+                "selected machine return was not substituted",
             )
-            return
 
+        if rejection is None:
+            self.assertIsInstance(observation, tuple)
+            self.assertEqual(len(observation), 2)
+
+        return observation, tuple(returns), rejection
+
+    def assert_rejection_provenance(self, rejected, replacement):
         self.assertEqual(
             getattr(rejected, "projection_operation", None),
-            operation,
+            "reconstruct_constraint",
             "rejection lacks reconstruction-operation provenance",
         )
         self.assertTrue(
@@ -252,12 +286,122 @@ class FrozenConstraintIdentityAcceptance(unittest.TestCase):
         )
         self.assertEqual(
             encoded(rejected.rejected_vm_output),
-            encoded(alternative),
-            "rejection misidentifies the substituted VM output",
+            encoded(replacement),
+            "rejection identifies the wrong VM output",
         )
         self.assertTrue(
             str(rejected).strip(),
             "reconstruction rejection lacks an explanation",
+        )
+
+    def test_reconstruction_depends_on_valid_machine_output(self):
+        expressions = (
+            ("is_kind", "int"),
+            ("is_kind", "bool"),
+            ("int_range", 0, 10),
+            ("int_range", 1, 10),
+            ("length", 1, 3),
+            ("length", 2, 3),
+        )
+
+        observations = []
+        for expression in expressions:
+            result, returns, rejected = (
+                self.observed_reconstruction(expression)
+            )
+            self.assertIsNone(rejected)
+            self.assertEqual(
+                encoded(result[0]), encoded(result[1]),
+            )
+            observations.append((expression, result, returns))
+
+        # Select alternatives actually returned by authenticated
+        # executions. Never use the assembled adapter pair as an
+        # assumed RestrictedExecutor.run() result.
+        candidates = []
+
+        for expression, baseline, returns in observations:
+            for control, alternative, control_returns in observations:
+                if expression == control:
+                    continue
+                if encoded(baseline) == encoded(alternative):
+                    continue
+
+                for ordinal, (entry, original) in enumerate(returns):
+                    for control_entry, replacement in control_returns:
+                        if entry != control_entry:
+                            continue
+                        if type(original) is not type(replacement):
+                            continue
+
+                        try:
+                            same_kind = (
+                                kind_of(original)
+                                == kind_of(replacement)
+                            )
+                            distinct = (
+                                encoded(original)
+                                != encoded(replacement)
+                            )
+                        except TypeError:
+                            continue
+
+                        if same_kind and distinct:
+                            candidates.append((
+                                expression,
+                                baseline,
+                                ordinal,
+                                entry,
+                                original,
+                                replacement,
+                            ))
+
+        self.assertTrue(
+            candidates,
+            "no distinct compatible authenticated VM returns "
+            "were observed; reconstruction dependency cannot "
+            "be established",
+        )
+
+        for (
+            expression, baseline, ordinal,
+            entry, original, replacement,
+        ) in candidates:
+            substitution = (
+                ordinal, entry, original, replacement
+            )
+
+            # An unchanged genuine return must reproduce the
+            # original observation. This controls for the
+            # interception mechanism itself.
+            unchanged, _, unchanged_error = (
+                self.observed_reconstruction(
+                    expression,
+                    (ordinal, entry, original, original),
+                )
+            )
+            self.assertIsNone(unchanged_error)
+            self.assertEqual(
+                encoded(unchanged), encoded(baseline),
+                "unchanged VM-output control altered reconstruction",
+            )
+
+            actual, _, rejected = self.observed_reconstruction(
+                expression, substitution
+            )
+
+            if rejected is not None:
+                self.assert_rejection_provenance(
+                    rejected, replacement
+                )
+                return
+
+            if encoded(actual) != encoded(baseline):
+                return
+
+        self.fail(
+            "all compatible controlled VM-output substitutions "
+            "were ignored by reconstruction"
         )
 
 
