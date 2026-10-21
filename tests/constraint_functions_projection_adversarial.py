@@ -1,33 +1,49 @@
-"""Adversarial generic canonical-projection acceptance for SHEAR #123.
+"""Adversarial generic semantic-inspection acceptance for SHEAR #123.
 
 Execute must provide:
-    select_projection(value, path) -> canonical subtree
+    inspect_projection(value) -> (kind, length_or_none, reconstructed)
+    equal_projection(left, right) -> bool
+    select_projection(value, path) -> selected semantic value
 
-The path is a tuple of nonnegative integer indices into the existing
-canonical tagged representation. CanonicalNode is inspected structurally
-as ("__type__", kind, payload). No constraint-specific traversal is allowed.
+Paths address public semantic structure using integer sequence/map-entry
+indices and declared semantic-record field names. Opaque values are leaves;
+private CanonicalNode tags and serialized payloads are never path elements.
 
-All candidate methods must execute admitted ordinary SHEAR functions.
-This Plan-owned module is not discovered until Execute registers it.
+Every candidate operation must enter authenticated ordinary SHEAR code.
+This Plan-owned module remains outside discovery until Execute.
 
-A candidate may reject an inconsistent machine result, but deliberate
-validation must carry explicit operation and VM-output provenance.
-Generic processing exceptions do not qualify as validation evidence.
+An inconsistent machine result may be rejected only with explicit operation
+and VM-output provenance. Generic processing failures do not qualify.
 """
 
+from collections.abc import Mapping
 from importlib import import_module
 from random import Random
 import unittest
 
 from shear import (
+    AllOf,
+    AnyOf,
+    CellDeclaration,
     EntityID,
+    External,
+    IntRange,
+    IsKind,
+    Length,
+    Not,
+    OneOf,
+    Relation,
+    Role,
     StateID,
     VersionID,
     canonicalize,
     canonical_serialize,
     kind_of,
 )
+from shear.closures import Closure
+from shear.constraints import Constraint
 from shear.hosted_bootstrap import AdmissionRejected
+from shear.lang import LanguageError
 from tests.constraint_functions_complete_projection import (
     KINDS,
     NESTED,
@@ -71,6 +87,7 @@ COUNTABLE = frozenset({"str", "bytes", "tuple", "list", "map"})
 
 
 def canonical_bytes(value):
+    """Independent host identity oracle, never candidate-side inspection."""
     return canonical_serialize(canonicalize(value))
 
 
@@ -97,22 +114,90 @@ def generated(seed, depth=5):
     return build(depth)
 
 
-def structural_paths(value):
-    """Enumerate paths independently from the candidate implementation."""
+def constraint_arguments(value):
+    """Public semantic operands for the independent record-field oracle."""
+    if isinstance(value, IsKind):
+        return (value.kind,)
+    if isinstance(value, (IntRange, Length)):
+        return (value.min, value.max)
+    if isinstance(value, OneOf):
+        return (value.values,)
+    if isinstance(value, (AllOf, AnyOf)):
+        return (value.parts,)
+    if isinstance(value, Not):
+        return (value.part,)
+    if isinstance(value, Role):
+        return (value.name, value.part)
+    if isinstance(value, External):
+        return (value.name,)
+    raise AssertionError(f"unrecognized semantic constraint: {type(value)}")
+
+
+def record_fields(value):
+    """Reference the approved schema, not private canonical-node positions."""
+    if isinstance(value, CellDeclaration):
+        return (("constraint", value.constraint), ("initial", value.initial))
+    if isinstance(value, Relation):
+        return (
+            ("kind", value.kind),
+            ("roles", tuple(value.roles.items())),
+            ("payload", value.payload),
+        )
+    if isinstance(value, Constraint):
+        forms = {
+            IsKind: "is_kind",
+            IntRange: "int_range",
+            Length: "length",
+            OneOf: "one_of",
+            AllOf: "all_of",
+            AnyOf: "any_of",
+            Not: "not",
+            Role: "role",
+            External: "external",
+        }
+        return (
+            ("form", forms[type(value)]),
+            ("arguments", constraint_arguments(value)),
+        )
+    return ()
+
+
+def semantic_children(value):
+    """Enumerate public paths using raw semantic fixtures only.
+
+    Canonicalized nested values are intentionally terminal in this host
+    oracle rather than being interpreted as tagged tuples. Explicit
+    field/nested-access witnesses below exercise those cases through SHEAR.
+    """
+    if type(value) in (tuple, list, str, bytes):
+        return tuple(enumerate(value))
+
+    if isinstance(value, Mapping):
+        entries = sorted(
+            value.items(),
+            key=lambda pair: canonical_bytes(pair[0]),
+        )
+        return tuple(enumerate(entries))
+
+    fields = record_fields(value)
+    return tuple((name, member) for name, member in fields)
+
+
+def semantic_paths(value):
+    """Enumerate public semantic paths independent of the candidate."""
     paths = []
 
-    def visit(node, path):
-        paths.append((path, node))
-        if isinstance(node, tuple):
-            for index, child in enumerate(node):
-                visit(child, path + (index,))
+    def visit(current, path):
+        paths.append((path, current))
+        for component, child in semantic_children(current):
+            visit(child, path + (component,))
 
-    visit(canonicalize(value), ())
+    visit(value, ())
     return tuple(paths)
 
 
 def sampled_paths(value, maximum=12):
-    paths = structural_paths(value)
+    paths = semantic_paths(value)
     if len(paths) <= maximum:
         return paths
 
@@ -189,7 +274,16 @@ class AdversarialProjectionAcceptance(unittest.TestCase):
         self.assertEqual(
             canonical_bytes(actual),
             canonical_bytes(expected),
-            f"incorrect subtree at path {path!r}",
+            f"incorrect semantic value at path {path!r}",
+        )
+
+    def assert_invalid_selection(self, value, path):
+        with candidate_execution_guard(self.entries) as opened:
+            with self.assertRaises(LanguageError):
+                self.candidate.select_projection(value, path)
+        self.assertTrue(
+            opened,
+            f"invalid semantic path {path!r} bypassed admitted SHEAR",
         )
 
     def test_full_cross_kind_equality_matrix(self):
@@ -210,6 +304,7 @@ class AdversarialProjectionAcceptance(unittest.TestCase):
                 self.assert_inspection(value)
 
     def test_structural_path_access(self):
+        """The former canonical paths are now public semantic paths."""
         values = tuple(value for _, value in KINDS) + NESTED
         values += tuple(generated(seed) for seed in range(64))
 
@@ -254,6 +349,14 @@ class AdversarialProjectionAcceptance(unittest.TestCase):
                     self.execute("equal_projection", first, second),
                     True,
                 )
+                for index in (0, len(first) - 1):
+                    expected_key = sorted(
+                        first, key=canonical_bytes,
+                    )[index]
+                    for mapping in (first, second):
+                        self.assert_selection(
+                            mapping, (index, 0), expected_key,
+                        )
 
     def test_near_equal_values_are_distinguished(self):
         for seed in range(64):
@@ -284,6 +387,8 @@ class AdversarialProjectionAcceptance(unittest.TestCase):
             self.execute("equal_projection", impostor, actual_map),
             False,
         )
+        self.assert_selection(impostor, (0,), "__type__")
+        self.assert_selection(actual_map, (0, 0), "key")
 
     def test_type_and_identity_collisions(self):
         collisions = (
@@ -309,17 +414,133 @@ class AdversarialProjectionAcceptance(unittest.TestCase):
                     False,
                 )
 
+    def test_opaque_semantic_leaves(self):
+        opaque = (
+            EntityID("sample"),
+            VersionID("version"),
+            StateID("state"),
+            Closure(
+                EntityID("owner"), EntityID("body"),
+                ("parameter",), (("secret", 7),),
+            ),
+        )
+        for value in opaque:
+            with self.subTest(kind=kind_of(value)):
+                self.assert_inspection(value)
+                self.assert_selection(value, (), value)
+                for path in ((0,), (2,), ("value",), ("captures",)):
+                    self.assert_invalid_selection(value, path)
+
+    def test_unicode_codepoints_and_bytes(self):
+        text = "e\u0301\U0001f600\x00"
+        raw = b"\x00\xff\x10"
+        self.assert_inspection(text)
+        self.assert_inspection(raw)
+        for index, codepoint in enumerate(text):
+            self.assert_selection(text, (index,), codepoint)
+        for index, octet in enumerate(raw):
+            self.assert_selection(raw, (index,), octet)
+        self.assert_selection(text, (), text)
+        self.assert_selection(raw, (), raw)
+        self.assert_invalid_selection(text, (len(text),))
+        self.assert_invalid_selection(raw, (len(raw),))
+
+    def test_semantic_record_fields(self):
+        cells = (
+            CellDeclaration(IsKind("int"), 3),
+            CellDeclaration(IsKind("map"), {"b": 2, "a": 1}),
+        )
+        constraints = (
+            IsKind("int"), IntRange(0, 9), Length(1, 3),
+            OneOf(True, 1), AllOf(IsKind("int"), IntRange(0, 9)),
+            AnyOf(IsKind("bool"), IsKind("str")),
+            Not(IsKind("bool")), Role("item", IsKind("int")),
+            External("policy"),
+        )
+        relations = (
+            Relation("single", {"item": EntityID("sample")}),
+            Relation(
+                "nested",
+                {"z": EntityID("last"),
+                 "a": (EntityID("first"),)},
+                {"data": [1, 2]},
+            ),
+        )
+
+        for record in cells + constraints + relations:
+            with self.subTest(record=repr(record)):
+                for index, (name, member) in enumerate(
+                    record_fields(record)
+                ):
+                    self.assert_selection(record, (name,), member)
+                    self.assert_selection(record, (index,), (name, member))
+                    self.assert_selection(record, (index, 0), name)
+                self.assert_invalid_selection(record, ("unknown_field",))
+
+        self.assert_selection(cells[1], ("initial", 1, 1), 2)
+        self.assert_selection(
+            constraints[4], ("arguments", 0, 0, "form"),
+            record_fields(constraints[4].parts[0])[0][1],
+        )
+        self.assert_selection(relations[1], ("roles", 0, 0), "a")
+        self.assert_selection(
+            relations[1], ("roles", 0, 1, 0), EntityID("first"),
+        )
+        self.assert_selection(relations[1], ("payload", 0, 1, 1), 2)
+
+    def test_invalid_semantic_paths(self):
+        for value, path in (
+            (42, (0,)),
+            (None, (0,)),
+            ((1, 2), (-1,)),
+            ((1, 2), (True,)),
+            ((1, 2), (2,)),
+            ((1, 2), ("field",)),
+            ({"a": 1}, (1,)),
+            ({"a": 1}, ("a",)),
+            (b"\xff", (1,)),
+        ):
+            with self.subTest(value=repr(value), path=path):
+                self.assert_invalid_selection(value, path)
+
+    def test_large_and_repeated_semantic_access(self):
+        """Demand-driven large-value cases; allocation measured separately."""
+        text = "\U0001f600e\u0301" * 2048
+        raw = bytes(range(256)) * 32
+        entries = wide_value(1024)
+        sequence = list(range(4096))
+
+        for value in (text, raw, entries, sequence):
+            with self.subTest(kind=kind_of(value)):
+                self.assert_inspection(value)
+
+        for index in (0, 4096, len(text) - 1):
+            self.assert_selection(text, (index,), text[index])
+        for index in (0, 4096, len(raw) - 1):
+            self.assert_selection(raw, (index,), raw[index])
+        for index in (0, 2048, len(sequence) - 1):
+            self.assert_selection(sequence, (index,), sequence[index])
+
+        ordered = sorted(entries, key=canonical_bytes)
+        for index in (0, len(ordered) // 2, len(ordered) - 1):
+            for _ in range(4):
+                self.assert_selection(entries, (index, 0), ordered[index])
+
+        captured = Closure(
+            EntityID("owner"), EntityID("body"), (),
+            (("large", tuple(range(4096))),),
+        )
+        self.assert_inspection(captured)
+        self.assert_invalid_selection(captured, ("captures",))
+
     def assert_machine_result_controls(
         self, operation, arguments, control_arguments,
     ):
         """Require result dependence or explicitly identified rejection.
 
-        The alternative is independently observed from a different
-        valid input. A rejection must identify both the operation
-        and the exact injected VM output.
-
-        Structured rejection evidence is necessary, but an independent
-        source-path audit must still verify the validation mechanism.
+        The alternative is observed independently on a different valid
+        input. A rejection identifies both the operation and the exact
+        injected VM output. Independent source-path audit remains mandatory.
         """
         method = getattr(self.candidate, operation)
         baseline = self.execute(operation, *arguments)
@@ -388,14 +609,11 @@ class AdversarialProjectionAcceptance(unittest.TestCase):
 
     def test_selection_depends_on_valid_machine_output(self):
         value = {"a": [1, 2], "b": {"c": True}}
-        self.assertEqual(
-            self.execute("select_projection", value, (1,)),
-            "map",
-        )
+        self.assert_selection(value, (1, 0), "b")
         self.assert_machine_result_controls(
             "select_projection",
-            (value, (1,)),
-            ((1, 2), (1,)),
+            (value, (1, 0)),
+            ({"a": [1, 2], "c": {"d": True}}, (1, 0)),
         )
 
     def test_inspection_depends_on_valid_machine_output(self):
