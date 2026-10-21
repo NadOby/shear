@@ -1,347 +1,279 @@
 
 # GH-123 – Vision-to-Capability Matrix
 
-Status: Plan amendment – provisional, independent Review required.
-Repository: NadOby/shear
-Branch: task/123-complete-constraints
-Audited Execute head: 26327534a146fd261770c2b655f78c6e41b1dd02
+Status: Plan Resolve – independent Review required.
+Branch: `task/123-complete-constraints`.
+Original baseline: `f994a2d59b0f6f890f4800effe209d88e1c838c1`.
+Provisional Execute head: `26327534a146fd261770c2b655f78c6e41b1dd02`.
 
-## 1. Purpose
+## 1. Architectural basis
 
-Determine whether SHEAR has the generic capabilities required
-to implement complete constraint semantics through admitted
-ordinary SHEAR computation.
+SHEAR's original vision establishes these principles:
 
-Begin with architectural intent, not the current implementation.
-
-Distinguish:
-
-- Vision – long-term direction, not automatically normative.
-- Decided – binding semantic and architectural rules.
-- Implemented – capabilities supported by repository evidence.
-- Required – capabilities necessary for GH-123 acceptance.
-
-Do not treat a Python reference-model facility as a
-language-level facility.
-
-Do not treat passing existing tests as proof that all required
-combinations of capabilities are implementable.
-
-## 2. Architectural anchors
-
-V1. The semantic graph is the canonical program.
-
-V2. Runtime, compile-time, transformation and semantic
-computation share the ordinary function model.
-
-V3. Semantic meaning and identity are independent of physical
-representation and executable deployment.
-
-V4. A small set of general primitives should support useful
-higher-level behavior without application-specific machinery.
-
-V5. Values can be opaque. Uniform semantic treatment does not
-imply unrestricted access to internal representations.
-
-V6. Capabilities authorize behavior; effects describe it.
-Execution authority must be explicit and enforceable.
-
-V7. Programs retain their compiler and may transform their
-semantic graph, validate candidates and activate them.
-
-V8. Constraints distinguish Satisfied, Violated and Unknown.
-Computation failures are not semantic Unknown results.
-
-V9. Architecture is evaluated through falsifiable experiments.
-Mechanism count, complexity and performance all matter.
-
-V10. Nontrivial features should be implementable as ordinary
-programs or libraries where the core mechanisms suffice.
+- The semantic graph is canonical.
+- Ordinary and semantic computation share a function model.
+- Semantic identity is independent of physical representation.
+- General primitives should support useful higher-level programs.
+- Values may be opaque; representation exposure is not automatic.
+- Effects and capabilities have distinct responsibilities.
+- Constraints distinguish Satisfied, Violated and Unknown.
+- Human-facing operations should be predictable.
 
 Sources:
 - README.md, sections 1–2, 8–17, 23, 32 and 35.
-- CLAUDE.md, Vision and Workflow.
+- CLAUDE.md.
 - docs/semantic_graph.md.
 - docs/constraint_model.md.
 - docs/testing_model.md.
 - docs/roadmap.md, decisions D1–D5.
 
-## 3. Assessment notation
+The vision guides design but does not itself establish
+an implemented or binding language operation.
 
-E = Existing, evidenced by implementation and tests.
-P = Partially available or limited to a narrower contract.
-M = Missing from the examined implementation.
-X = Explicitly forbidden by the applicable policy.
-U = Unverified for the required end-to-end use.
-N = Not applicable at this boundary.
+## 2. Assessment layers
 
-E does not mean independently demonstrated for GH-123.
-End-to-end evidence is tracked separately.
+Assess capabilities separately at five boundaries:
 
-Columns:
-- Model: Python semantic reference implementation.
-- Language: ordinary SHEAR operations and host VM.
-- Restricted: Task 32 admitted execution.
-- GH-123: current sufficiency assessment.
+- Host – Python semantic model and runtime services.
+- VM – operations available to ordinary SHEAR functions.
+- Compiler – SHEAR source lowered to executable instructions.
+- Policy – Task 32 restricted-execution permissions.
+- Evidence – actual GH-123 end-to-end demonstration.
 
-## 4. Capability matrix
+Status:
+- E: existing capability supported by repository evidence.
+- P: partial or narrower capability.
+- M: missing capability.
+- X: explicitly forbidden.
+- U: unverified or not yet designed.
+- N: not applicable.
 
-| ID | Capability | Model | Language | Restricted | GH-123 |
-|---|---|---|---|---|---|
-| C01 | Canonical identity and serialization | E | P | E | Existing invariant |
-| C02 | Passing raw canonical subjects | E | E | E | Binding must be proven |
-| C03 | Tuple construction and inspection | E | E | E | Sufficient for tuples |
-| C04 | Generic semantic-kind inspection | E | M | M | Blocker |
-| C05 | Length of text, bytes, lists and maps | E | M | M | Blocker |
-| C06 | Structural access to lists and maps | E | M | M | Blocker |
-| C07 | Inspecting text code points and bytes | E | M | M | Blocker |
-| C08 | Generic canonical-record inspection | E | M | M | Blocker |
-| C09 | Type-sensitive semantic equality | E | E | E | Existing mechanism |
-| C10 | Generic reconstruction of semantic kinds | E | P | P | Unverified |
-| C11 | Role-map and nested-subject traversal | E | M | M | Blocker |
-| C12 | Strong Kleene composition | E | P | P | Unverified |
-| C13 | Exact constraint-node budgeting | E | P | P | Unverified |
-| C14 | Named external evaluator dispatch | E | P | P/X | Unverified |
-| C15 | Semantic versus host failure provenance | E | P | P | Unverified |
-| C16 | Pure computation and static calls | E | E | E | Existing mechanism |
-| C17 | Effect and artifact authority enforcement | E | E | E | Existing foundation |
-| C18 | Candidate-backed runtime admission | E | P | P | Unverified |
-| C19 | Compiler support for proposed new operations | N | M | M | Decision required |
-| C20 | CI registration of all new acceptance suites | N | N | N | Not yet registered |
+Host E does not imply VM E.
+VM E does not imply Compiler E.
+Compiler E does not imply Policy E.
+Four E statuses do not establish GH-123 acceptance.
 
-The matrix distinguishes the existence of building blocks
-from proof that they compose into complete constraint semantics.
+## 3. Capability matrix
 
-Current findings are based on repository inspection and
-existing tests. Candidate-dependent acceptance has not run.
+| ID | Capability | Host | VM | Compiler | Policy | Evidence |
+|---|---|---|---|---|---|---|
+| C01 | Canonical serialization and identity | E | P | N | N | U |
+| C02 | Pass raw canonical arguments | E | E | E | E | U |
+| C03 | Construct and inspect tuples | E | E | E | E | U |
+| C04 | Inspect semantic kind | E | M | M | M | U |
+| C05 | Length across supported collections and text | E | M | M | M | U |
+| C06 | Inspect lists and maps | E | M | M | M | U |
+| C07 | Inspect text code points and bytes | E | M | M | M | U |
+| C08 | Inspect semantic-record fields | E | M | M | M | U |
+| C09 | Type-sensitive boolean equality | E | E | E | E | U |
+| C10 | Reconstruct all semantic value kinds | E | M | U | U | U |
+| C11 | Traverse maps and nested values | E | M | M | M | U |
+| C12 | Compose three-valued results | E | P | E | E | U |
+| C13 | Exact constraint-node budget accounting | E | P | E | E | U |
+| C14 | Named external evaluator dispatch | E | P | P | X/P | U |
+| C15 | Preserve host-failure provenance | E | P | P | P | U |
+| C16 | Pure computation and static calls | E | E | E | E | E |
+| C17 | Artifact authentication and effect preflight | E | N | N | E | E |
+| C18 | Candidate-backed runtime admission | E | P | P | P | U |
+| C19 | Support a new generic inspection operation | N | U | U | U | U |
+| C20 | Execute all GH-123 acceptance suites in CI | N | N | N | N | M |
 
-## 5. Evidence anchors
+Interpretation:
 
-C01–C03:
-- shear/canonical.py
-- shear/lang.py
-- shear/machine.py
-- tests/test_canonical.py
-- tests/test_data_ops.py
+- C01: Canonical serialization is host machinery.
+  SHEAR equality does not expose a serialization API.
+- C12–C13: Existing general computation provides building
+  blocks, not verified constraint-equivalent implementations.
+- C14: Static calls are permitted. Indirect calls are
+  forbidden by current restricted policy. An authorized
+  host callback boundary may still suffice.
+- C17: Task 32 authority enforcement is host-managed,
+  not a completed language-visible effect system.
+- C19: No operation has been selected. Its missing
+  implementation is not evidence against an undecided design.
+- C20: The candidate acceptance suites are not yet
+  registered for ordinary CI discovery.
 
-C04–C11:
-- shear/constraints.py
-- shear/operations.py
-- shear/bytecode.py
-- shear/machine.py
-- docs/language_data.md
-- docs/spikes/constraints_as_functions_execute.md
+Task 32 evidence for C16–C17 is not equivalent to
+demonstrating the complete GH-123 candidate.
 
-C12–C15:
-- docs/constraint_model.md
-- docs/error_handling.md
-- tests/constraint_function_oracle.py
-- tests/constraint_functions_t2_t3_acceptance.py
-- tests/constraint_functions_external_acceptance.py
+## 4. Inherited limitations
 
-C16–C19:
-- docs/roadmap.md, D3–D5
-- shear/examples/compiler_source.py
-- shear/hosted_bootstrap/restricted.py
-- shear/hosted_bootstrap/restricted_policy.py
-- shear/hosted_bootstrap/validation.py
-- shear/instructions.py
-
-C20:
-- tests/lanes.py
-- .github/workflows/semantic-model.yml
-- docs/constraint_functions_complete.md
-
-## 6. Known blockers inherited from prior work
-
-Task 24 candidate B established missing generic facilities:
-
-- Canonical constraint payload inspection.
+Task 24 documented missing:
+- Canonical constraint-payload inspection.
 - Canonical map inspection.
-- Complete Length behavior across semantic kinds.
+- Complete multi-kind Length behavior.
+- Generic budgeting and external authority mechanisms.
 
-Task 24 also identified unresolved generic budgeting,
-external authority and initial-admission requirements.
+Task 32 established authenticated restricted execution
+but explicitly deferred complete canonical inspection,
+generic resource budgets and full constraint replacement.
 
-Task 32 resolved part of the authority and admission
-problem through authenticated restricted execution.
-
-Task 32 explicitly deferred complete canonical inspection,
-generic budgets and full constraint replacement.
-
-GH-123 inherited those limitations.
-
-The original Plan treated existing-operation sufficiency
-as a falsifiable hypothesis but did not test that
-prerequisite before substantial Execute work.
-
-This is a failure of dependency verification, not a
-newly discovered absence of historical evidence.
+These limitations were known before GH-123 Execute began.
+They were not sufficiently resolved at Plan entry.
 
 Sources:
-- docs/spikes/constraints_as_functions.md
-- docs/spikes/constraints_as_functions_execute.md
-- docs/restricted_execution.md, sections 2–3
+- docs/spikes/constraints_as_functions.md.
+- docs/spikes/constraints_as_functions_execute.md.
+- docs/restricted_execution.md.
 
-## 7. Minimal feasibility gates
+## 5. D123-7 – Approved visibility boundary
 
-G1. A raw canonical subject reaches an admitted SHEAR
-function without subject-dependent host preparation.
+Owner decision: ordinary SHEAR functions may inspect the
+semantic structure of an immutable value supplied to them,
+covering the 15 currently supported canonical kinds:
 
-G2. SHEAR computation identifies all 15 semantic kinds.
+- none, bool, int, str, bytes;
+- entity_id, version_id, state_id;
+- tuple, list, map;
+- cell, constraint, relation, closure.
 
-G3. SHEAR computation derives correct lengths for text,
-bytes, tuples, lists and maps, including empty values.
+Inspection is:
+- Read-only and deterministic.
+- Type-preserving.
+- Independent of semantic identity.
+- Generic rather than constraint-specific.
+- Based on semantic content, not serialization internals.
 
-G4. SHEAR computation selects nested canonical map and
-record contents, preserving semantic type distinctions.
+Text exposes code points, not UTF-8 encoding bytes.
+Bytes expose byte content, not an incidental hex encoding.
+Maps expose semantic entries, not Python dictionary internals.
+Semantic records expose defined semantic fields, not
+arbitrary implementation attributes.
 
-G5. The same generic inspection facilities work on
-non-constraint data without application-specific dispatch.
+Inspection of a supplied value does not authorize:
+- Traversal of unrelated program graph entities.
+- Reading live cells or runtime frames.
+- Access to external resources.
+- Expansion of opaque representations.
+- Bypassing capabilities or restricted execution.
+- Mutation of the original value.
 
-G6. One admitted evaluator implements a budget-sensitive
-composite constraint on multiple independently chosen subjects.
+An opaque value remains opaque unless a separately
+authorized expansion mechanism is available.
 
-G7. Named external evaluation preserves the distinctions
-between absence, Unknown, a decisive result and host failure.
+For semantic records, inspection must distinguish their
+immutable content from live runtime state.
 
-G8. The evaluator executes through authenticated artifacts,
-under preflight policy, without Python predicate fallback.
+The public semantic-field interface is not required to
+match the existing CanonicalNode tuple layout.
 
-G9. Genuine initial admission and subsequent runtime
-operations consume candidate verdicts without bypass.
+This decision approves visibility semantics only.
+The operation name, result shape, instruction encoding,
+compiler changes and implementation remain undecided.
 
-G10. Required source operations are supported by the
-SHEAR compiler, admitted verifier and executing machine.
+## 6. Decisive feasibility experiment
 
-Each gate requires:
-- A reproducible executable witness.
-- Exact source and execution boundary.
-- Expected and observed outcome.
-- Evidence of actual admitted computation where applicable.
-- A failure classification and next action.
+The first implementation witness must exercise:
 
-No unexecuted gate may be reported as passed.
+Raw canonical subject
+→ authenticated admitted SHEAR function
+→ generic semantic inspection
+→ composite constraint evaluation
+→ exact budget accounting
+→ returned three-valued verdict.
 
-## 8. Provisional architectural finding
+Use the same compiled evaluator on independently selected
+subjects covering strings, bytes, maps and nested data.
 
-The existing tuple operations do not supply G2–G5.
+Verify together:
+- G1: Raw subject without subject-dependent host projection.
+- G2: Correct semantic-kind inspection.
+- G3: Correct multi-kind lengths.
+- G4: Nested semantic-field and map access.
+- G5: Genericity outside constraint-specific inputs.
+- G6: Exact composite and short-circuit budgets.
+- G8: Authenticated execution without Python predicate fallback.
+- G10: Compiler, verifier and VM agreement.
 
-Host-side preprojection cannot substitute for the original
-canonical subject required by frozen direct-result acceptance.
+Do not accept an isolated inspection demonstration as
+proof that the architecture supports ordinary constraints.
 
-A generic shallow structural-view operation is a candidate
-solution, not an approved language design.
+After the integrated witness, extend the same candidate:
 
-Its adequacy must be tested against G1–G10, rather than
-only against the first missing Length operation.
+- G7: Named external evaluator dispatch, Unknown and
+  host-failure provenance.
+- G9: Genuine initial admission, writes, activation
+  and trials using candidate-produced verdicts.
 
-No new VM instruction, syntax or normative data operation
-is authorized until the owner decides.
+G7 and G9 are mandatory, not optional follow-ups.
 
-## 9. Process failure and prevention requirement
+## 7. External dispatch discriminator
 
-The missing inspection capability was known before GH-123.
-It propagated because Plan approval verified acceptance
-integrity without closing its inherited prerequisites.
+Test two alternatives:
 
-For future implementation Plans, every critical dependency
-must have one explicit disposition:
+A. Existing static calls and authorized host dispatch
+   implement every frozen External case.
 
-- Demonstrated – with reproducible end-to-end evidence.
-- Exploratory – made the first bounded experiment, with
-  a stop condition before dependent implementation work.
-- Blocked – no Execute beyond the prerequisite is approved.
-- Out of scope – justified without contradicting the task
-  acceptance contract.
+B. A new generic capability-controlled invocation boundary
+   is required.
 
-An unverified capability must never silently count as
-an existing dependency.
+The frozen external acceptance permits host-boundary
+callback dispatch after authenticated SHEAR execution.
+It does not require arbitrary Python callbacks inside the VM.
 
-Independent Plan Review must reconcile the capability
-matrix with earlier negative evidence, open limitations
-and task dependencies.
+Prove:
+- Correct evaluator selection and pinning.
+- Exact canonical subject and budget behavior.
+- No callback when admitted execution fails.
+- Missing evaluators produce Unknown as specified.
+- Escaping host exceptions preserve type and identity.
+- Forbidden invocation never gains authority.
 
-Execute must stop and return to Plan when a critical
-dependency fails, rather than build workaround machinery
-that silently changes the architectural contract.
+If A fails, document the smallest counterexample and
+request owner approval for B's authority, effect and
+failure semantics before implementing it.
 
-The generic workflow amendment is tracked separately
-from this task-specific capability matrix.
+## 8. Human-facing naming audit
 
-## 10. Next actions
+Names must communicate semantics to human programmers.
 
-1. Independently validate matrix classifications.
-2. Run G1–G5 as the smallest generic-inspection experiment.
-3. Determine whether G6–G10 expose additional blockers.
-4. Compare generic mechanism alternatives.
-5. Request owner approval for language-shaping changes.
-6. Add the generic dependency gate to docs/roadmap.md.
-7. Independently review the amended Plan before Execute.
-
-All 15 existing GH-123 acceptance modules and Task 24
-frozen oracles remain unchanged.
-
-
-## 11. Human-facing naming and semantic clarity
-
-SHEAR's language surface must be understandable and
-predictable to human programmers, not merely distinguishable
-by parsers, tools or language models.
-
-Naming consistency does not require changing established
-semantics or making all similarly named operations equivalent.
-
-Audit corresponding concepts across:
-- The original architectural vision.
-- Decided semantic specifications.
-- Ordinary SHEAR source operations.
-- Constraint and contract interfaces.
-- The Python reference-model API.
-
-For each ambiguous name, record:
-- The accepted kinds and input domain.
-- The returned result and its semantic category.
-- Failure and resource behavior.
-- Effects and authority requirements.
-- Identity and continuity implications.
-- The likelihood of human misunderstanding.
-
-Initial candidates:
-
-| Names | Clarity risk | Disposition |
+| Names | Actual distinction | Disposition |
 |---|---|---|
-| len / Length | Tuple-only operation versus multi-kind constraint | Review naming and documented domains |
-| eq / semantic equality | Boolean result versus aspirational three-valued reasoning | Distinguish current and future contracts |
-| ref / Reference | Callable EntityID versus state/version-pinned handle | Review names for distinct reference categories |
-| function / Function | Function value versus installed executable definition | Clarify construction and execution |
-| Role / relation role | Canonical-map predicate versus graph endpoint role | Clarify semantic context |
-| IsKind / kind inspection | Constraint predicate versus generic value introspection | Record the missing ordinary capability |
+| len / Length | Tuple-length operation versus multi-kind length constraint | Review generalization or clearer naming |
+| eq / semantic equality | Current boolean operation versus possible future three-valued reasoning | Keep the contracts explicitly distinct |
+| ref / Reference | Callable EntityID versus version-pinned state reference | Consider distinct names |
+| function / Function | Constructed function value is not directly installed and callable | Clarify construction semantics |
+| Role / relation role | Predicate over semantic role content versus a graph endpoint role | Clarify context |
+| IsKind / kind inspection | Existing constraint test versus missing ordinary introspection | Resolve the capability gap |
 
-Possible solutions include:
-- Keeping existing names with clearer documentation.
-- Renaming an operation to describe its actual domain.
-- Using a semantic namespace or prefix.
-- Introducing a generic operation while preserving the
-  behavior of existing specialized operations.
+Naming options include documentation, full renaming,
+prefixes or namespaces.
 
-Prefer the option that makes ordinary source code clearest
-with the least ongoing complexity.
+Prefer the smallest change that makes source code clear.
+Do not change settled semantics for naming consistency.
 
-No renaming, changed semantics, new compatibility layer,
-canonical-identity change or frozen-test change is authorized
-by this audit.
+Public renames require migration analysis and owner approval.
+Unrelated renames are not GH-123 blockers.
 
-If a proposed rename changes public source syntax or APIs,
-record its migration cost and obtain owner approval.
+## 9. Process gate
 
-Independent Plan Review must assess human-facing clarity,
-not only whether names and operations are mechanically
-distinguishable.
+Before implementation, every critical dependency must be:
 
-A naming issue is blocking only when it materially affects
-the current task's correctness, acceptance or architectural
-decision. Other findings remain explicitly tracked.
+- Demonstrated with relevant executable evidence.
+- Explicitly experimental, with a falsifier and stop condition.
+- Blocked until a required capability or decision exists.
+- Justifiably out of scope under frozen acceptance.
 
-The general Plan/Review workflow must require this audit
-when new operations overlap existing semantic concepts.
+Independent Plan Review must reconcile prior negative
+evidence and check for unexamined dependencies.
+
+Execute must return material contradictions to Plan rather
+than silently changing the contract.
+
+The repository-wide workflow rule is subject to independent
+review of its amended text.
+
+## 10. Preserved requirements
+
+Unchanged:
+- All 15 original candidate acceptance modules.
+- All 56 original candidate-dependent test methods.
+- Task 24 semantic oracles and 17 boundary cases.
+- Task 32 authentication and security guarantees.
+- Canonical identity and golden records.
+- The agreed 1000x performance ceilings.
+
+No new instruction or public API is authorized here.
+No candidate acceptance result has been demonstrated.
+Independent Plan Review remains required.
