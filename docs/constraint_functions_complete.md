@@ -1,8 +1,8 @@
 # Complete Constraint Semantics with Ordinary SHEAR Functions
 
-Status: Proposed frozen Plan – pending independent Review.
+Status: Approved Plan – D123-7b scalability amendment pending Review.
 Issue: GH-123.
-Baseline: f994a2d59b0f6f890f4800effe209d88e1c838c1.
+Baseline: f994a2d59b0f6f8900f4800effe209d88e1c838c1.
 Dependencies: Task 24 (#56), Task 32 (#119).
 
 ## 1. Question
@@ -54,11 +54,17 @@ constraint-node accounting.
 H-6: Task 32's generic restricted execution and named evaluator
 authority suffice for safe runtime integration.
 
-These are hypotheses, not unconditional acceptance restrictions.
+These are historical hypotheses, not unconditional
+acceptance restrictions.
 
-Falsify each hypothesis with a minimal executable witness.
-A necessary language-shaping change requires owner approval.
-Do not silently invent constraint-specific facilities.
+H-2 and the projection preference in H-3 are superseded
+by the approved generic inspection mechanism.
+
+Falsify remaining hypotheses with minimal executable
+witnesses. A necessary additional language-shaping change
+requires owner approval.
+
+Do not invent constraint-specific facilities.
 
 ## 4. Canonical-content access
 
@@ -74,12 +80,19 @@ Owner-approved D123-7 visibility:
 - Inspection grants no runtime-state, graph-reflection or
   external-resource authority.
 
-Text inspection concerns code points; byte inspection concerns
-bytes. Maps expose semantic entries and records expose defined
-semantic fields.
+Text inspection concerns Unicode code points, not ASCII,
+UTF-8 bytes or grapheme clusters.
 
-D123-7b approves the generic `inspect(value)` operation
-specified in section 15.
+Inspection does not perform implicit Unicode normalization.
+Distinct code-point sequences remain distinct according
+to existing canonical equality rules.
+
+Bytes expose byte content, not hexadecimal serialization.
+Maps expose semantic entries in canonical-key order.
+Records expose only defined immutable semantic fields.
+
+D123-7b approves generic `inspect(value)` and the
+demand-driven requirements specified in section 15.
 
 No other new language operation is authorized.
 Test generic inspection on non-constraint values.
@@ -131,6 +144,10 @@ Do not mistake VM call-depth limits for node budgets.
 A separate generic machine-fuel budget may be considered if
 termination or execution safety requires it. It must not
 silently replace existing semantic budget accounting.
+
+Inspection cost, including processing of large values,
+must remain distinguishable from the semantic constraint
+node budget.
 
 Preserve the distinction between:
 - Satisfied;
@@ -235,6 +252,25 @@ Measure:
 - behavior at 8, 64 and 256 constraint nodes.
 
 Use repeatable inputs, environment details and raw observations.
+
+Additionally test inspection scalability:
+- large Unicode strings and byte sequences;
+- large tuples, lists and maps;
+- deeply nested canonical values;
+- large integers and captured-value collections;
+- repeated inspection and repeated element access;
+- deterministic map traversal across insertion orders.
+
+Measure memory allocations and work attributable to
+inspection separately from initial canonicalization.
+
+Shallow inspection must not eagerly allocate a number
+of new members proportional to the total input size.
+Requested output may require allocation proportional to
+the amount actually requested.
+
+Avoid repeated whole-container sorting or scanning that
+unnecessarily amplifies linear access into quadratic work.
 
 The owner-approved initial sufficiency ceiling is 1000x
 the incumbent for both warm median and p95 latency.
@@ -397,8 +433,8 @@ without an explicit owner decision and renewed independent Review.
 
 ## 15. Architectural feasibility amendment
 
-Status: Plan Resolve – independently approved; D123-7b
-owner decision recorded for Execute.
+Status: Independently approved Plan; demand-driven inspection
+refinement pending independent Review.
 
 `docs/constraint_functions_capability_matrix.md` identifies
 inherited limitations and separates host, VM, compiler,
@@ -408,45 +444,75 @@ restricted-policy and end-to-end capabilities.
 
 D123-7a – Approved: semantic visibility defined in section 4.
 
-D123-7b – Approved by owner.
+D123-7b – Approved, with subsequent owner refinement.
 
 Introduce `inspect(value)` as one generic, pure operation.
 
 Input form: `("inspect", expression)`.
-Result: `(semantic_kind, members)`.
 
-`semantic_kind` is one of the 15 defined canonical kinds.
-`members` is an ordinary immutable tuple:
+The previously proposed eager result
+`(semantic_kind, members_tuple)` is superseded.
+In particular, `inspect` must not expand a large string
+into a tuple of characters or a large map into a tuple
+of newly allocated entries merely to expose its structure.
 
-- String: Unicode code points.
-- Bytes: integer byte values.
-- Tuple/list: elements in order.
-- Map: `(key, value)` pairs.
-- Semantic record: `(field_name, value)` pairs exposing
-  defined immutable semantic fields.
-- Atomic or opaque value: no exposed internal members.
+The following requirements are approved:
 
-Inspection is shallow. Nested values preserve their
-semantic kinds and identities.
+1. Shallow inspection does not eagerly materialize
+   proportional-size copies of collections or records.
+2. Access to elements and semantic fields is demand-driven.
+3. Unicode strings use code-point semantics with no
+   implicit normalization, ASCII restriction or
+   conversion through UTF-8 or hexadecimal content.
+4. Map iteration has deterministic canonical-key order,
+   independent of host insertion order.
+5. Inspection preserves original semantic types,
+   identities, opacity and authority boundaries.
+6. Resource costs of inspection are separately observable
+   and must not be conflated with constraint-node budgets.
 
-Inspection does not expose canonical serialization layout,
-Python implementation details, live runtime state or
-unrelated graph entities.
+The operation applies to all 15 canonical kinds:
 
-Implement the generic operation in the source language,
-compiler, VM and restricted execution policy.
+- none, bool, int, str, bytes;
+- entity_id, version_id, state_id;
+- tuple, list, map;
+- cell, constraint, relation, closure.
 
-Existing operations and semantic identities remain unchanged.
-No constraint-specific inspection primitives are authorized.
+Atomic and opaque values do not expose internal
+representations. Records expose only defined semantic fields.
+Cell inspection never reads a live cell value.
+Closure inspection grants no executable or graph authority.
+Relation inspection does not traverse endpoint entities.
 
-Frozen canonical-path compatibility must be derived from
-generic inspection, not imposed as its public representation.
+Inspection does not serialize or reconstruct the input
+merely to retrieve a kind, element or field.
+Nested values retain their semantic type and identity.
+Requested slices may allocate in proportion to the
+requested output, but not the entire containing value.
 
-Exact record field layouts may be established provisionally
-during Execute, subject to these semantic boundaries and
-independent Review.
+The exact demand-driven result representation, access
+operations and lifetime semantics are not yet frozen.
+They must be designed and reviewed before production
+implementation of the public interface.
+
+The implementation may reuse or generalize existing
+operations where compatible with their contracts.
+Any additional normative language operation beyond
+`inspect` requires owner approval.
+
+The approved visibility contract does not authorize
+generic object reflection, host callbacks or privileged
+runtime inspection.
+
+Implement the resulting approved interface consistently
+across the source language, compiler, VM, verifier and
+restricted execution policy.
+
+Existing semantic identities, golden records and frozen
+constraint acceptance remain unchanged.
 
 The first integrated feasibility witness remains mandatory.
+An isolated inspection demonstration is insufficient.
 
 ### First decisive experiment
 
@@ -500,9 +566,12 @@ All 15 candidate-dependent modules, 56 tests, Task 24
 oracles, Task 32 security requirements, golden records
 and approved 1000x performance ceilings remain unchanged.
 
-A known defective acceptance fixture requires independent
-review before any correction; its security assertion must
-not be weakened.
+The corrected preflight-denial and execution-isolation
+assertions must be preserved. Authorized compiler
+preparation must remain distinguishable from forbidden
+candidate execution before restricted preflight.
 
-Independent Plan Review must accept this amendment before
-dependent implementation resumes.
+The architectural Plan and previous D123-7b amendment
+were independently approved. This refinement requires
+review of the changed semantic and resource contract
+before the new public inspection interface is implemented.
