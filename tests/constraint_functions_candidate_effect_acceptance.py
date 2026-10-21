@@ -114,6 +114,7 @@ class CandidateEffectIsolationAcceptance(unittest.TestCase):
 
     def test_candidate_adapter_cannot_bypass_preflight_denial(self):
         actual_preflight = restricted.preflight
+        actual_open = machine._open
         rejected_entries = []
 
         def deny_candidate(state, artifacts, entry, policy):
@@ -126,8 +127,17 @@ class CandidateEffectIsolationAcceptance(unittest.TestCase):
                 state, artifacts, entry, policy,
             )
 
-        # Deployment preparation may occur inside semantic().
-        # Denial must still prevent candidate machine entry.
+        def reject_candidate_open(activation, args, *rest, **kwargs):
+            # Compiler functions may execute during preparation.
+            # Candidate evaluators may never bypass preflight.
+            if activation.entity in self.entries:
+                raise AssertionError(
+                    "candidate bypassed rejected preflight"
+                )
+            return actual_open(
+                activation, args, *rest, **kwargs,
+            )
+
         with (
             forbid_incumbent(),
             patch.object(
@@ -136,9 +146,7 @@ class CandidateEffectIsolationAcceptance(unittest.TestCase):
             ),
             patch.object(
                 machine, "_open",
-                side_effect=AssertionError(
-                    "candidate bypassed rejected preflight"
-                ),
+                new=reject_candidate_open,
             ),
         ):
             with self.assertRaisesRegex(
