@@ -1,6 +1,6 @@
 # GH-123 – Vision-to-Capability Matrix
 
-Status: Plan Resolve – independent Review required.
+Status: Independently approved Plan – inspection interface design pending.
 Branch: `task/123-complete-constraints`.
 Original baseline: `f994a2d59b0f6f890f4800effe209d88e1c838c1`.
 Provisional Execute head: `26327534a146fd261770c2b655f78c6e41b1dd02`.
@@ -74,7 +74,7 @@ Four E statuses do not establish GH-123 acceptance.
 | C16 | Pure computation and static calls | E | E | E | E | E |
 | C17 | Artifact authentication and effect preflight | E | N | N | E | E |
 | C18 | Candidate-backed runtime admission | E | P | P | P | U |
-| C19 | Support a new generic inspection operation | N | U | U | U | U |
+| C19 | Approved generic inspect operation | N | M | M | M | U |
 | C20 | Execute all GH-123 acceptance suites in CI | N | N | N | N | M |
 
 Interpretation:
@@ -88,8 +88,10 @@ Interpretation:
   host callback boundary may still suffice.
 - C17: Task 32 authority enforcement is host-managed,
   not a completed language-visible effect system.
-- C19: No operation has been selected. Its missing
-  implementation is not evidence against an undecided design.
+- C19: D123-7b authorizes generic `inspect(value)`.
+  The operation is not yet implemented in the VM,
+  compiler or restricted policy. Its demand-driven
+  result and access interface remains under design.
 - C20: The candidate acceptance suites are not yet
   registered for ordinary CI discovery.
 
@@ -116,11 +118,10 @@ Sources:
 - docs/spikes/constraints_as_functions_execute.md.
 - docs/restricted_execution.md.
 
-## 5. D123-7 – Approved visibility boundary
+## 5. D123-7 – Approved inspection boundaries
 
-Owner decision: ordinary SHEAR functions may inspect the
-semantic structure of an immutable value supplied to them,
-covering the 15 currently supported canonical kinds:
+D123-7a approves inspection of the semantic structure
+of supplied immutable values across all 15 canonical kinds:
 
 - none, bool, int, str, bytes;
 - entity_id, version_id, state_id;
@@ -134,13 +135,13 @@ Inspection is:
 - Generic rather than constraint-specific.
 - Based on semantic content, not serialization internals.
 
-Text exposes code points, not UTF-8 encoding bytes.
-Bytes expose byte content, not an incidental hex encoding.
-Maps expose semantic entries, not Python dictionary internals.
-Semantic records expose defined semantic fields, not
-arbitrary implementation attributes.
+Text exposes Unicode code points without normalization.
+Bytes expose byte content, not hexadecimal encoding.
+Maps expose entries in deterministic canonical-key order.
+Records expose defined semantic fields, not arbitrary
+implementation attributes.
 
-Inspection of a supplied value does not authorize:
+Inspection does not authorize:
 - Traversal of unrelated program graph entities.
 - Reading live cells or runtime frames.
 - Access to external resources.
@@ -151,15 +152,43 @@ Inspection of a supplied value does not authorize:
 An opaque value remains opaque unless a separately
 authorized expansion mechanism is available.
 
-For semantic records, inspection must distinguish their
-immutable content from live runtime state.
+For semantic records, inspection distinguishes immutable
+content from live runtime state.
 
-The public semantic-field interface is not required to
-match the existing CanonicalNode tuple layout.
+D123-7b approves `inspect(value)` as the generic pure
+inspection operation, with input form
+`("inspect", expression)`.
 
-This decision approves visibility semantics only.
-The operation name, result shape, instruction encoding,
-compiler changes and implementation remain undecided.
+The earlier eager `(semantic_kind, members_tuple)`
+result contract is superseded.
+
+Approved scalability requirements:
+- No eager proportional-size materialization.
+- Demand-driven element and field access.
+- Unicode code-point semantics.
+- Deterministic canonical-key map ordering.
+- Preservation of types, identities and authority.
+- Inspection resource costs distinct from semantic budgets.
+
+The remaining interface-design questions are:
+- Exact demand-driven result representation.
+- Element, map-entry and field access operations.
+- Lifetime and ownership of inspected views.
+- Semantic-record field names, ordering and exposure rules.
+- Compiler, verifier, VM and policy implementation details.
+
+Record schemas must cover `cell`, `constraint`,
+`relation` and `closure`.
+
+The public interface need not expose the existing
+CanonicalNode tuple layout.
+
+The approved operation remains unimplemented.
+Additional normative language operations require
+owner approval.
+
+Independent Review must accept the completed public
+interface before production implementation.
 
 ## 6. Decisive feasibility experiment
 
@@ -234,7 +263,7 @@ Names must communicate semantics to human programmers.
 | ref / Reference | Callable EntityID versus version-pinned state reference | Consider distinct names |
 | function / Function | Constructed function value is not directly installed and callable | Clarify construction semantics |
 | Role / relation role | Predicate over semantic role content versus a graph endpoint role | Clarify context |
-| IsKind / kind inspection | Existing constraint test versus missing ordinary introspection | Resolve the capability gap |
+| IsKind / kind inspection | Existing constraint test versus approved but unimplemented introspection | Implement the approved generic mechanism |
 
 Naming options include documentation, full renaming,
 prefixes or namespaces.
@@ -260,8 +289,8 @@ evidence and check for unexamined dependencies.
 Execute must return material contradictions to Plan rather
 than silently changing the contract.
 
-The repository-wide workflow rule is subject to independent
-review of its amended text.
+The repository-wide workflow rule was accepted during
+independent Plan Review.
 
 ## 10. Preserved requirements
 
@@ -273,6 +302,10 @@ Unchanged:
 - Canonical identity and golden records.
 - The agreed 1000x performance ceilings.
 
-No new instruction or public API is authorized here.
+The owner has authorized generic `inspect(value)`,
+not its unresolved access interface or additional
+language operations.
+
 No candidate acceptance result has been demonstrated.
-Independent Plan Review remains required.
+The remaining interface design requires independent Review
+before implementation.
