@@ -4,13 +4,15 @@ Execute supplies:
     reconstruct_constraint(expression)
         -> (original_canonical, reconstructed_canonical)
 
-The two outputs must originate from actual candidate constraint
-construction and reconstruction. Both preserve the canonical
-semantic constraint representation.
+Both outputs must originate from actual admitted SHEAR constraint
+construction and reconstruction and retain canonical semantic identity.
 
-The candidate must execute admitted ordinary SHEAR computation.
-Returning host-generated expected values does not qualify.
-Independent source-path audit remains mandatory.
+Machine-output substitution must affect the adapter's observation or
+trigger explicit fail-closed validation with operation and exact rejected
+VM-output provenance.
+
+Host-generated expected values and forged execution do not qualify.
+Independent source-path and fallback audit remains mandatory.
 
 This module is outside ordinary Plan-time discovery.
 """
@@ -31,6 +33,7 @@ from shear import (
     canonical_serialize,
     kind_of,
 )
+from shear.hosted_bootstrap import AdmissionRejected
 from tests.constraint_functions_complete_acceptance import (
     candidate_execution_guard,
     forbid_incumbent,
@@ -82,8 +85,8 @@ WITNESSES = (
 )
 
 
-# Canonical equality must ignore composition input order and
-# duplicate members while preserving operation type.
+# Canonical equality ignores composition input order and duplicate
+# members while preserving the semantic constraint operation kind.
 EQUIVALENT = (
     (
         ("all_of", ("is_kind", "int"),
@@ -139,7 +142,7 @@ class FrozenConstraintIdentityAcceptance(unittest.TestCase):
                 "candidate lacks reconstruct_constraint"
             )
 
-    def reconstruct(self, expression):
+    def execute_reconstruction(self, expression):
         with candidate_execution_guard(self.entries) as opened:
             result = self.adapter.reconstruct_constraint(expression)
 
@@ -148,7 +151,10 @@ class FrozenConstraintIdentityAcceptance(unittest.TestCase):
         )
         self.assertIsInstance(result, tuple)
         self.assertEqual(len(result), 2)
-        original, rebuilt = result
+        return result
+
+    def reconstruct(self, expression):
+        original, rebuilt = self.execute_reconstruction(expression)
 
         for value in (original, rebuilt):
             self.assertEqual(kind_of(value), "constraint")
@@ -181,6 +187,78 @@ class FrozenConstraintIdentityAcceptance(unittest.TestCase):
                     self.reconstruct(left),
                     self.reconstruct(right),
                 )
+
+    def test_reconstruction_depends_on_valid_machine_output(self):
+        operation = "reconstruct_constraint"
+        expression = ("is_kind", "int")
+        control = ("int_range", 0, 10)
+
+        baseline = self.execute_reconstruction(expression)
+        alternative = self.execute_reconstruction(control)
+
+        self.assertNotEqual(
+            encoded(baseline),
+            encoded(alternative),
+            "reconstruction controls must have distinct results",
+        )
+
+        # Both valid outputs must survive an unchanged machine-output
+        # substitution for their corresponding inputs.
+        for source, expected in (
+            (expression, baseline),
+            (control, alternative),
+        ):
+            with candidate_execution_guard(
+                self.entries, forced=expected,
+            ) as opened:
+                actual = self.adapter.reconstruct_constraint(source)
+
+            self.assertTrue(opened)
+            self.assertEqual(encoded(actual), encoded(expected))
+
+        # Substitute a different but well-formed reconstruction result.
+        # The adapter may accept it as authoritative machine output
+        # or reject it explicitly. It must not silently replace it
+        # with a host-computed answer.
+        rejected = None
+        with candidate_execution_guard(
+            self.entries, forced=alternative,
+        ) as opened:
+            try:
+                actual = self.adapter.reconstruct_constraint(expression)
+            except (ValueError, TypeError, AdmissionRejected) as exc:
+                rejected = exc
+
+        self.assertTrue(
+            opened, "reconstruction perturbation bypassed admitted SHEAR"
+        )
+
+        if rejected is None:
+            self.assertEqual(
+                encoded(actual),
+                encoded(alternative),
+                "reconstruction ignored controlled VM output",
+            )
+            return
+
+        self.assertEqual(
+            getattr(rejected, "projection_operation", None),
+            operation,
+            "rejection lacks reconstruction-operation provenance",
+        )
+        self.assertTrue(
+            hasattr(rejected, "rejected_vm_output"),
+            "rejection lacks rejected-VM-output provenance",
+        )
+        self.assertEqual(
+            encoded(rejected.rejected_vm_output),
+            encoded(alternative),
+            "rejection misidentifies the substituted VM output",
+        )
+        self.assertTrue(
+            str(rejected).strip(),
+            "reconstruction rejection lacks an explanation",
+        )
 
 
 if __name__ == "__main__":
