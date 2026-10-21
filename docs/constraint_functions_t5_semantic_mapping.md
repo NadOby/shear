@@ -279,3 +279,89 @@ Independent Review must verify that generated samples actually
 reach nested semantic contents, including values canonicalized
 during record construction. Passing shallow paths alone is
 insufficient.
+
+## 9. Generalized operation and resource acceptance
+
+The following additional Plan-owned modules are mandatory for T5:
+
+    tests/constraint_functions_sequence_acceptance.py
+    tests/constraint_functions_resource_acceptance.py
+
+Together with the nested-record module in section 8, they extend
+the candidate-dependent inventory to 18 modules and 78 test methods
+at HEAD f8ccc488f4d2424672b02d3894fb428efc588914.
+
+These counts describe the current Plan inventory, not executed
+test results. Earlier inventory counts remain historical baselines.
+
+### Generalized sequence operations
+
+Execute must supply:
+
+    sequence_projection(value, operation, *arguments)
+
+The supported operations are "len" and "slice". They must execute
+through authenticated ordinary SHEAR computation.
+
+Mandatory witnesses include semantic result kinds, Unicode code
+points, bytes, maps, record field ordering, half-open bounds,
+invalid inputs and ordinary LanguageError behavior.
+
+Machine-result perturbation must use actual authenticated VM
+returns without imposing a single-invocation architecture.
+
+Independent source-path auditing must establish that the requested
+operations, rather than unrelated admitted code or Python host
+projection, determine the observations.
+
+### Resource efficiency
+
+Execute must supply:
+
+    prepare_resource_probe(canonical_value, operation)
+    INSPECTION_RESOURCE_BOUNDARIES
+
+These are test instrumentation contracts, not additional public
+SHEAR language operations.
+
+Preparation and input canonicalization must be separated from
+measured inspection.
+
+Resource measurements must be obtained independently of
+candidate-reported counters.
+
+The acceptance must enforce bounded attributable inspection
+work and allocation across different collection sizes, including:
+
+- Repeated canonical-order map indexing.
+- Indexed access to large sequences.
+- Large relation-role collections.
+- Large constraint-operand collections.
+- Shallow inspection of large canonical values.
+
+Complete semantic results must be verified independently.
+
+The registered instrumentation boundaries must cover all
+relevant generic execution work, including delegated helpers,
+native operations, sorting, serialization and allocation.
+
+Python opcode tracing alone does not establish these guarantees.
+Independent source-path review must validate boundary completeness
+and identify any unmeasured work.
+
+Candidate execution, authenticated admission, compiler preparation
+and initial canonicalization costs must be accounted for separately.
+
+### Acceptance gates
+
+All three new T5 modules are mandatory and candidate-dependent.
+
+No new module may be skipped, silently excluded or counted as
+passing solely because ordinary CI succeeds.
+
+The original T5 semantic, security and execution-authenticity
+obligations remain unchanged.
+
+Independent Review must explicitly assess instrumentation
+completeness, machine-result dependency and the absence of
+host-side semantic fallback before approving Execute.
