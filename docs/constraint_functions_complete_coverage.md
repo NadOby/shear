@@ -271,3 +271,69 @@ must identify the next decisive experiment.
 
 The owner retains authority over language-shaping changes,
 accepted performance exceptions and publication.
+
+## 13. Expanded T5 acceptance inventory
+
+This section extends the mandatory T5 inventory in section 6.
+No earlier test or obligation is superseded.
+
+Additional mandatory modules:
+
+- `tests/constraint_functions_nested_record_acceptance.py`
+- `tests/constraint_functions_sequence_acceptance.py`
+- `tests/constraint_functions_resource_acceptance.py`
+
+The complete candidate-dependent inventory at HEAD f8ccc488
+contains 18 modules and 78 test methods. The previous 15-module,
+56-test inventory is the historical frozen baseline, not the
+complete current acceptance inventory.
+
+All three new modules must be registered in Execute CI and run
+with the existing acceptance suites. Unexecuted, skipped or
+unsupported tests do not constitute acceptance.
+
+### T5 additional obligations
+
+Nested semantic-record traversal must preserve public kinds,
+canonical identity and independently derived expected values.
+Private canonical serialization must not become language-visible.
+
+Generalized len and slice must preserve result kinds, Unicode
+code-point semantics, byte values, canonical map order, record
+field order, half-open bounds and ordinary LanguageError behavior.
+
+Authenticated machine-result perturbation must establish a
+causal connection to observed sequence and reconstruction results.
+Tests must not assume a fixed number of VM invocations or that
+the VM returns the complete adapter observation.
+
+Resource acceptance must independently measure attributable
+inspection work and allocations. Candidate-reported counters
+alone cannot establish efficiency.
+
+The measurement contract must separate input canonicalization,
+preparation, admission, invocation and inspection. The generic
+instrumentation boundaries must cover delegated helpers and
+native work, including copying, sorting and serialization.
+
+Large relation-role and constraint-operand collections must be
+checked for exact semantic contents, not just collection size.
+
+Every T5 operation requires authentic admitted SHEAR execution.
+Independent source-path and fallback auditing remains mandatory.
+No unrelated machine execution, host-side semantic projection or
+forged execution evidence can satisfy the contract.
+
+These tests introduce no additional public SHEAR operation and
+do not authorize changes to Task 24 semantics, Task 32 security,
+17 frozen boundary cases, existing canonical identities or
+golden records.
+
+### Evidence and approval
+
+The inventory count is not an execution result. Candidate-dependent
+suites remain unexecuted during Plan.
+
+Independent Review must validate test non-vacuity, operation
+provenance, measurement boundaries, registration and consistency
+with `docs/semantic_inspection.md` before Execute approval.
