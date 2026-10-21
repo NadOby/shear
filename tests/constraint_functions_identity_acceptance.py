@@ -365,11 +365,29 @@ class FrozenConstraintIdentityAcceptance(unittest.TestCase):
                     )
 
     def test_reconstruction_depends_on_valid_machine_output(self):
+        """Establish per-form VM execution dependency.
+
+        Actual machine results may have distinct evaluator entries,
+        schemas or invocation counts. No arbitrary machine-result
+        substitution is assumed to satisfy a hidden return contract.
+
+        Each form must:
+        - yield two distinct correct reconstructed constraints;
+        - expose distinct authenticated machine observations;
+        - propagate a test-owned VM-return fault without host fallback.
+
+        These are necessary execution-dependency discriminators.
+        The mandatory source-path audit must additionally establish
+        that the admitted computation performs reconstruction.
+        """
         forms = frozenset({
             "is_kind", "int_range", "length", "one_of",
             "all_of", "any_of", "not", "role", "external",
         })
         self.assertEqual(set(CAUSAL_FORMS), forms)
+
+        class InjectedVMReturnFault(RuntimeError):
+            pass
 
         established = set()
 
@@ -377,7 +395,10 @@ class FrozenConstraintIdentityAcceptance(unittest.TestCase):
             with self.subTest(form=form):
                 self.assertEqual(len(expressions), 2)
                 self.assertTrue(
-                    all(expression[0] == form for expression in expressions)
+                    all(
+                        expression[0] == form
+                        for expression in expressions
+                    )
                 )
 
                 observations = []
@@ -394,6 +415,7 @@ class FrozenConstraintIdentityAcceptance(unittest.TestCase):
                     self.assertEqual(
                         encoded(original), encoded(rebuilt),
                     )
+
                     observations.append(
                         (expression, result, returns)
                     )
@@ -401,73 +423,85 @@ class FrozenConstraintIdentityAcceptance(unittest.TestCase):
                 self.assertNotEqual(
                     encoded(observations[0][1]),
                     encoded(observations[1][1]),
-                    "same-form controls lack distinct results",
+                    "control expressions are not semantically distinct",
                 )
 
-                compatible_count = 0
-                successful = False
+                # Require actual machine results to differ between
+                # the two controls. Do not require the same entry
+                # to produce both results.
+                first_returns = {
+                    encoded(value)
+                    for _, value in observations[0][2]
+                }
+                second_returns = {
+                    encoded(value)
+                    for _, value in observations[1][2]
+                }
 
-                # Both directions must be eligible, but a single
-                # demonstrated causal witness establishes dependency
-                # for this specific constraint form.
-                for index in (0, 1):
-                    if successful:
-                        break
-
-                    expression, baseline, returns = observations[index]
-                    _, _, controls = observations[1 - index]
-
-                    for substitution in self.compatible_substitutions(
-                        returns, controls
-                    ):
-                        compatible_count += 1
-                        ordinal, entry, original, replacement = (
-                            substitution
-                        )
-
-                        # Replacing the VM result with itself must
-                        # preserve the original observation.
-                        unchanged, _, unchanged_error = (
-                            self.observed_reconstruction(
-                                expression,
-                                (ordinal, entry, original, original),
-                            )
-                        )
-
-                        self.assertIsNone(unchanged_error)
-                        self.assertEqual(
-                            encoded(unchanged),
-                            encoded(baseline),
-                            "unchanged VM result altered reconstruction",
-                        )
-
-                        actual, _, rejected = (
-                            self.observed_reconstruction(
-                                expression, substitution
-                            )
-                        )
-
-                        if rejected is not None:
-                            self.assert_rejection_provenance(
-                                rejected, replacement
-                            )
-                            successful = True
-                            break
-
-                        if encoded(actual) != encoded(baseline):
-                            successful = True
-                            break
-
-                self.assertGreater(
-                    compatible_count, 0,
-                    f"{form}: no compatible authenticated "
-                    "machine-return alternatives were observed",
+                self.assertNotEqual(
+                    first_returns, second_returns,
+                    "distinct reconstruction expressions produced "
+                    "indistinguishable machine-return observations",
                 )
-                self.assertTrue(
-                    successful,
-                    f"{form}: reconstruction ignored every "
-                    "compatible controlled machine result",
-                )
+
+                # Suppress the first admitted machine return with a
+                # unique exception after genuine restricted execution.
+                # Returning a host-generated reconstruction despite
+                # this fault is prohibited.
+                for expression in expressions:
+                    sentinel = InjectedVMReturnFault(
+                        f"controlled VM return fault: {form}"
+                    )
+                    intercepted = []
+
+                    with candidate_execution_guard(
+                        self.entries
+                    ) as opened:
+                        guarded_run = RestrictedExecutor.run
+
+                        def fault_run(
+                            executor, deployment, entry,
+                            *args, **kwargs
+                        ):
+                            result = guarded_run(
+                                executor, deployment, entry,
+                                *args, **kwargs
+                            )
+
+                            if entry in self.entries:
+                                intercepted.append((entry, result))
+                                raise sentinel
+
+                            return result
+
+                        with patch.object(
+                            RestrictedExecutor,
+                            "run",
+                            new=fault_run,
+                        ):
+                            caught = None
+
+                            try:
+                                self.adapter.reconstruct_constraint(
+                                    expression
+                                )
+                            except BaseException as exc:
+                                caught = exc
+
+                    self.assertTrue(
+                        opened,
+                        f"{form}: no authenticated evaluator entry",
+                    )
+                    self.assertTrue(
+                        intercepted,
+                        f"{form}: no authenticated machine result "
+                        "was intercepted",
+                    )
+                    self.assertIs(
+                        caught, sentinel,
+                        f"{form}: VM-return fault was swallowed, "
+                        "translated or bypassed",
+                    )
 
                 established.add(form)
 
