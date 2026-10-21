@@ -1,6 +1,6 @@
 # Complete Constraint Semantics with Ordinary SHEAR Functions
 
-Status: Approved Plan – D123-7b scalability amendment pending Review.
+Status: Approved Plan – public inspection interface design pending Review.
 Issue: GH-123.
 Baseline: f994a2d59b0f6f890f4800effe209d88e1c838c1.
 Dependencies: Task 24 (#56), Task 32 (#119).
@@ -433,8 +433,8 @@ without an explicit owner decision and renewed independent Review.
 
 ## 15. Architectural feasibility amendment
 
-Status: Independently approved Plan; demand-driven inspection
-refinement pending independent Review.
+Status: Independently approved Plan; public inspection
+interface design and Review remain pending.
 
 `docs/constraint_functions_capability_matrix.md` identifies
 inherited limitations and separates host, VM, compiler,
@@ -494,6 +494,12 @@ The exact demand-driven result representation, access
 operations and lifetime semantics are not yet frozen.
 They must be designed and reviewed before production
 implementation of the public interface.
+
+Semantic-record field schemas are also not yet frozen.
+Their field names, ordering and exposure rules must be
+specified for `cell`, `constraint`, `relation` and `closure`
+without exposing live state or privileged internals.
+These schemas require independent interface Review.
 
 The implementation may reuse or generalize existing
 operations where compatible with their contracts.
@@ -571,7 +577,7 @@ assertions must be preserved. Authorized compiler
 preparation must remain distinguishable from forbidden
 candidate execution before restricted preflight.
 
-The architectural Plan and previous D123-7b amendment
-were independently approved. This refinement requires
-review of the changed semantic and resource contract
-before the new public inspection interface is implemented.
+The architectural Plan and demand-driven D123-7b refinement
+were independently approved. The still-undefined public
+inspection interface requires independent Review before
+production implementation.
