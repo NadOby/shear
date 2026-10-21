@@ -2,7 +2,7 @@
 
 Status: Approved Plan – D123-7b scalability amendment pending Review.
 Issue: GH-123.
-Baseline: f994a2d59b0f6f8900f4800effe209d88e1c838c1.
+Baseline: f994a2d59b0f6f890f4800effe209d88e1c838c1.
 Dependencies: Task 24 (#56), Task 32 (#119).
 
 ## 1. Question
