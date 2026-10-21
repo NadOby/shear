@@ -1,4 +1,3 @@
-
 # GH-123 – Vision-to-Capability Matrix
 
 Status: Plan Resolve – independent Review required.
