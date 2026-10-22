@@ -221,13 +221,15 @@ class SequenceOperationAcceptance(unittest.TestCase):
                 )
                 else 2
             )
+
+            # Representable wrong-kind and out-of-range inputs
+            # must reach authenticated evaluator execution.
             for bounds in (
                 (-1, 1),
                 (0, size + 1),
                 (2, 1),
                 (True, 1),
                 (0, False),
-                (0, 1.5),
                 ("0", 1),
             ):
                 with self.subTest(
@@ -239,6 +241,26 @@ class SequenceOperationAcceptance(unittest.TestCase):
                         "slice",
                         *bounds,
                     )
+
+            # Floats are outside canonical SHEAR content and
+            # cannot be supplied to the admitted VM. Reject
+            # before evaluator entry, not as a VM LanguageError.
+            with self.subTest(
+                kind=kind_of(value),
+                bounds=(0, 1.5),
+            ):
+                with candidate_execution_guard(self.entries) as opened:
+                    with self.assertRaises(TypeError):
+                        self.candidate.sequence_projection(
+                            value,
+                            "slice",
+                            0,
+                            1.5,
+                        )
+                self.assertFalse(
+                    opened,
+                    "unsupported float reached admitted evaluator code",
+                )
 
     def test_unsupported_operand_kinds(self):
         for value in (
