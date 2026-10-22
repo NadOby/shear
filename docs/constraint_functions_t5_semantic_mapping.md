@@ -209,9 +209,13 @@ resource costs.
 Every candidate-dependent T5 operation must enter
 authenticated ordinary SHEAR execution.
 
-Controlled VM outputs must either affect the public result
-or produce the existing explicit fail-closed validation
-evidence.
+Controlled valid-output perturbation remains mandatory
+for the existing tests that explicitly require it.
+
+For generalized sequence operations and reconstruction,
+the architecture-neutral dependency checks in section 9
+apply instead. These do not replace independent source-path
+verification of semantic computation.
 
 Independent review must rule out Python truth evaluation,
 host-side subtree selection, forged machine entry and
@@ -250,6 +254,7 @@ contract and public inspection interface are approved.
 ## 8. Generated nested-record acceptance
 
 The following Plan-owned module is mandatory for T5:
+
     tests/constraint_functions_nested_record_acceptance.py
 
 Execute must register and run every test in this module alongside
@@ -281,124 +286,6 @@ during record construction. Passing shallow paths alone is
 insufficient.
 
 ## 9. Generalized operations and resource acceptance
-
-The following additional Plan-owned modules are mandatory for T5:
-
-    tests/constraint_functions_sequence_acceptance.py
-    tests/constraint_functions_resource_acceptance.py
-
-Together with the nested-record module in section 8, they extend
-the candidate-dependent inventory to 18 modules and 78 test methods.
-
-These counts describe the Plan inventory, not executed test
-results. The original 15 modules and 56 tests remain mandatory.
-
-### Generalized sequence operations
-
-Execute must supply:
-
-    sequence_projection(value, operation, *arguments)
-
-The supported operations are "len" and "slice". Both must execute
-through authenticated ordinary SHEAR computation.
-
-Mandatory witnesses include semantic result kinds, Unicode code
-points, bytes, maps, record field ordering, half-open bounds,
-invalid inputs and ordinary LanguageError behavior.
-
-Machine-result perturbation must observe actual authenticated VM
-returns without imposing a single-invocation architecture or
-assuming that a machine return equals the adapter observation.
-
-Independent causal dependency is required for each supported
-indexable semantic kind:
-
-- str
-- bytes
-- tuple
-- list
-- map
-- cell
-- constraint
-- relation
-
-A successful perturbation for one kind does not qualify another
-kind, even when both use the same public operation.
-
-### Constraint reconstruction
-
-The existing identity acceptance must preserve all original
-canonical witnesses, equivalence checks and distinctions.
-
-Machine-result dependency must be established independently for
-all nine supported constraint forms:
-
-- is_kind
-- int_range
-- length
-- one_of
-- all_of
-- any_of
-- not
-- role
-- external
-
-Each form must supply distinct valid control expressions and a
-compatible observed machine-return substitution that either
-changes the reconstruction observation or triggers explicit
-provenance-bearing validation rejection.
-
-One successful reconstruction witness cannot qualify every form.
-
-The permitted rejection path must identify the requested
-operation and exact substituted VM return.
-
-### Resource efficiency
-
-Execute must supply:
-
-    prepare_resource_probe(canonical_value, operation)
-
-The adapter returns a reusable callable accepting one argument.
-
-The test-owned "control" mode must use the same canonical input,
-admitted invocation path and fixed execution machinery without
-performing subject inspection. It is not a public SHEAR operation.
-
-The resource test owns every measurement interval. It does not
-trust candidate-reported resource counters or candidate-selected
-Python instrumentation boundaries.
-
-Whole prepared invocations are measured using process CPU time,
-peak Python-traced allocation and Python/native call profiling.
-
-Matched admitted control invocations estimate fixed overhead.
-Synthetic large-copy and native-sort negative controls calibrate
-whether the measurement can detect relevant scaling.
-
-Input canonicalization and compiler/admission preparation occur
-before the measured invocation. Invocation and execution overhead
-remaining inside the measured interval must be accounted for
-through independently measured controls.
-
-Required resource witnesses cover:
-
-- Repeated canonical-order map indexing.
-- Indexed access to large sequences.
-- Large relation-role collections.
-- Large constraint-operand collections.
-- Shallow inspection of large canonical values.
-
-Semantic result contents and ordering must be checked independently,
-not inferred from reported resource consumption.
-
-Resource acceptance must distinguish allocation explicitly
-required by an output from avoidable copying of existing semantic
-contents. Measurements must not impose constant-output cost on
-operations that explicitly request proportional-size output.
-
-Whole-invocation measurement does not by itself prove that a
-candidate uses the authorized inspection ## 9. Generalized operations and resource acceptance
 
 The following additional Plan-owned modules are mandatory for T5:
 
@@ -485,8 +372,9 @@ substitution is required.
 
 A fault must propagate without host fallback.
 
-Machine-return observations must distinguish the two valid
-control expressions for each form.
+Ordered machine-return observations, including evaluator entries,
+must distinguish the two valid control expressions for each form.
+Multi-invocation traces must not be reduced to unordered sets.
 
 These discriminators cannot independently establish that both
 reconstruction outputs were computed by SHEAR. The mandatory
@@ -533,23 +421,39 @@ Required witnesses include:
 - Single-element sequence access.
 - Relation-role contents and ordering.
 - Shallow OneOf operand access.
-- Increasing-arity composite operands.
+- Increasing-arity AllOf operand access.
 - Shallow inspection of large collections.
 
 The resource contract distinguishes constant-output access
 from explicitly requested output-proportional materialization.
 
 OneOf.arguments is a fixed-size outer operand tuple whose
-nested collection must remain shallow. Its access must not
-copy the complete nested value collection.
+nested value collection must remain shallow.
 
-Increasing-arity AllOf arguments may require output-proportional
-materialization, subject to independently reviewed bounds.
+AllOf.arguments is likewise a fixed-size outer tuple referring
+to its existing child collection. Increasing arity does not
+authorize copying that nested collection during field access.
+
+Both operations must satisfy shallow-access resource bounds.
+
+Explicit full-output materialization is measured independently
+from shallow field access and may incur output-proportional
+cost only when required by the approved public representation.
+
+In particular, full relation-role output must be consumed
+within the measurement interval to detect deferred work.
+
+Shallow inspection must not be forced to recursively serialize
+nested contents merely for resource measurement.
 
 Relation-role enumeration must not perform avoidable complete
 cloning or repeated sorting. Any output-proportional allowance
 must correspond to materialization genuinely required by the
 approved public representation.
+
+For repeated map indexing, cold CPU and allocation maxima
+must be aggregated independently of warm CPU and allocation
+maxima. Every index's first invocation remains a cold witness.
 
 Canonicalization and compiler/admission preparation are
 separate from measured prepared invocation costs.
@@ -570,9 +474,10 @@ Independent Review must assess:
 
 - Per-kind and per-form execution-dependency evidence.
 - Propagation of unique authenticated VM-return faults.
-- Distinct VM observations where semantic outputs differ.
+- Ordered VM observations where semantic outputs differ.
 - Measurement coverage, calibration and noise sensitivity.
 - First-use and warm-operation resource behavior.
+- Deferred full-output materialization inside measured calls.
 - Native allocation visibility and required source auditing.
 - Constant-output versus output-proportional resource bounds.
 - Absence of unrelated admitted execution or host fallback.
