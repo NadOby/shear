@@ -1,9 +1,10 @@
-# Generic Semantic-Record Construction – C10 Proposal
+# Generic Semantic-Record Construction – C10
 
-Status: Proposed D123-8 – independent Review and owner approval required.
+Status: Independently reviewed; D123-8 owner-approved.
 Issue: GH-123.
 Branch: `task/123-complete-constraints`.
 Inspection baseline: `8cedf3eb21ef797fa9ea3e02aff9130162c3881a`.
+Construction review baseline: `4b0d30ec72301aa738166ab710a6c3eebbd9f17b`.
 
 ## 1. Problem
 
@@ -22,10 +23,10 @@ The required distinction is between computing a semantic
 value in SHEAR and converting a host-produced answer into
 a semantic value after execution.
 
-C10 remains unresolved until genuine admitted construction
+C10 remains unproven until genuine admitted construction
 and the frozen T5 reconstruction evidence are demonstrated.
 
-## 2. Proposed decision D123-8
+## 2. Approved decision D123-8
 
 Introduce one generic, pure semantic-record constructor.
 
@@ -33,7 +34,7 @@ Input form:
 
     ("record", kind_expression, fields_expression)
 
-Proposed text syntax:
+Text syntax:
 
     record(kind_expression, fields_expression)
 
@@ -63,8 +64,11 @@ program state.
 It introduces one generic public operation, not a family
 of constraint-specific operations.
 
-This operation requires explicit owner authorization.
-It is not implied by D123-7c.
+Following independent design approval at `4b0d30e`,
+the owner explicitly authorized D123-8.
+
+This authorization is separate from D123-7c and permits
+implementation of the operation specified here.
 
 ## 3. Construction schemas
 
@@ -169,14 +173,20 @@ captures, executable code or runtime frames is authorized.
 Future record kinds require separate schema and authority
 review.
 
-This proposal does not claim that all 15 semantic kinds
-can be independently manufactured from public components.
-C10's complete scope remains subject to the frozen
-acceptance evidence.
+D123-8 does not claim that all 15 semantic kinds can
+be independently manufactured from public components.
+
+In particular, independent construction of opaque
+identifiers and closures is not authorized.
+
+This limitation does not block the approved constraint
+reconstruction experiment. Full C10 closure requires
+the applicable frozen evidence and cannot be claimed
+merely from implementing `record`.
 
 ## 5. Admitted execution boundary
 
-The proposed operation is an ordinary SHEAR expression,
+The approved operation is an ordinary SHEAR expression,
 compiled and executed through the existing authenticated
 language pipeline.
 
@@ -191,8 +201,8 @@ Implementation must cover:
 - Task 32 restricted-policy authorization.
 - Hosted compiler and artifact generations.
 
-A single generic record-construction VM instruction may
-be introduced after owner approval.
+D123-8 authorizes the necessary generic
+record-construction VM instruction.
 
 The VM implementation may reuse the canonical semantic
 model's pure validation and normalization rules.
@@ -220,6 +230,10 @@ Forbidden:
 The canonical model may implement the primitive, but
 construction must occur as a consequence of executing
 the authorized instruction in the admitted machine.
+
+Calling existing Python constructors or canonical
+normalization routines inside that instruction is not,
+by itself, host-side reconstruction bypass.
 
 ## 6. Identity and validation
 
@@ -331,8 +345,8 @@ demonstrated to produce genuine typed semantic records.
 
 B. One generic record-construction operation.
 
-Preferred experiment. Reuses existing record schemas and
-canonical validation without a new constraint interpreter.
+Owner-approved experiment. Reuses existing record schemas
+and canonical validation without a new constraint interpreter.
 
 C. Python-side reconstruction after admitted execution.
 
@@ -351,20 +365,18 @@ Stop or return to Plan if:
   computation determines the constructed result.
 - Existing Task 24 or Task 32 requirements would change.
 
-## 10. Approval boundary
+## 10. Approval and implementation boundary
 
-Independent Review must determine whether this single
-generic operation is sufficient, coherent and consistent
-with the existing semantic and authority model.
+Independent Review approved D123-8 at
+`4b0d30ec72301aa738166ab710a6c3eebbd9f17b`.
 
-The owner must separately approve D123-8 before production
-implementation.
+The owner subsequently approved D123-8 for implementation.
 
-Approval would authorize only the described immutable
+This authorizes only the described immutable
 record-construction operation and its necessary language,
 compiler, verifier, VM and restricted-policy support.
 
-It would not authorize:
+It does not authorize:
 
 - Constraint-specific interpreter operations.
 - Arbitrary host callbacks.
@@ -374,5 +386,16 @@ It would not authorize:
 - New graph or runtime mutation authority.
 - Changes to frozen semantic or security acceptance.
 
-Until then, C10 remains unresolved and full GH-123
-feasibility is not demonstrated.
+The D123-7c read-only inspection interface remains unchanged.
+
+The approved 18-module, 78-test T5 acceptance contract
+remains frozen.
+
+The architectural construction-design gate is closed.
+
+Implementation, authenticated execution, semantic
+equivalence, performance and security evidence remain
+outstanding.
+
+C10 and full GH-123 feasibility cannot be declared
+complete until that evidence is established.
