@@ -1,9 +1,9 @@
 # GH-123 – Vision-to-Capability Matrix
 
-Status: Independently approved Plan – inspection interface design pending.
+Status: Architecture and T5 acceptance independently approved; D123-7c and D123-8 owner-authorized. Execute evidence pending.
 Branch: `task/123-complete-constraints`.
 Original baseline: `f994a2d59b0f6f890f4800effe209d88e1c838c1`.
-Provisional Execute head: `26327534a146fd261770c2b655f78c6e41b1dd02`.
+Construction approval baseline: `9c4ef2839d8b04f1a9f63d961707c3967ee1bba1`.
 
 ## 1. Architectural basis
 
@@ -52,6 +52,13 @@ VM E does not imply Compiler E.
 Compiler E does not imply Policy E.
 Four E statuses do not establish GH-123 acceptance.
 
+Owner approval authorizes implementation but does not
+change a missing capability to an implemented capability.
+
+The matrix records the pre-Execute implementation baseline.
+Execute must update status from actual repository and test
+evidence, not from design approval alone.
+
 ## 3. Capability matrix
 
 | ID | Capability | Host | VM | Compiler | Policy | Evidence |
@@ -65,7 +72,7 @@ Four E statuses do not establish GH-123 acceptance.
 | C07 | Inspect text code points and bytes | E | M | M | M | U |
 | C08 | Inspect semantic-record fields | E | M | M | M | U |
 | C09 | Type-sensitive boolean equality | E | E | E | E | U |
-| C10 | Reconstruct all semantic value kinds | E | M | U | U | U |
+| C10 | Reconstruct semantic values, including typed records | P | M | M | M | U |
 | C11 | Traverse maps and nested values | E | M | M | M | U |
 | C12 | Compose three-valued results | E | P | E | E | U |
 | C13 | Exact constraint-node budget accounting | E | P | E | E | U |
@@ -81,6 +88,19 @@ Interpretation:
 
 - C01: Canonical serialization is host machinery.
   SHEAR equality does not expose a serialization API.
+- C04–C08 and C11: The generic inspection/access
+  design is approved but not yet implemented.
+- C10: The original capability question was broader
+  than construction of constraint records. D123-8
+  authorizes a generic pure `record(kind, fields)`
+  operation for Cell, Constraint and Relation.
+  It does not authorize closure construction,
+  forging opaque identifiers or independently
+  manufacturing every semantic kind.
+  Existing host constructors cover only part of the
+  broader reconstruction capability.
+  Full C10 closure requires applicable frozen evidence,
+  not merely a working record constructor.
 - C12–C13: Existing general computation provides building
   blocks, not verified constraint-equivalent implementations.
 - C14: Static calls are permitted. Indirect calls are
@@ -89,11 +109,13 @@ Interpretation:
 - C17: Task 32 authority enforcement is host-managed,
   not a completed language-visible effect system.
 - C19: D123-7b authorizes generic `inspect(value)`.
-  The operation is not yet implemented in the VM,
-  compiler or restricted policy. Its demand-driven
-  result and access interface remains under design.
-- C20: The candidate acceptance suites are not yet
-  registered for ordinary CI discovery.
+  D123-7c authorizes generalized `len`, `item`, `slice`,
+  named record lookup and public field schemas.
+  The operations are not yet implemented across the
+  required compiler, VM and restricted-policy boundaries.
+- C20: All 18 candidate-dependent modules and 78 test
+  methods are approved and mandatory but not yet
+  registered and executed as a completed candidate lane.
 
 Task 32 evidence for C16–C17 is not equivalent to
 demonstrating the complete GH-123 candidate.
@@ -111,14 +133,23 @@ but explicitly deferred complete canonical inspection,
 generic resource budgets and full constraint replacement.
 
 These limitations were known before GH-123 Execute began.
-They were not sufficiently resolved at Plan entry.
+
+D123-7c resolves the inspection-interface design gap.
+D123-8 resolves the semantic-record construction-design gap.
+
+Neither decision constitutes implementation or proves
+end-to-end semantic equivalence.
 
 Sources:
 - docs/spikes/constraints_as_functions.md.
 - docs/spikes/constraints_as_functions_execute.md.
 - docs/restricted_execution.md.
+- docs/semantic_inspection.md.
+- docs/semantic_record_construction.md.
 
-## 5. D123-7 – Approved inspection boundaries
+## 5. D123-7 and D123-8 – Approved generic capabilities
+
+### D123-7a and D123-7b
 
 D123-7a approves inspection of the semantic structure
 of supplied immutable values across all 15 canonical kinds:
@@ -135,64 +166,114 @@ Inspection is:
 - Generic rather than constraint-specific.
 - Based on semantic content, not serialization internals.
 
-Text exposes Unicode code points without normalization.
-Bytes expose byte content, not hexadecimal encoding.
-Maps expose entries in deterministic canonical-key order.
-Records expose defined semantic fields, not arbitrary
-implementation attributes.
-
-Inspection does not authorize:
-- Traversal of unrelated program graph entities.
-- Reading live cells or runtime frames.
-- Access to external resources.
-- Expansion of opaque representations.
-- Bypassing capabilities or restricted execution.
-- Mutation of the original value.
-
-An opaque value remains opaque unless a separately
-authorized expansion mechanism is available.
-
-For semantic records, inspection distinguishes immutable
-content from live runtime state.
-
 D123-7b approves `inspect(value)` as the generic pure
-inspection operation, with input form
-`("inspect", expression)`.
+inspection operation, with input form:
+
+    ("inspect", expression)
+
+Its result is:
+
+    (semantic_kind, original_value)
 
 The earlier eager `(semantic_kind, members_tuple)`
 result contract is superseded.
 
-Approved scalability requirements:
+### D123-7c
+
+The independently reviewed public inspection interface
+was explicitly authorized by the owner.
+
+It includes generalized:
+
+    len(value)
+    item(value, index)
+    slice(value, start, stop)
+
+across the approved semantic kinds.
+
+String-named field lookup through `item` is authorized.
+
+The public Cell, Constraint and Relation schemas are
+approved, while Closure remains opaque.
+
+Required properties:
+
 - No eager proportional-size materialization.
 - Demand-driven element and field access.
-- Unicode code-point semantics.
+- Unicode code-point semantics without normalization.
 - Deterministic canonical-key map ordering.
-- Preservation of types, identities and authority.
-- Inspection resource costs distinct from semantic budgets.
+- Preservation of semantic types and identities.
+- No disclosure of private CanonicalNode representation.
+- Inspection costs distinct from semantic budgets.
+- No new runtime, graph or external authority.
 
-The remaining interface-design questions are:
-- Exact demand-driven result representation.
-- Element, map-entry and field access operations.
-- Lifetime and ownership of inspected views.
-- Semantic-record field names, ordering and exposure rules.
-- Compiler, verifier, VM and policy implementation details.
+For semantic records, inspection distinguishes immutable
+declaration content from live runtime state.
 
-Record schemas must cover `cell`, `constraint`,
-`relation` and `closure`.
+The normative specification is:
 
-The public interface need not expose the existing
-CanonicalNode tuple layout.
+    docs/semantic_inspection.md
 
-The approved operation remains unimplemented.
-Additional normative language operations require
-owner approval.
+The interface-design Review gate is closed.
 
-Independent Review must accept the completed public
-interface before production implementation.
+### D123-8
+
+The owner approved one generic pure constructor:
+
+    record(kind, fields)
+
+Supported immutable semantic-record kinds:
+
+- cell
+- constraint
+- relation
+
+The constructor uses existing canonical validation,
+normalization and identity rules.
+
+SHEAR functions compute the kind and fields.
+An authenticated VM instruction performs construction
+and returns the typed semantic value.
+
+Pure Python canonical constructors may be reused inside
+that VM instruction.
+
+Adapter-side construction after admitted execution
+is prohibited.
+
+No constraint-specific interpreter, arbitrary host
+callback, dynamic host-class construction, graph
+mutation or additional execution authority is authorized.
+
+Closures remain opaque and are not constructible.
+
+The normative specification is:
+
+    docs/semantic_record_construction.md
+
+The construction-design Review gate is closed.
+
+### Preserved authority boundaries
+
+The approved operations do not authorize:
+
+- Traversal of unrelated program graph entities.
+- Reading live cells or runtime frames.
+- Access to undeclared external resources.
+- Expansion of opaque representations.
+- Forging entity or version identifiers.
+- Bypassing restricted execution.
+- Mutation of canonical semantic contents.
+
+Compiler, verifier, VM, artifact and restricted-policy
+implementation remains Execute work.
+
+New normative language operations or authority changes
+require another explicit owner decision.
 
 ## 6. Decisive feasibility experiment
 
-The first implementation witness must exercise:
+The first integrated implementation witness must exercise:
 
 Raw canonical subject
 → authenticated admitted SHEAR function
@@ -216,6 +297,10 @@ Verify together:
 
 Do not accept an isolated inspection demonstration as
 proof that the architecture supports ordinary constraints.
+
+The approved D123-8 constructor must additionally
+reconstruct all nine constraint forms through genuine
+admitted SHEAR execution while retaining canonical identity.
 
 After the integrated witness, extend the same candidate:
 
@@ -243,6 +328,11 @@ It does not require arbitrary Python callbacks inside the VM.
 Prove:
 - Correct evaluator selection and pinning.
 - Exact canonical subject and budget behavior.
+- Nested External composition through AllOf, AnyOf,
+  Not and Role.
+- Correct continuation without replay of completed work.
+- Correct short-circuit behavior and exact node budgets.
+- Fresh semantic budget for each top-level evaluation.
 - No callback when admitted execution fails.
 - Missing evaluators produce Unknown as specified.
 - Escaping host exceptions preserve type and identity.
@@ -252,18 +342,22 @@ If A fails, document the smallest counterexample and
 request owner approval for B's authority, effect and
 failure semantics before implementing it.
 
+This is an early integrated Execute discriminator,
+not a reason to reopen the approved interface design.
+
 ## 8. Human-facing naming audit
 
 Names must communicate semantics to human programmers.
 
 | Names | Actual distinction | Disposition |
 |---|---|---|
-| len / Length | Tuple-length operation versus multi-kind length constraint | Review generalization or clearer naming |
-| eq / semantic equality | Current boolean operation versus possible future three-valued reasoning | Keep the contracts explicitly distinct |
+| len / Length | Approved general data-length operation versus semantic Length constraint | Preserve distinction in documentation |
+| eq / semantic equality | Boolean equality versus possible future three-valued reasoning | Keep contracts distinct |
 | ref / Reference | Callable EntityID versus version-pinned state reference | Consider distinct names |
 | function / Function | Constructed function value is not directly installed and callable | Clarify construction semantics |
 | Role / relation role | Predicate over semantic role content versus a graph endpoint role | Clarify context |
-| IsKind / kind inspection | Existing constraint test versus approved but unimplemented introspection | Implement the approved generic mechanism |
+| IsKind / inspect | Semantic constraint test versus generic type inspection | Preserve distinct operations |
+| tuple / record | Ordinary sequence construction versus typed semantic-record construction | Preserve kind and identity distinctions |
 
 Naming options include documentation, full renaming,
 prefixes or namespaces.
@@ -274,38 +368,59 @@ Do not change settled semantics for naming consistency.
 Public renames require migration analysis and owner approval.
 Unrelated renames are not GH-123 blockers.
 
-## 9. Process gate
+## 9. Execute gate
 
-Before implementation, every critical dependency must be:
+The architectural Plan, T5 acceptance contract,
+D123-7c inspection design and D123-8 construction
+design have been independently approved.
 
-- Demonstrated with relevant executable evidence.
-- Explicitly experimental, with a falsifier and stop condition.
-- Blocked until a required capability or decision exists.
-- Justifiably out of scope under frozen acceptance.
+Both normative interface decisions are owner-authorized.
 
-Independent Plan Review must reconcile prior negative
-evidence and check for unexamined dependencies.
+Before claiming complete feasibility, demonstrate:
+- Genuine authenticated execution of generic operations.
+- Complete constraint semantics through ordinary functions.
+- Nested external evaluation and continuation.
+- Exact semantic budgets.
+- Typed semantic-record reconstruction.
+- Candidate-backed real runtime admission.
+- No subject-dependent Python semantic fallback.
+- Complete frozen acceptance and applicable regressions.
+- Reproducible resource and mechanism measurements.
 
-Execute must return material contradictions to Plan rather
-than silently changing the contract.
+The bounded Plan Resolve permits only narrowly
+declared compiler-induced golden identity changes,
+as specified in `docs/constraint_functions_complete.md`.
 
-The repository-wide workflow rule was accepted during
-independent Plan Review.
+Create `tests/golden_changes/GH-123.txt` during Execute
+with only records actually changed by compiler evolution.
+Never use a wildcard or declare unchanged records.
+
+Regenerate and verify the hosted seed manifest.
+
+Execute must return material architectural contradictions
+to the owner rather than silently changing the contract.
 
 ## 10. Preserved requirements
 
 Unchanged:
-- All 15 original candidate acceptance modules.
-- All 56 original candidate-dependent test methods.
+- All 18 candidate-dependent acceptance modules.
+- All 78 candidate-dependent test methods.
 - Task 24 semantic oracles and 17 boundary cases.
 - Task 32 authentication and security guarantees.
-- Canonical identity and golden records.
+- All existing behavioral golden expectations.
+- Canonical identity rules and unrelated golden records.
 - The agreed 1000x performance ceilings.
 
-The owner has authorized generic `inspect(value)`,
-not its unresolved access interface or additional
-language operations.
+The original 15 modules and 56 test methods remain
+mandatory within the expanded inventory.
 
-No candidate acceptance result has been demonstrated.
-The remaining interface design requires independent Review
-before implementation.
+D123-7c and D123-8 authorize specified generic language
+operations but no additional execution authority.
+
+The narrowly declared compiler-code golden exception
+does not permit unrelated identity or behavioral changes.
+
+No candidate acceptance result has yet been demonstrated.
+
+The remaining work is implementation and experimental
+validation, not another foundational design cycle.
