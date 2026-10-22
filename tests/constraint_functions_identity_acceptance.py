@@ -426,17 +426,17 @@ class FrozenConstraintIdentityAcceptance(unittest.TestCase):
                     "control expressions are not semantically distinct",
                 )
 
-                # Require actual machine results to differ between
-                # the two controls. Do not require the same entry
-                # to produce both results.
-                first_returns = {
-                    encoded(value)
-                    for _, value in observations[0][2]
-                }
-                second_returns = {
-                    encoded(value)
-                    for _, value in observations[1][2]
-                }
+                # Preserve the ordered VM-return trace, including
+                # evaluator-entry identity. Equal sets of results
+                # may represent different multi-invocation programs.
+                first_returns = tuple(
+                    (entry, encoded(value))
+                    for entry, value in observations[0][2]
+                )
+                second_returns = tuple(
+                    (entry, encoded(value))
+                    for entry, value in observations[1][2]
+                )
 
                 self.assertNotEqual(
                     first_returns, second_returns,
