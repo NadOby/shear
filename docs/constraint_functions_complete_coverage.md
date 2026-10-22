@@ -1,7 +1,8 @@
 # GH-123 Complete Acceptance Coverage
 
-Status: Plan Resolve – pending independent re-review.
+Status: Independently approved T1–T9 and expanded T5 acceptance; bounded Resolve synchronization pending independent review.
 Baseline: f994a2d59b0f6f890f4800effe209d88e1c838c1.
+Approved decisions: D123-7c and D123-8.
 
 Task 24 (#56) supplies the frozen semantic and boundary oracles.
 Task 32 (#119) supplies the authenticated restricted execution
@@ -10,8 +11,13 @@ implementation and existing security acceptance.
 ## 1. Qualification rules
 
 T1–T9 are mandatory. The fixtures, expected observations,
-Task 24 oracles, boundary scripts and golden records must not be
-weakened to accommodate the candidate.
+Task 24 oracles and boundary scripts must not be weakened
+to accommodate the candidate.
+
+Existing golden behavioral expectations and unrelated
+canonical identities remain protected. Only narrowly
+declared compiler-induced changes are authorized by
+`docs/constraint_functions_complete.md` section 14.
 
 All `tests/constraint_functions_*acceptance.py` modules and the
 projection and semantic adversarial modules are Plan-owned.
@@ -97,6 +103,9 @@ Owner-approved representation correction:
   defines the mandatory old-to-new test correspondence.
 - Private CanonicalNode paths are superseded by public
   semantic inspection and demand-driven field access.
+- D123-7c authorizes the read-only public inspection interface.
+- D123-8 separately authorizes generic `record(kind, fields)`
+  construction for Cell, Constraint and Relation.
 - The correction does not relax canonical identity,
   execution authenticity or adversarial test strength.
 
@@ -135,6 +144,11 @@ Expected:
   or forged machine-entry evidence is permitted.
 - Constraint identity remains independent of deployment.
 - Existing state and version identity rules are unchanged.
+
+The D123-8 constructor does not authorize fabrication of
+opaque identifiers or closures. Independent construction of
+all 15 semantic kinds is not implied. Complete T5 feasibility
+must be established by the applicable frozen evidence.
 
 ## 7. T6 – Runtime admission and continuity
 
@@ -181,7 +195,7 @@ Frozen:
 - `CandidateCorpusAcceptance.test_existing_regressions_remain_mandatory`
 - Original `shear.examples.EXAMPLES` and all step expectations.
 - Existing ordinary CI lane inventory.
-- Existing golden records and comparison procedures.
+- Existing golden behavioral expectations and comparison procedures.
 
 Execute requirements:
 - Replay every existing corpus example and scenario.
@@ -190,8 +204,27 @@ Execute requirements:
 - Compare every result and expected live-cell observation.
 - Run `python -m tests.lanes --all` successfully.
 - Run applicable golden, hosted and Task 24 checks.
-- Preserve existing public APIs and golden records.
+- Preserve existing public APIs and unrelated golden identities.
+- Declare only demonstrated compiler-induced golden changes
+  through `tests/golden_changes/GH-123.txt`.
+- Regenerate and verify the hosted seed manifest.
 - Record exact SHAs, CI runs and any excluded diagnostic jobs.
+
+The only anticipated golden-change records are:
+- `programs/compiler`
+- `programs/instrument`
+- `programs/bootstrap`
+
+Each declaration requires an actual changed record.
+Unchanged records must not be declared. Wildcards and changes
+to historical declarations are forbidden.
+
+The declaration must be introduced during Execute alongside
+the compiler change because the golden checker rejects
+declarations for records that did not change.
+
+Unexpected changed records require separate justification
+and review; they are not covered by this exception.
 
 The existing corpus and CI are fixed acceptance inputs,
 not a new set of scenarios delegated to Execute.
@@ -309,7 +342,17 @@ canonical identities and semantic result kinds remain mandatory.
 
 Generalized len and slice must preserve Unicode code-point
 semantics, bytes, canonical map order, record field ordering,
-half-open bounds, result kinds and LanguageError behavior.
+half-open bounds, result kinds and LanguageError behavior
+for representable invalid inputs.
+
+Unsupported host floats cannot be canonicalized into SHEAR
+values. They must be rejected before authenticated VM entry,
+rather than being required to raise an in-VM LanguageError.
+
+The corrected `test_invalid_bounds` method retains
+representable wrong-kind and out-of-range VM-error checks
+and separately requires pre-admission float rejection.
+The frozen test-method inventory is unchanged.
 
 Independent authenticated execution-dependency evidence is
 required for both operations on all eight indexable kinds:
@@ -376,6 +419,10 @@ Fault propagation alone does not establish that reconstruction
 was computed inside SHEAR. Both reconstruction outputs must
 still be verified by independent source-path and provenance
 auditing.
+
+D123-8 permits reuse of existing pure canonical constructors
+inside the authenticated VM construction instruction.
+It does not permit host-side reconstruction after VM execution.
 
 ### Resource efficiency
 
@@ -463,17 +510,39 @@ merely for legitimate output materialization.
 ### Preserved requirements
 
 The expanded T5 suite introduces no additional public SHEAR
-operation beyond the separately approved inspection interface.
+operation beyond the separately approved generic capabilities
+specified in `docs/semantic_inspection.md` and
+`docs/semantic_record_construction.md`.
+
+D123-7c authorizes inspection and generalized read-only
+access. D123-8 independently authorizes pure semantic-record
+construction. Neither extends execution authority.
 
 Task 24 semantics, Task 32 security, all 17 frozen boundary
-cases, canonical identities and golden records remain unchanged.
+cases and canonical identity rules remain unchanged.
+
+Behavioral golden expectations and unrelated golden identities
+remain protected. Only demonstrated compiler-code identity
+changes declared under the section 9 exception are permitted.
 
 Authenticated execution, no-fallback and independent
 provenance requirements remain mandatory.
 
 ### Review and approval
 
-Independent Review must verify:
+The expanded T5 acceptance design was independently approved,
+with 18 modules and 78 test methods frozen.
+
+The bounded Plan Resolve corrects:
+- The golden-record contract to permit narrowly declared
+  compiler-induced changes.
+- The unsupported-float acceptance case, which cannot enter
+  canonical SHEAR execution.
+
+This documentation synchronization does not authorize changes
+to frozen semantic or execution discriminators.
+
+Independent Review of Execute evidence must verify:
 
 - Coverage and non-vacuity of all 18 modules and 78 tests.
 - Per-kind and per-form execution dependency.
@@ -484,9 +553,11 @@ Independent Review must verify:
 - Calibration, timing noise and threshold sensitivity.
 - Native allocation limitations and source-path coverage.
 - Shallow versus output-proportional resource semantics.
-- Compatibility with `docs/semantic_inspection.md`.
+- Compatibility with the D123-7c and D123-8 specifications.
+- The narrow golden declaration and hosted seed manifest.
 
 Candidate-dependent suites remain unexecuted during Plan.
 Ordinary CI success does not establish their correctness.
 
-Execute remains blocked until independent Plan approval.
+Only the bounded Resolve delta requires independent review
+before Execute. No new foundational design cycle is needed.
