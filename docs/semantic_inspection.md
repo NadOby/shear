@@ -1,9 +1,10 @@
 # Semantic Inspection Interface
 
-Status: Proposed interface – Review Resolve; owner decisions pending.
+Status: Independently approved read-only interface; D123-7c owner-authorized.
 Issue: GH-123.
-Decision: D123-7b.
+Decisions: D123-7a, D123-7b, D123-7c.
 Scope: Generic SHEAR language facilities, not constraint-specific execution.
+Review baseline: `96c62618cddc04bb3b1074730d6582207a61af37`.
 
 ## 1. Purpose
 
@@ -13,21 +14,31 @@ or forcing proportional-size materialization.
 
 The interface covers all 15 canonical semantic kinds.
 
-This specification proposes the concrete public interface
-under the owner-approved D123-7a and D123-7b requirements.
+D123-7a authorizes immutable semantic visibility.
+D123-7b authorizes generic `inspect`.
+D123-7c authorizes the complete read-only public interface
+defined in this document, including the generalized data
+operations and semantic-record field schemas.
 
-D123-7b authorizes generic inspect in principle.
-Generalizing existing operations remains subject to explicit
-owner approval.
+D123-7c explicitly approves:
+
+- Generalizing `len`, `item` and `slice` to strings, bytes,
+  lists, maps and semantic records.
+- String-named record-field access through `item`.
+- The specified Cell, Constraint and Relation field schemas.
+- Closure opacity and all existing authority restrictions.
+
+Existing tuple semantics, canonical identities and security
+boundaries remain unchanged.
 
 Semantic-record reconstruction is a separate unresolved
-capability. The four operations proposed here are sufficient
+capability. The four operations defined here are sufficient
 for inspection, but do not alone establish complete T5
 constraint reconstruction.
 
-No production implementation is authorized before the
-interface has been reviewed and remaining language changes
-have received owner approval.
+Owner authorization permits implementation of the approved
+interface. It does not establish implementation success or
+authorize additional language operations.
 
 ## 2. Generic inspection
 
@@ -136,7 +147,7 @@ serialized key bytes to the program.
 Map indices are positional integers, even when semantic
 map keys are integers.
 
-This proposal does not overload item(map, key) for
+This interface does not overload item(map, key) for
 lookup by semantic key.
 
 Key lookup can be expressed through ordinary SHEAR
@@ -178,10 +189,10 @@ does not recursively expand that value.
 
 The fields and their exposure rules are specified below.
 
-## 4. Proposed record schemas
+## 4. Approved record schemas
 
-These schemas are proposed for Review. They are not
-automatically inferred from Python attributes or from
+These are the owner-approved public record schemas.
+They are not inferred from Python attributes or from
 the CanonicalNode serialization layout.
 
 ### Cell
@@ -296,7 +307,7 @@ role collection.
 
 ### Closure
 
-Closures are opaque in this initial interface.
+Closures are opaque in this interface.
 
     inspect(closure) = ("closure", closure)
 
@@ -359,7 +370,8 @@ No runtime alias permits mutation of canonical contents.
 
 ## 7. Implementation boundaries and missing construction
 
-The inspection interface must be implemented consistently across:
+The approved inspection interface must be implemented
+consistently across:
 
 - Input-form operation shapes.
 - Text syntax and parsing.
@@ -369,20 +381,19 @@ The inspection interface must be implemented consistently across:
 - VM execution.
 - Restricted execution policy.
 
-`inspect` is the one already authorized new generic operation.
+`inspect` is the approved new generic operation.
 
-Generalizing len, item and slice is proposed as the
-smallest compatible extension to existing operations.
-It must preserve the original tuple contracts.
+D123-7c authorizes generalizing the existing `len`,
+`item` and `slice` operations to the semantic kinds
+specified in sections 3 and 4.
 
-Extending these operations to strings, bytes, lists,
-maps and records is a normative language change.
+It also authorizes string-named record lookup through
+`item` and the exact public record-field schemas.
 
-String-named record lookup through item is likewise
-a normative extension requiring explicit owner approval.
+Existing tuple behavior must remain unchanged.
 
 No additional instruction or public operation follows
-implicitly from this proposal.
+implicitly from D123-7c.
 
 Compiler preparation and authenticated evaluator
 execution must remain distinct.
@@ -429,7 +440,7 @@ Any proposal must specify:
 - How malformed inputs fail without host semantic fallback.
 - How genuine SHEAR reconstruction is independently tested.
 
-This document does not authorize a constructor, a new
+D123-7c does not authorize a constructor, a new
 opcode, a constraint-specific VM operation, privileged
 host reconstruction or additional language syntax.
 
@@ -437,8 +448,8 @@ The missing capability must remain explicit until its
 design is approved or the experiment demonstrates a
 different sufficient existing mechanism.
 
-Approval of this inspection interface alone does not
-constitute approval of complete T5 reconstruction.
+Approval of the inspection interface does not constitute
+approval of complete T5 reconstruction.
 
 ## 8. Resource requirements
 
@@ -505,34 +516,40 @@ complete constraint equivalence.
 Constraint reconstruction is separately required by T5,
 and remains blocked on the capability in section 7.1.
 
-## 10. Review gates
+## 10. Review and authorization
 
-Independent interface Review must specifically assess:
+Independent Review approved the read-only semantic
+inspection interface at
+`96c62618cddc04bb3b1074730d6582207a61af37`.
 
-- Whether generalized len, item and slice suffice for
-  inspection in the integrated constraint experiment.
-- Whether all nine constraint operand schemas are exact.
-- Whether record schemas preserve semantic identity,
-  abstraction and authority boundaries.
-- Whether relation roles can be exposed without eager
-  cloning or unintended type changes.
-- Whether closure opacity is compatible with all frozen
-  acceptance obligations.
-- Whether map ordering and access avoid repeated sorting.
-- Whether canonical values can remain physically shared
-  across all supported inspection operations.
-- Whether the proposed operation extensions require
-  additional owner approval.
-- Whether semantic-record reconstruction remains explicitly
-  unresolved rather than silently attributed to inspection.
+The owner subsequently approved D123-7c, authorizing
+the normative extensions and record-field exposure rules
+specified in this document.
 
-Unresolved implementation obstacles must be reported
-with minimal reproducible counterexamples.
+This authorization closes the public inspection-interface
+design gate only.
 
-Do not treat this proposed interface or its acceptance
-criteria as an executed implementation.
+Implementation must still establish:
 
-The owner retains authority over normative language
-changes and semantic-record construction.
+- Correct operation of generalized len, item and slice.
+- Exact public semantic-record field behavior.
+- Map ordering without repeated sorting.
+- Shallow access without eager copying.
+- Canonical identity and lifetime preservation.
+- Closure opacity and cell-state isolation.
+- Restricted execution and authority enforcement.
+- Compiler, verifier and VM consistency.
+- Preservation of existing tuple behavior and golden records.
 
-The independent interface Review gate remains mandatory.
+C10 semantic-record reconstruction remains unresolved
+and requires its own architectural decision or a
+demonstration of sufficient existing generic facilities.
+
+The independently approved 18-module, 78-test T5
+acceptance contract remains unchanged.
+
+No candidate-dependent test success is implied by
+interface approval.
+
+The owner retains authority over any subsequent
+normative language or construction changes.
