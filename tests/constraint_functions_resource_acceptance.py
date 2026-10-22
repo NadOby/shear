@@ -9,6 +9,9 @@ Execute supplies prepare_resource_probe(canonical_value, operation),
 which returns a reusable callable taking one argument. "control" is a
 test-only, constant-work admitted invocation over the same prepared
 canonical value. It is not a public SHEAR language operation.
+
+Shallow inspection is measured without recursively consuming contents.
+Explicitly requested full output is consumed inside measurement.
 """
 
 from importlib import import_module
@@ -35,7 +38,6 @@ WORK_RATIO_LIMIT = 8
 ALLOCATION_GROWTH_LIMIT = 16 * 1024
 OUTPUT_CPU_SLOPE_TOLERANCE = 3
 ROLE_BYTES_PER_ITEM = 96
-COMPOSITE_BYTES_PER_ITEM = 80
 
 
 class WholeInvocationProfile:
@@ -82,7 +84,15 @@ class WholeInvocationMeasurement:
     def __init__(self, entries):
         self.entries = entries
 
-    def run(self, inspected, control, argument):
+    def run(self, inspected, control, argument, *, materialize=False):
+        if materialize:
+            operation = inspected
+
+            def inspected(arg):
+                result = operation(arg)
+                canonical_bytes(result)
+                return result
+
         if sys.getprofile() is not None or sys.gettrace() is not None:
             raise AssertionError("resource measurements need exclusive hooks")
 
@@ -91,6 +101,7 @@ class WholeInvocationMeasurement:
         results = []
 
         with candidate_execution_guard(self.entries) as opened:
+
             def invoke(prepared, *, allocation):
                 before = len(opened)
                 if allocation:
@@ -216,9 +227,13 @@ class InspectionResourceAcceptance(unittest.TestCase):
             raise AssertionError("resource probe did not prepare callables")
         return inspected, control
 
-    def observation_prepared(self, inspected, control, argument, expected):
+    def observation_prepared(
+        self, inspected, control, argument, expected, *, materialize=False
+    ):
         meter = WholeInvocationMeasurement(self.entries)
-        row = meter.run(inspected, control, argument)
+        row = meter.run(
+            inspected, control, argument, materialize=materialize
+        )
         reference = canonical_bytes(expected)
         for result in row.pop("results"):
             self.assertEqual(
@@ -227,10 +242,13 @@ class InspectionResourceAcceptance(unittest.TestCase):
             )
         return row
 
-    def observation(self, value, operation, argument, expected):
+    def observation(
+        self, value, operation, argument, expected, *, materialize=False
+    ):
         inspected, control = self.prepare(value, operation)
         return self.observation_prepared(
-            inspected, control, argument, expected
+            inspected, control, argument, expected,
+            materialize=materialize,
         )
 
     def assert_scaling(self, small, large, *, label):
@@ -265,6 +283,7 @@ class InspectionResourceAcceptance(unittest.TestCase):
         sort_growth = []
 
         for row, count in ((small, SMALL), (large, LARGE)):
+
             def copied(argument, row=row, count=count):
                 temporary = [None] * count
                 result = row["inspected"](argument)
@@ -343,7 +362,17 @@ class InspectionResourceAcceptance(unittest.TestCase):
                     inspected, control, index,
                     (ordered[index], value[ordered[index]]),
                 ))
-            rows.append(max(samples, key=lambda row: row["warm_cpu"]))
+
+            # Preserve the most expensive cold and warm readings
+            # independently, including the very first invocation.
+            summary = dict(samples[0])
+            for key in (
+                "cold_cpu", "warm_cpu", "cold_peak", "warm_peak",
+                "cpu_noise",
+            ):
+                summary[key] = max(sample[key] for sample in samples)
+            rows.append(summary)
+
         self.assert_scaling(*rows, label="map item")
 
     def test_large_sequence_index(self):
@@ -363,7 +392,9 @@ class InspectionResourceAcceptance(unittest.TestCase):
             }
             value = Relation("large", roles)
             expected = tuple(sorted(roles.items()))
-            rows.append(self.observation(value, "roles", None, expected))
+            rows.append(self.observation(
+                value, "roles", None, expected, materialize=True
+            ))
         self.assert_output_scaling(
             *rows, label="relation roles", bytes_per_item=ROLE_BYTES_PER_ITEM
         )
@@ -381,9 +412,8 @@ class InspectionResourceAcceptance(unittest.TestCase):
                 children, "arguments", None, (children.parts,)
             ))
         self.assert_scaling(*shallow, label="one_of shallow arguments")
-        self.assert_output_scaling(
-            *composite, label="all_of children",
-            bytes_per_item=COMPOSITE_BYTES_PER_ITEM,
+        self.assert_scaling(
+            *composite, label="all_of shallow arguments"
         )
 
     def test_shallow_inspection_scaling(self):
