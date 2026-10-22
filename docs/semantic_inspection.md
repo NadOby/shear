@@ -1,6 +1,6 @@
 # Semantic Inspection Interface
 
-Status: Proposed interface – independent Review required.
+Status: Proposed interface – Review Resolve; owner decisions pending.
 Issue: GH-123.
 Decision: D123-7b.
 Scope: Generic SHEAR language facilities, not constraint-specific execution.
@@ -15,6 +15,15 @@ The interface covers all 15 canonical semantic kinds.
 
 This specification proposes the concrete public interface
 under the owner-approved D123-7a and D123-7b requirements.
+
+D123-7b authorizes generic inspect in principle.
+Generalizing existing operations remains subject to explicit
+owner approval.
+
+Semantic-record reconstruction is a separate unresolved
+capability. The four operations proposed here are sufficient
+for inspection, but do not alone establish complete T5
+constraint reconstruction.
 
 No production implementation is authorized before the
 interface has been reviewed and remaining language changes
@@ -154,7 +163,13 @@ For a record with exposed fields:
 Here s is a field-name string.
 
 Field enumeration follows the schema's declared order.
-Named lookup and positional access return the same value.
+
+The named and positional forms agree on the field value,
+not on their complete return shapes:
+
+    item(record, i)[1] == item(record, field_name)
+
+where field_name is the name at position i.
 
 Unknown field names and invalid indices are LanguageError.
 
@@ -188,10 +203,56 @@ Fields, in order:
     form
     arguments
 
-`form` is the semantic constraint form name, such as
-"is_kind", "all_of" or "external".
+`form` is one of the nine semantic constraint form names.
 
-`arguments` is a tuple of its semantic operands.
+`arguments` is a tuple with the exact following schema:
+
+| Form | arguments |
+|---|---|
+| is_kind | `(kind,)` |
+| int_range | `(minimum, maximum)` |
+| length | `(minimum, maximum)` |
+| one_of | `(values,)` |
+| all_of | `(parts,)` |
+| any_of | `(parts,)` |
+| not | `(part,)` |
+| role | `(role_name, part)` |
+| external | `(name,)` |
+
+The table describes public semantic values, not Python
+implementation objects or private CanonicalNode structures.
+
+For `is_kind`, kind is the semantic kind name.
+
+For `int_range` and `length`, minimum and maximum retain
+their existing optional-bound semantics and validation rules.
+
+For `one_of`, values is a single existing immutable
+collection of canonical semantic values.
+
+For `all_of` and `any_of`, parts is a single existing
+immutable collection of semantic constraints. Canonical
+deduplication and ordering remain unchanged.
+
+For `not`, part is the nested semantic constraint.
+
+For `role`, role_name is the declared role-name string
+and part is the nested semantic constraint.
+
+For `external`, name is the external evaluator name.
+No evaluator object or dispatch authority is exposed.
+
+Empty `one_of`, `all_of` and `any_of` collections retain
+their existing semantic identities and evaluation behavior.
+
+In particular:
+
+    OneOf.arguments = (values,)
+    AllOf.arguments = (parts,)
+    AnyOf.arguments = (parts,)
+
+The nested collections are not flattened into the outer
+argument tuple.
 
 The operand tuple is shallow. Nested constraints and
 collections remain semantically typed.
@@ -199,6 +260,9 @@ collections remain semantically typed.
 Creating this field may allocate a bounded tuple of
 operand references, but not recursively copy operand
 contents or flatten variable-length collections.
+
+The outer tuple length is determined by the form's
+declared schema, not by the size of any nested collection.
 
 This schema provides generic dispatch without exposing
 the Python Constraint class hierarchy.
@@ -293,9 +357,9 @@ do not mutate the source.
 
 No runtime alias permits mutation of canonical contents.
 
-## 7. Implementation boundaries
+## 7. Implementation boundaries and missing construction
 
-The interface must be implemented consistently across:
+The inspection interface must be implemented consistently across:
 
 - Input-form operation shapes.
 - Text syntax and parsing.
@@ -305,11 +369,17 @@ The interface must be implemented consistently across:
 - VM execution.
 - Restricted execution policy.
 
-`inspect` is the one newly approved generic operation.
+`inspect` is the one already authorized new generic operation.
 
 Generalizing len, item and slice is proposed as the
 smallest compatible extension to existing operations.
 It must preserve the original tuple contracts.
+
+Extending these operations to strings, bytes, lists,
+maps and records is a normative language change.
+
+String-named record lookup through item is likewise
+a normative extension requiring explicit owner approval.
 
 No additional instruction or public operation follows
 implicitly from this proposal.
@@ -322,6 +392,53 @@ external calls, runtime-state reads or mutation effects.
 
 No Python-side subject-dependent projection or constraint
 predicate may substitute for ordinary SHEAR computation.
+
+### 7.1 Unresolved semantic-record reconstruction
+
+The four inspection and access operations read existing
+semantic values. They do not construct a new semantic
+constraint value from runtime-computed fields.
+
+In particular:
+
+- Tuple construction creates an ordinary semantic tuple,
+  not a semantic constraint record.
+- An inspection result is not a record constructor.
+- Constraint.from_content() is host-side machinery,
+  not an admitted ordinary SHEAR operation.
+- Returning the supplied original constraint does not
+  establish independent semantic reconstruction.
+
+The full T5 contract requires reconstruction performed
+through admitted ordinary SHEAR computation while
+preserving canonical constraint identity.
+
+This is the missing capability identified as C10 in
+`docs/constraint_functions_capability_matrix.md`.
+
+A separate owner-approved solution is required before
+complete T5 feasibility can be established.
+
+Any proposal must specify:
+
+- Whether construction is generic across semantic records.
+- How forms and operand schemas are validated.
+- How existing canonical identities are preserved.
+- How construction is compiled and executed in SHEAR.
+- Which effects, authorities and runtime policies apply.
+- How malformed inputs fail without host semantic fallback.
+- How genuine SHEAR reconstruction is independently tested.
+
+This document does not authorize a constructor, a new
+opcode, a constraint-specific VM operation, privileged
+host reconstruction or additional language syntax.
+
+The missing capability must remain explicit until its
+design is approved or the experiment demonstrates a
+different sufficient existing mechanism.
+
+Approval of this inspection interface alone does not
+constitute approval of complete T5 reconstruction.
 
 ## 8. Resource requirements
 
@@ -360,16 +477,17 @@ Before accepting implementation:
 2. Verify Unicode code-point indexing and slicing.
 3. Verify maps with differing insertion orders.
 4. Verify record field ordering and missing fields.
-5. Verify shallow preservation of nested semantic types.
-6. Verify large strings, bytes, maps and collections
+5. Verify all nine constraint argument schemas.
+6. Verify shallow preservation of nested semantic types.
+7. Verify large strings, bytes, maps and collections
    without eager proportional-size materialization.
-7. Verify repeated access does not induce avoidable
+8. Verify repeated access does not induce avoidable
    quadratic behavior.
-8. Verify closure opacity, cell-state isolation and
+9. Verify closure opacity, cell-state isolation and
    absence of graph or external authority.
-9. Verify compiler, verifier, VM and restricted policy
-   agree on the operations.
-10. Verify existing tuple semantics, canonical identities
+10. Verify compiler, verifier, VM and restricted policy
+    agree on the operations.
+11. Verify existing tuple semantics, canonical identities
     and golden records remain unchanged.
 
 The integrated GH-123 witness remains mandatory:
@@ -384,12 +502,16 @@ Raw canonical subject
 An isolated inspection demonstration does not establish
 complete constraint equivalence.
 
+Constraint reconstruction is separately required by T5,
+and remains blocked on the capability in section 7.1.
+
 ## 10. Review gates
 
 Independent interface Review must specifically assess:
 
 - Whether generalized len, item and slice suffice for
-  the integrated constraint experiment.
+  inspection in the integrated constraint experiment.
+- Whether all nine constraint operand schemas are exact.
 - Whether record schemas preserve semantic identity,
   abstraction and authority boundaries.
 - Whether relation roles can be exposed without eager
@@ -401,6 +523,8 @@ Independent interface Review must specifically assess:
   across all supported inspection operations.
 - Whether the proposed operation extensions require
   additional owner approval.
+- Whether semantic-record reconstruction remains explicitly
+  unresolved rather than silently attributed to inspection.
 
 Unresolved implementation obstacles must be reported
 with minimal reproducible counterexamples.
@@ -409,4 +533,6 @@ Do not treat this proposed interface or its acceptance
 criteria as an executed implementation.
 
 The owner retains authority over normative language
-changes, and the independent Review gate remains mandatory.
+changes and semantic-record construction.
+
+The independent interface Review gate remains mandatory.
