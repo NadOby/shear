@@ -1,6 +1,6 @@
 # Complete Constraint Semantics with Ordinary SHEAR Functions
 
-Status: Approved Plan – public inspection interface design pending Review.
+Status: Approved architecture and acceptance; bounded Plan Resolve for golden-change handling.
 Issue: GH-123.
 Baseline: f994a2d59b0f6f890f4800effe209d88e1c838c1.
 Dependencies: Task 24 (#56), Task 32 (#119).
@@ -57,8 +57,9 @@ authority suffice for safe runtime integration.
 These are historical hypotheses, not unconditional
 acceptance restrictions.
 
-H-2 and the projection preference in H-3 are superseded
-by the approved generic inspection mechanism.
+H-1, H-2 and the projection preference in H-3 are superseded
+by the approved D123-7c inspection interface and D123-8
+generic semantic-record constructor.
 
 Falsify remaining hypotheses with minimal executable
 witnesses. A necessary additional language-shaping change
@@ -91,9 +92,14 @@ Bytes expose byte content, not hexadecimal serialization.
 Maps expose semantic entries in canonical-key order.
 Records expose only defined immutable semantic fields.
 
-D123-7b approves generic `inspect(value)` and the
-demand-driven requirements specified in section 15.
+D123-7b approves generic `inspect(value)`.
+D123-7c approves generalized `len`, `item`, `slice`, named
+record-field access and exact immutable record schemas.
+D123-8 approves pure `record(kind, fields)` construction
+for Cell, Constraint and Relation values.
 
+The normative contracts are in `docs/semantic_inspection.md`
+and `docs/semantic_record_construction.md`.
 No other new language operation is authorized.
 Test generic inspection on non-constraint values.
 
@@ -212,7 +218,9 @@ An unsupported case is a failure, not a successful rejection.
 No fixture names, oracle expectations or replay seeds may be
 provided to the candidate evaluator.
 
-No weakening of Task 24 acceptance or golden records is permitted.
+No weakening of Task 24 acceptance or behavioral golden
+expectations is permitted. Only the narrowly declared
+compiler-induced identity changes in section 14 may differ.
 
 ## 9. Execution authenticity
 
@@ -339,7 +347,8 @@ Independent Review must verify:
 - Plan-owned acceptance integrity;
 - absence of hidden fallback;
 - real machine and runtime execution;
-- unchanged canonical/golden behavior;
+- unchanged semantic behavior and canonical identity rules,
+  apart from declared compiler-code identity changes;
 - exact semantic and failure outcomes;
 - reproducible cost measurements;
 - complete mechanism accounting;
@@ -353,7 +362,7 @@ without the owner's decision.
 
 D123-1: Generic canonical projection preferred initially.
 D123-2: No new syntax or VM instructions initially.
-Both preferences are superseded by D123-7b.
+Both preferences are superseded by D123-7b, D123-7c and D123-8.
 D123-3: Existing restricted execution preferred.
 D123-4: Exact semantic budgeting through ordinary computation.
 D123-5: Production removal deferred until equivalence is proven.
@@ -361,6 +370,15 @@ D123-6: Owner approves 1000x warm median and p95 latency
 as initial sufficiency ceilings, subject to evidence-based review.
 No hard count limit applies to new generic mechanisms.
 Every mechanism must be identified, justified and measured.
+
+D123-7c: Owner-approved public inspection interface,
+generalized `len`, `item`, `slice`, named record lookup,
+immutable Cell/Constraint/Relation schemas and Closure opacity.
+D123-8: Owner-approved pure `record(kind, fields)` for
+immutable Cell, Constraint and Relation construction,
+including required compiler/VM/verifier/restricted support.
+No construction of closures, forging opaque identifiers,
+new authority or constraint-specific interpreter is authorized.
 
 These preferences may be falsified by the experiment.
 Any replacement language decision returns to the owner.
@@ -422,7 +440,32 @@ internal evaluator architecture. Their candidate-facing adapters
 may not substitute Python truth evaluation for SHEAR execution.
 
 Task 24's frozen semantic oracles, all 17 boundary cases,
-expected results and golden records remain authoritative.
+behavioral expectations and unrelated golden identities
+remain authoritative.
+
+Golden-change exception – compiler evolution only:
+- Compiler-containing semantic program identities may change
+  when approved `inspect`, generalized access and `record`
+  support changes the canonical compiler code.
+- Create `tests/golden_changes/GH-123.txt` during Execute,
+  declaring individually only the records actually changed.
+- Expected candidates are `programs/compiler`,
+  `programs/instrument` and `programs/bootstrap`; they are
+  not a blanket authorization if any remains unchanged.
+- Never use a wildcard declaration or modify historic
+  declarations. Any additional changed record requires
+  separate review and explicit justification.
+- Preserve unrelated identities and every behavioral oracle.
+- Regenerate and verify the hosted seed manifest and record
+  the exact golden checker comparison against the base.
+- Because the golden checker rejects unchanged declared
+  records, add the declaration with the compiler change,
+  not as a stand-alone preemptive Plan commit.
+
+Representable invalid slice bounds must reach admitted SHEAR
+execution and produce LanguageError. Unsupported floats
+cannot be canonicalized and must be rejected before VM entry.
+The approved T5 method inventory remains unchanged.
 
 The new suites are not demonstrated merely by being committed.
 Before Execute, independent Review must check their consistency,
@@ -439,8 +482,8 @@ without an explicit owner decision and renewed independent Review.
 
 ## 15. Architectural feasibility amendment
 
-Status: Independently approved Plan; public inspection
-interface design and Review remain pending.
+Status: Architectural design approved. D123-7c and D123-8
+owner-authorized; implementation evidence pending.
 
 `docs/constraint_functions_capability_matrix.md` identifies
 inherited limitations and separates host, VM, compiler,
@@ -496,21 +539,21 @@ Nested values retain their semantic type and identity.
 Requested slices may allocate in proportion to the
 requested output, but not the entire containing value.
 
-The exact demand-driven result representation, access
-operations and lifetime semantics are not yet frozen.
-They must be designed and reviewed before production
-implementation of the public interface.
+D123-7c fixes the demand-driven representation, generalized
+access operations, lifetime rules and public field schemas
+for Cell, Constraint and Relation; Closure remains opaque.
+The normative interface is `docs/semantic_inspection.md`.
+Its independent Review approved the read-only design,
+and the owner authorized D123-7c.
 
-Semantic-record field schemas are also not yet frozen.
-Their field names, ordering and exposure rules must be
-specified for `cell`, `constraint`, `relation` and `closure`
-without exposing live state or privileged internals.
-These schemas require independent interface Review.
-
-The implementation may reuse or generalize existing
-operations where compatible with their contracts.
-Any additional normative language operation beyond
-`inspect` requires owner approval.
+The implementation must preserve existing tuple contracts.
+D123-7c authorizes the named-field and generalized access
+extensions. D123-8 authorizes one pure generic
+`record(kind, fields)` construction operation with approved
+record schemas, via authenticated admitted SHEAR execution.
+The normative contract is `docs/semantic_record_construction.md`.
+No further normative operation or execution authority is
+authorized without owner approval.
 
 The approved visibility contract does not authorize
 generic object reflection, host callbacks or privileged
@@ -520,8 +563,9 @@ Implement the resulting approved interface consistently
 across the source language, compiler, VM, verifier and
 restricted execution policy.
 
-Existing semantic identities, golden records and frozen
-constraint acceptance remain unchanged.
+Existing canonical identity rules and frozen constraint
+acceptance remain unchanged; compiler-containing program
+identities follow the narrow section 14 golden exception.
 
 The first integrated feasibility witness remains mandatory.
 An isolated inspection demonstration is insufficient.
@@ -578,15 +622,20 @@ The original 15 candidate-dependent modules and 56 tests remain
 mandatory. The expanded inventory comprises 18 modules and 78
 test methods, including three additional T5 acceptance suites.
 
-Task 24 oracles, Task 32 security requirements, golden records
-and approved 1000x performance ceilings remain unchanged.
+Task 24 oracles, Task 32 security requirements, all unrelated
+golden identities and approved 1000x performance ceilings
+remain unchanged. Section 14 governs compiler-code goldens.
 
 The corrected preflight-denial and execution-isolation
 assertions must be preserved. Authorized compiler
 preparation must remain distinguishable from forbidden
 candidate execution before restricted preflight.
 
-The architectural Plan and demand-driven D123-7b refinement
-were independently approved. The still-undefined public
-inspection interface requires independent Review before
-production implementation.
+The architecture, D123-7c inspection interface and D123-8
+generic construction design were independently approved and
+owner-authorized. The acceptance contract is frozen at
+18 candidate-dependent modules and 78 tests. The remaining
+work is the bounded golden-declaration correction and Execute:
+complete implementation, integrated External callback/resumption,
+authenticated reconstruction, runtime admission, CI and resource
+evidence. These are unproven, not approved test outcomes.
