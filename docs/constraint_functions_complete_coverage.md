@@ -311,141 +311,6 @@ Generalized len and slice must preserve Unicode code-point
 semantics, bytes, canonical map order, record field ordering,
 half-open bounds, result kinds and LanguageError behavior.
 
-Independent causal dependency is required separately for each
-supported indexable semantic kind:
-
-- str
-- bytes
-- tuple
-- list
-- map
-- cell
-- constraint
-- relation
-
-A machine-result perturbation for one kind cannot establish
-dependency for another.
-
-The perturbation must substitute genuine authenticated machine
-returns of a compatible machine-level contract.
-
-No fixed number of evaluator invocations or assumption about
-the complete adapter-return shape is permitted.
-
-### Constraint reconstruction
-
-Preserve all original canonical reconstruction witnesses,
-equivalence cases and type-sensitive distinctions.
-
-Independently establish machine-result dependency for each
-of the nine supported constraint forms:
-
-- is_kind
-- int_range
-- length
-- one_of
-- all_of
-- any_of
-- not
-- role
-- external
-
-For each form, compatible genuine machine-output substitution
-must change the observation or produce explicit fail-closed
-validation rejection with exact substituted-output provenance.
-
-A single successful form cannot qualify the complete inventory.
-
-### Resource efficiency
-
-The resource acceptance uses test-owned whole-invocation
-measurement, not candidate-reported counters or nominated
-Python tracing boundaries.
-
-Execute supplies reusable prepared operations through:
-
-    prepare_resource_probe(canonical_value, operation)
-
-A test-only "control" mode provides matched admitted invocation
-overhead without subject inspection.
-
-Resource measurements must account for:
-
-- Input canonicalization and preparation before measurement.
-- Authenticated execution and invocation overhead.
-- Whole-invocation process CPU time.
-- Peak Python-traced allocation.
-- Python and native call coverage.
-- Matched control overhead.
-- Measurement noise and calibration sensitivity.
-
-Synthetic large-copy and native-sort controls must demonstrate
-that the measurement can detect relevant scaling defects.
-
-Required witnesses include repeated map indexing, large sequence
-access, relation-role contents, constraint operands and shallow
-inspection.
-
-Complete semantic contents and ordering must be verified,
-not merely result sizes.
-
-Resource bounds must distinguish avoidable copying from storage
-and processing necessarily required to materialize explicitly
-requested proportional-size results.
-
-An implementation satisfying the public semantic and resource
-contract must not fail merely because its representation
-requires legitimate output materialization.
-
-Independent source-path auditing must examine delegated helpers,
-native operations, sorting, serialization, control equivalence
-and possible unmeasured or host-side semantic work.
-
-Whole-invocation measurement is not independent proof of
-execution authenticity.
-
-### Preserved requirements
-
-The expanded T5 suite introduces no additional public SHEAR
-## 13. Expanded T5 acceptance inventory
-
-This section extends the mandatory T5 inventory in section 6.
-No earlier test or obligation is superseded.
-
-Additional mandatory modules:
-
-- `tests/constraint_functions_nested_record_acceptance.py`
-- `tests/constraint_functions_sequence_acceptance.py`
-- `tests/constraint_functions_resource_acceptance.py`
-
-The expanded Plan inventory comprises 18 candidate-dependent
-modules and 78 test methods.
-
-The original 15 modules and 56 tests remain mandatory.
-Inventory counts are not execution results.
-
-Execute must register and run all 18 modules. Unexecuted,
-skipped or unsupported tests do not constitute acceptance.
-
-### Nested semantic records
-
-Generated nested-record tests must establish traversal of
-actual semantic contents, including canonically normalized
-nested values.
-
-Expected paths and values must be derived independently from
-original semantic fixtures, not candidate-generated paths or
-private canonical serialization.
-
-Named and positional field access, mixed container nesting,
-canonical identities and semantic result kinds remain mandatory.
-
-### Generalized sequence operations
-
-Generalized len and slice must preserve Unicode code-point
-semantics, bytes, canonical map order, record field ordering,
-half-open bounds, result kinds and LanguageError behavior.
-
 Independent authenticated execution-dependency evidence is
 required for both operations on all eight indexable kinds:
 
@@ -501,7 +366,8 @@ A unique injected fault following an admitted machine result
 must propagate without host fallback.
 
 Different reconstruction expressions must have distinguishable
-machine-return observations.
+ordered machine-return observations including evaluator entries.
+Multi-invocation traces must not be reduced to unordered sets.
 
 No arbitrary cross-entry or cross-schema substitution of
 VM outputs is required.
@@ -530,6 +396,9 @@ All measured invocations must independently establish entry
 into authenticated admitted evaluator code.
 
 No unmeasured warm-up invocation may hide inspection work.
+For repeated canonical map indexing, independently aggregate
+worst cold CPU, cold allocation, warm CPU and warm allocation
+across all inspected indices.
 
 First-use and warm costs must be measured separately.
 
@@ -566,9 +435,16 @@ OneOf.arguments exposes a fixed-size outer tuple referencing
 its existing value collection. Reading this field must not
 copy the complete nested collection.
 
-Increasing-arity AllOf arguments may require allocation
-proportional to explicitly requested output, subject to
-independently validated numeric thresholds.
+AllOf.arguments likewise exposes a fixed-size outer tuple
+referencing the existing child collection. Increasing arity
+does not authorize copying that nested collection during access.
+Both OneOf and AllOf arguments require shallow-access bounds.
+
+Only separately authorized full-output materialization may
+receive output-proportional resource allowances.
+Explicit full relation-role output must be consumed within
+measured invocations, without forcing recursive serialization
+of shallow inspection results.
 
 Relation-role exposure must avoid eager cloning and repeated
 sorting. Any permitted output-proportional materialization
@@ -604,6 +480,7 @@ Independent Review must verify:
 - Unique VM-return fault propagation.
 - Distinct VM observations where required.
 - First-use and warm measurement completeness.
+- Measured consumption of deferred full-output work.
 - Calibration, timing noise and threshold sensitivity.
 - Native allocation limitations and source-path coverage.
 - Shallow versus output-proportional resource semantics.
