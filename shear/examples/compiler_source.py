@@ -65,6 +65,8 @@ LOWERED = frozenset({
     "seq",
     "call",
     "tuple",
+    "inspect",
+    "record",
     "len",
     "item",
     "slice",
@@ -270,10 +272,24 @@ def _lower_op_cases() -> list[tuple[str, tuple]]:
         ),
         ("tuple", _evals_from(1, _op("MKTUPLE", _length_minus(1)))),
         (
+            "inspect",
+            _chunk(
+                _child(1),
+                _op("INSPECT"),
+            ),
+        ),
+        (
+            "record",
+            _chunk(
+                _child(1),
+                _child(2),
+                _op("RECORD"),
+            ),
+        ),
+        (
             "len",
             _chunk(
                 _child(1),
-                _op("TUPLE", _lit("len")),
                 _op("LEN"),
             ),
         ),
@@ -281,9 +297,7 @@ def _lower_op_cases() -> list[tuple[str, tuple]]:
             "item",
             _chunk(
                 _child(1),
-                _op("TUPLE", _lit("item")),
                 _child(2),
-                _op("INT", _lit("item")),
                 _op("ITEM"),
             ),
         ),
@@ -291,11 +305,8 @@ def _lower_op_cases() -> list[tuple[str, tuple]]:
             "slice",
             _chunk(
                 _child(1),
-                _op("TUPLE", _lit("slice")),
                 _child(2),
-                _op("INT", _lit("slice")),
                 _child(3),
-                _op("INT", _lit("slice")),
                 _op("SLICE"),
             ),
         ),
