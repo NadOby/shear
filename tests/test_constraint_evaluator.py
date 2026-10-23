@@ -22,6 +22,7 @@ from shear import (
 )
 from shear.examples._support import program
 from shear.examples.constraint_evaluator import (
+    BOUND_ENTRY,
     BUDGET_STEP,
     EVALUATE,
     INT_RANGE,
@@ -32,6 +33,7 @@ from shear.examples.constraint_evaluator import (
     LOGIC_NOT,
     ONE_OF,
     VALUE_EQUAL,
+    bound_evaluator_entities,
     evaluator_entities,
 )
 from shear.hosted_bootstrap.restricted import RestrictedExecutor
@@ -59,7 +61,10 @@ class ConstraintEvaluatorTests(unittest.TestCase):
         cls.executor = RestrictedExecutor()
         cls.deployment = cls.executor.deploy(cls.source)
 
-    def execute(self, entry, *arguments):
+    def execute(self, entry, *arguments, executor=None, deployment=None):
+        executor = self.executor if executor is None else executor
+        deployment = self.deployment if deployment is None else deployment
+        state = deployment._target.state
         opened = []
         original_open = machine._open
 
@@ -69,16 +74,16 @@ class ConstraintEvaluatorTests(unittest.TestCase):
             )
             self.assertEqual(
                 activation.hold.version.state.id,
-                self.deployment.source_state_id,
+                deployment.source_state_id,
             )
-            key = (node, self.source.values[node].version_id)
-            artifact = self.deployment.artifacts.get(key)
+            key = (node, state.values[node].version_id)
+            artifact = deployment.artifacts.get(key)
             self.assertIsNotNone(artifact)
             self.assertIs(chunk, artifact.chunk)
             self.assertEqual(artifact.owner, activation.entity)
             self.assertEqual(
                 artifact.produced_by,
-                self.deployment.compiler_generation,
+                deployment.compiler_generation,
             )
             artifact.verify()
             opened.append(activation.entity)
@@ -90,9 +95,7 @@ class ConstraintEvaluatorTests(unittest.TestCase):
             patch.object(bytecode, "chunk_of", side_effect=_no_lowering),
             patch.object(bytecode, "lower_value", side_effect=_no_lowering),
         ):
-            result = self.executor.run(
-                self.deployment, entry, *arguments
-            )
+            result = executor.run(deployment, entry, *arguments)
 
         self.assertIn(entry, opened, "evaluator was not executed")
         return result
@@ -334,6 +337,68 @@ class ConstraintEvaluatorTests(unittest.TestCase):
                 self.assert_execution(
                     EVALUATE, (subject, constraint, budget), expected
                 )
+
+    def test_bound_entry_reuses_admitted_preparation(self):
+        cases = (
+            (
+                OneOf(1, "1"),
+                None,
+                ((1, SAT), (True, VIO), ("1", SAT), (2, VIO)),
+            ),
+            (
+                AllOf(IsKind("int"), IntRange(0, 10)),
+                3,
+                ((5, SAT), (20, VIO), ("5", VIO)),
+            ),
+            (
+                Role("x", IsKind("int")),
+                2,
+                (({"x": 3}, SAT), ({"x": True}, VIO),
+                 ({"y": 3}, VIO)),
+            ),
+            (
+                IsKind("int"),
+                0,
+                ((5, UNK), (True, UNK)),
+            ),
+        )
+        for constraint, budget, witnesses in cases:
+            with self.subTest(constraint=repr(constraint), budget=budget):
+                source = load(program(
+                    bound_evaluator_entities(constraint, budget)
+                ))
+                executor = RestrictedExecutor()
+                deployment = executor.deploy(source)
+                snapshot = tuple(sorted(
+                    (
+                        node.value,
+                        version.value,
+                        artifact.artifact_id,
+                    )
+                    for (node, version), artifact
+                    in deployment.artifacts.items()
+                ))
+
+                for subject, expected in witnesses:
+                    actual = self.execute(
+                        BOUND_ENTRY,
+                        subject,
+                        executor=executor,
+                        deployment=deployment,
+                    )
+                    self.assertEqual(actual, expected)
+                    self.assertEqual(
+                        snapshot,
+                        tuple(sorted(
+                            (
+                                node.value,
+                                version.value,
+                                artifact.artifact_id,
+                            )
+                            for (node, version), artifact
+                            in deployment.artifacts.items()
+                        )),
+                    )
 
 
 if __name__ == "__main__":
