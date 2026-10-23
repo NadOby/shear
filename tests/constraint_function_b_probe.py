@@ -1,10 +1,14 @@
-"""Task 24 candidate B: bounded ordinary-function capability probes.
+"""Task 24 candidate B: ordinary-function capability probes.
 
-These probes test real SHEAR execution, not a Python reimplementation
-of constraint evaluation. Negative witnesses are expected outcomes.
+The original bounded experiment demonstrated that canonical records, maps,
+and non-tuple sequences could not be inspected through ordinary functions.
 
-Run with: python3 -m tests.constraint_function_b_probe
-This is an experimental module, not a Plan-owned acceptance test.
+GH-123 introduces the approved generic semantic inspection operations.
+These tests now verify the newly available capabilities using real SHEAR
+execution, without an incumbent constraint-evaluation fallback.
+
+The historical negative findings remain in the Task 24 documentation and
+repository history; they are not claims about the current implementation.
 """
 
 from __future__ import annotations
@@ -60,7 +64,6 @@ class CandidateBCapabilityTests(unittest.TestCase):
         self.assertEqual(caught.exception.error[1], "wrong_kind")
 
     def test_ordinary_tuple_interpretation_works(self) -> None:
-        """The VM can interpret ordinary tuple-form data."""
         program = argument("program")
         subject = argument("subject")
 
@@ -95,59 +98,139 @@ class CandidateBCapabilityTests(unittest.TestCase):
         self.assertEqual(runtime.active.state.id, before)
         self.assertEqual(runtime.active.holds, frozenset())
 
-    def test_canonical_constraints_cannot_be_projected(self) -> None:
-        """The existing tuple operation cannot inspect constraint data."""
+    def test_canonical_constraints_expose_public_fields(self) -> None:
+        constraint = argument("constraint")
+        form = ("item", constraint, literal("form"))
+        arguments = ("item", constraint, literal("arguments"))
+
         runtime = ordinary_runtime(
             ("constraint",),
-            element(argument("constraint"), 2),
+            (
+                "tuple",
+                element(("inspect", constraint), 0),
+                ("len", constraint),
+                element(constraint, 0),
+                form,
+                ("len", arguments),
+            ),
         )
 
-        constraints = (
-            IsKind("int"),
-            IntRange(0, 10),
-            Length(0, 10),
-            OneOf(1, 2),
-            Role("item", IsKind("int")),
-            AllOf(IsKind("int"), IntRange(0, 10)),
+        cases = (
+            (IsKind("int"), "is_kind", 1),
+            (IntRange(0, 10), "int_range", 2),
+            (Length(0, 10), "length", 2),
+            (OneOf(1, 2), "one_of", 1),
+            (Role("item", IsKind("int")), "role", 2),
+            (
+                AllOf(IsKind("int"), IntRange(0, 10)),
+                "all_of",
+                1,
+            ),
         )
+
+        before = runtime.active.state.id
 
         with patch.object(
             Constraint,
             "evaluate",
             side_effect=AssertionError("incumbent fallback"),
         ):
-            for constraint in constraints:
-                with self.subTest(kind=type(constraint).__name__):
-                    self.assert_wrong_kind(runtime, constraint)
+            for value, name, arity in cases:
+                with self.subTest(kind=type(value).__name__):
+                    self.assertEqual(
+                        run(runtime, ENTRY, value),
+                        (
+                            "constraint",
+                            2,
+                            ("form", name),
+                            name,
+                            arity,
+                        ),
+                    )
 
-    def test_canonical_maps_cannot_be_projected(self) -> None:
-        """Role lookup lacks an ordinary map-content operation."""
+        self.assertEqual(runtime.active.state.id, before)
+        self.assertEqual(runtime.active.holds, frozenset())
+
+    def test_record_access_rejects_unknown_fields(self) -> None:
         runtime = ordinary_runtime(
+            ("constraint",),
+            ("item", argument("constraint"), literal("missing")),
+        )
+
+        with self.assertRaises(LanguageError) as caught:
+            run(runtime, ENTRY, IsKind("int"))
+
+        self.assertEqual(caught.exception.error[0], "language")
+        self.assertEqual(caught.exception.error[1], "out_of_range")
+        self.assertIn(
+            ("field", "missing"),
+            caught.exception.error[2],
+        )
+
+    def test_canonical_maps_are_positionally_inspectable(self) -> None:
+        subject = argument("subject")
+        runtime = ordinary_runtime(
+            ("subject",),
+            (
+                "tuple",
+                element(("inspect", subject), 0),
+                ("len", subject),
+                element(subject, 0),
+                element(subject, 1),
+            ),
+        )
+
+        for mapping in (
+            {"b": 2, "a": 1},
+            {"a": 1, "b": 2},
+        ):
+            with self.subTest(mapping=mapping):
+                self.assertEqual(
+                    run(runtime, ENTRY, mapping),
+                    (
+                        "map",
+                        2,
+                        ("a", 1),
+                        ("b", 2),
+                    ),
+                )
+
+        named_lookup = ordinary_runtime(
+            ("subject",),
+            ("item", argument("subject"), literal("a")),
+        )
+        self.assert_wrong_kind(named_lookup, {"a": 1})
+
+        # Positional map access does not change tuple semantics.
+        tuples = ordinary_runtime(
             ("subject",),
             element(argument("subject"), 0),
         )
-        self.assert_wrong_kind(runtime, {"item": 7})
+        self.assertEqual(run(tuples, ENTRY, (7,)), 7)
 
-        # Ordinary tuples remain inspectable.
-        self.assertEqual(run(runtime, ENTRY, (7,)), 7)
-
-    def test_length_is_not_generic_canonical_length(self) -> None:
-        """The current len operation handles tuples, not all Length kinds."""
+    def test_length_is_generic_semantic_length(self) -> None:
         runtime = ordinary_runtime(
             ("subject",),
             ("len", argument("subject")),
         )
 
-        self.assertEqual(run(runtime, ENTRY, (1, 2)), 2)
+        cases = (
+            ((1, 2), 2),
+            ("ab", 2),
+            ("e\u0301", 2),
+            (b"ab", 2),
+            ([1, 2], 2),
+            ({"item": 1}, 1),
+        )
 
-        for subject in (
-            "ab",
-            b"ab",
-            [1, 2],
-            {"item": 1},
-        ):
+        for subject, expected in cases:
             with self.subTest(subject=subject):
-                self.assert_wrong_kind(runtime, subject)
+                self.assertEqual(
+                    run(runtime, ENTRY, subject),
+                    expected,
+                )
+
+        self.assert_wrong_kind(runtime, 7)
 
     def test_probes_do_not_change_runtime_versions(self) -> None:
         runtime = ordinary_runtime(
