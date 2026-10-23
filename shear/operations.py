@@ -62,6 +62,8 @@ OPERATIONS: Mapping[str, Shape] = _shapes(
     Shape("activate", None, ("values",), frozenset({"values"})),
     Shape("trial", None, ("args", "values"), frozenset({"args", "values"})),
     Shape("tuple", None, ("items",), frozenset({"items"}), True),
+    Shape("inspect", 1, ("value",), positional=True),
+    Shape("record", 2, ("kind", "fields"), positional=True),
     Shape("len", 1, ("tuple",), positional=True),
     Shape("item", 2, ("tuple", "index"), positional=True),
     Shape("slice", 3, ("tuple", "start", "stop"), positional=True),
