@@ -472,8 +472,15 @@ def _execute(
 
                 elif op == "INT":
                     value = stack[-1]
+                    named_field = (
+                        instr[1] == "item"
+                        and isinstance(value, str)
+                        and machine_semantics.execute(
+                            "INSPECT", stack[-2]
+                        )[0] in ("cell", "constraint", "relation")
+                    )
 
-                    if not _is_int(value):
+                    if not (_is_int(value) or named_field):
                         exc = LanguageError(
                             f"{activation.entity.value}: "
                             f"{instr[1]} operands must be int"
@@ -817,28 +824,47 @@ def _execute(
 
                 elif op == "TUPLE":
                     value = stack.pop()
-                    items = _items(value)
 
-                    if items is None:
-                        exc = LanguageError(
-                            f"{activation.entity.value}: "
-                            f"{instr[1]} operands must be tuples"
-                        )
-                        raise _attach(
-                            exc,
-                            "language",
-                            "wrong_kind",
-                            _detail(
-                                expected="tuple",
-                                got=kind_of(value),
-                                operation=instr[1],
-                            ),
-                            current_function,
-                            current_node,
-                        )
+                    if instr[1] in ("len", "item", "slice"):
+                        try:
+                            machine_semantics.execute("LEN", value)
+                        except machine_semantics.SemanticFailure as error:
+                            exc = LanguageError(
+                                f"{activation.entity.value}: "
+                                f"{instr[1]}: {error}"
+                            )
+                            raise _attach(
+                                exc,
+                                "language",
+                                error.kind,
+                                error.detail,
+                                current_function,
+                                current_node,
+                            ) from error
 
-                    stack.append(items)
+                        stack.append(value)
+                    else:
+                        items = _items(value)
 
+                        if items is None:
+                            exc = LanguageError(
+                                f"{activation.entity.value}: "
+                                f"{instr[1]} operands must be tuples"
+                            )
+                            raise _attach(
+                                exc,
+                                "language",
+                                "wrong_kind",
+                                _detail(
+                                    expected="tuple",
+                                    got=kind_of(value),
+                                    operation=instr[1],
+                                ),
+                                current_function,
+                                current_node,
+                            )
+
+                        stack.append(items)
                 elif op in ("INSPECT", "RECORD", "LEN", "ITEM", "SLICE"):
                     values = _pop_n(stack, machine_semantics.ARITY[op])
 
