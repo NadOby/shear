@@ -75,6 +75,7 @@ TARGETS = (
     # A kill here is not evidence that a behavioural test caught the change;
     # that evidence is tests/test_hosted_bootstrap.py's differential test.
     "shear/examples/compiler_source.py",
+    "shear/examples/constraint_evaluator.py",
     "shear/examples/self_hosting.py",
     "shear/examples/vm.py",
     "shear/examples/vm_bootstrap.py",
