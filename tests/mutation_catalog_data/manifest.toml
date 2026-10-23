@@ -15,6 +15,7 @@ catalog_targets = [
     "shear/identity.py",
     "shear/lang.py",
     "shear/machine.py",
+    "shear/machine_errors.py",
     "shear/matching.py",
     "shear/ownership.py",
     "shear/reconcile.py",
