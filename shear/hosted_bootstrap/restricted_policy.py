@@ -29,11 +29,13 @@ from .validation import validate_chunk
 _PURE_SOURCE = frozenset({
     "lit", "arg", "add", "sub", "mul", "lt", "eq", "tuple", "seq",
     "if", "let", "unquote", "len", "item", "slice", "concat",
+    "inspect", "record",
     "catch", "raise", "invalid", "call",
 })
 _PURE_INSTRUCTIONS = frozenset({
     "LIT", "ARG", "ADD", "SUB", "MUL", "LT", "EQ", "INT",
     "TUPLE", "MKTUPLE", "LEN", "ITEM", "SLICE", "CONCAT", "POP",
+    "INSPECT", "RECORD",
     "EVAL", "BRANCH", "GOTO", "LETCHECK", "LETBIND", "END",
     "CALL", "CATCH", "FAIL", "RAISE",
 })
