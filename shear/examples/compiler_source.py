@@ -290,6 +290,7 @@ def _lower_op_cases() -> list[tuple[str, tuple]]:
             "len",
             _chunk(
                 _child(1),
+                _op("TUPLE", _lit("len")),
                 _op("LEN"),
             ),
         ),
@@ -297,7 +298,9 @@ def _lower_op_cases() -> list[tuple[str, tuple]]:
             "item",
             _chunk(
                 _child(1),
+                _op("TUPLE", _lit("item")),
                 _child(2),
+                _op("INT", _lit("item")),
                 _op("ITEM"),
             ),
         ),
@@ -305,8 +308,11 @@ def _lower_op_cases() -> list[tuple[str, tuple]]:
             "slice",
             _chunk(
                 _child(1),
+                _op("TUPLE", _lit("slice")),
                 _child(2),
+                _op("INT", _lit("slice")),
                 _child(3),
+                _op("INT", _lit("slice")),
                 _op("SLICE"),
             ),
         ),
