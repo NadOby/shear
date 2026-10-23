@@ -1134,7 +1134,7 @@ class RefusalsAreReachable(unittest.TestCase):
         _, session, state = self.prepared()
 
         class Garbage:
-            value = ("not", "a", "descriptor")
+            value = ()
 
         self.refused("compiler failed", session._chain.compile, Garbage(), 1)
 
