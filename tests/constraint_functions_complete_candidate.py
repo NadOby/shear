@@ -1,13 +1,15 @@
 """GH-123 candidate adapter for authenticated ordinary SHEAR evaluation.
 
-This adapter translates constraint declarations into canonical values and
-prepares admitted SHEAR code. It never computes constraint truth in Python.
+Python constructs semantic declarations and admitted programs, but never
+computes semantic verdicts, equality or inspection results.
 
-Registered External continuation and runtime-boundary integration remain
-separate implementation work. Unsupported cases fail explicitly.
+Registered External continuation and runtime integration remain separate.
+Unsupported cases fail explicitly.
 """
 
 from __future__ import annotations
+
+from functools import lru_cache
 
 from shear import (
     AllOf,
@@ -30,19 +32,30 @@ from shear.constraints import Constraint
 from shear.examples._support import program
 from shear.examples.constraint_evaluator import (
     BOUND_ENTRY,
+    VALUE_EQUAL,
     bound_evaluator_entities,
+    evaluator_entities,
 )
 from shear.hosted_bootstrap.restricted import RestrictedExecutor
-from shear.lang import load
+from shear.lang import Function, links, load
 from tests.constraint_function_acceptance import CandidateInput, Observation
 from tests.constraint_function_oracle import KindSample
 
 
-EVALUATOR_ENTRIES = frozenset({BOUND_ENTRY})
+PROJECT_INSPECT = EntityID("constraint.project.inspect")
+PROJECT_EQUAL = EntityID("constraint.project.equal")
+PROJECT_SELECT = EntityID("constraint.project.select")
+
+EVALUATOR_ENTRIES = frozenset({
+    BOUND_ENTRY,
+    PROJECT_INSPECT,
+    PROJECT_EQUAL,
+    PROJECT_SELECT,
+})
 
 
 def _constraint(expression: tuple) -> Constraint:
-    """Construct a semantic declaration, without evaluating its subject."""
+    """Construct a semantic declaration without evaluating its subject."""
     if not isinstance(expression, tuple) or not expression:
         raise TypeError("constraint expression must be a nonempty tuple")
 
@@ -147,4 +160,117 @@ def semantic(case: CandidateInput) -> Observation:
         outcome=result,
         route="compiled",
         incumbent_calls=0,
-      )
+    )
+
+
+def _projection_inspection() -> tuple:
+    """Build a SHEAR expression that reports kind, length and value."""
+    value = ("arg", "value")
+    inspected = ("arg", "inspected")
+    kind = ("item", inspected, ("lit", 0))
+
+    size = ("lit", None)
+    for name in reversed(("str", "bytes", "tuple", "list", "map")):
+        size = (
+            "if",
+            ("eq", kind, ("lit", name)),
+            ("len", value),
+            size,
+        )
+
+    return (
+        "let", "inspected", ("inspect", value),
+        (
+            "tuple",
+            kind,
+            size,
+            ("item", inspected, ("lit", 1)),
+        ),
+    )
+
+
+def _projection_selection() -> tuple:
+    """Walk public semantic paths entirely through ordinary SHEAR."""
+    value = ("arg", "value")
+    path = ("arg", "path")
+    index = ("arg", "index")
+
+    return (
+        "if",
+        ("lt", index, ("len", path)),
+        (
+            "call",
+            "next",
+            ("item", value, ("item", path, index)),
+            path,
+            ("add", index, ("lit", 1)),
+        ),
+        value,
+    )
+
+
+def _projection_entities() -> dict:
+    """Define admitted generic operations with explicit static links."""
+    entities = evaluator_entities()
+
+    entities[PROJECT_INSPECT] = Function(
+        ("value",),
+        _projection_inspection(),
+    )
+    entities[PROJECT_EQUAL] = Function(
+        ("left", "right"),
+        (
+            "call",
+            "equal",
+            ("arg", "left"),
+            ("arg", "right"),
+        ),
+    )
+    entities[PROJECT_SELECT] = Function(
+        ("value", "path", "index"),
+        _projection_selection(),
+    )
+
+    entities[EntityID(f"{PROJECT_EQUAL.value}.links")] = links(
+        PROJECT_EQUAL,
+        equal=VALUE_EQUAL,
+    )
+    entities[EntityID(f"{PROJECT_SELECT.value}.links")] = links(
+        PROJECT_SELECT,
+        next=PROJECT_SELECT,
+    )
+
+    return entities
+
+
+@lru_cache(maxsize=1)
+def _projection_deployment() -> tuple:
+    """Compile and admit generic projection code once, independent of data."""
+    source = load(program(_projection_entities()))
+    executor = RestrictedExecutor()
+    deployment = executor.deploy(source)
+    return executor, deployment
+
+
+def inspect_projection(value: object) -> tuple:
+    """Return the inspection result produced by admitted SHEAR code."""
+    executor, deployment = _projection_deployment()
+    return executor.run(deployment, PROJECT_INSPECT, value)
+
+
+def equal_projection(left: object, right: object) -> bool:
+    """Use recursive, type-sensitive SHEAR equality."""
+    executor, deployment = _projection_deployment()
+    return executor.run(deployment, PROJECT_EQUAL, left, right)
+
+
+def select_projection(value: object, path: tuple) -> object:
+    """Traverse a public semantic path inside the authenticated VM."""
+    executor, deployment = _projection_deployment()
+    return executor.run(
+        deployment,
+        PROJECT_SELECT,
+        value,
+        path,
+        0,
+    )
