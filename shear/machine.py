@@ -5,26 +5,29 @@ from __future__ import annotations
 from contextvars import ContextVar
 from typing import Any, Callable, Mapping
 
-from . import bytecode
+from . import bytecode, machine_semantics
 from .canonical import CanonicalNode, canonical_serialize, canonicalize
-from .closures import Closure, closure_value
+from .closures import Closure
 from .constraints import _HOST_FAILURES, _is_host_failure, kind_of
 from .identity import EntityID
 from .lang import (
-    CallDepthExceeded, Function, LanguageError, _decode, _definition_of, _fill,
-    _function_value, define, function_at, function_of,
+    CallDepthExceeded, LanguageError, _decode, _definition_of, _fill,
+    function_at, function_of,
 )
+from .machine_calls import (
+    _callable, _closure, _function, _reference, _resolved_call,
+)
+from .machine_errors import (
+    _RUN, _Raised, _attach, _attach_runtime, _detail,
+)
+from .machine_runtime import _activation_pairs, _define_for_operation
 from .runtime import (
-    ActivationConflict, ActivationRejected, CellContentRejected, CellError,
+    ActivationRejected, CellContentRejected, CellError,
     RelationConstraintRejected, Runtime,
 )
 from .values import Value
 
 _RETURN: bytecode.Chunk = (("RETURN",),)
-
-# The run whose machine is currently executing. ``_attach`` stamps the errors
-# it creates with it; ``catch`` accepts only errors stamped by its own run.
-_RUN: ContextVar[object | None] = ContextVar("shear_run", default=None)
 
 # Where the current run gets the chunk of a node: ``(state, entity, owner)``
 # to chunk. None, the default, lowers on demand and caches on the node's value
@@ -59,14 +62,6 @@ def _chunk_for(
     return bytecode.chunk_of(version.state, entity, owner)
 
 
-class _Raised(LanguageError):
-    """An uncaught program ``raise``."""
-
-
-_Raised.__name__ = "Raised"
-_Raised.__qualname__ = "Raised"
-
-
 class _Activation:
     __slots__ = ("entity", "hold", "values")
 
@@ -92,95 +87,6 @@ class _Handler:
         self.kinds = kinds
 
 
-def _detail(**fields: Any) -> tuple[tuple[str, Any], ...]:
-    return tuple(sorted(fields.items()))
-
-
-def _attach(
-    exc: BaseException,
-    origin: str,
-    kind: str,
-    detail: Any,
-    function: EntityID,
-    node: EntityID,
-) -> BaseException:
-    if not hasattr(exc, "error"):
-        exc.error = (origin, kind, detail, (function, node))
-        exc._shear_run = _RUN.get()
-    return exc
-
-
-def _attach_runtime(
-    exc: BaseException,
-    function: EntityID,
-    node: EntityID,
-    operation: str,
-) -> BaseException:
-    if _is_host_failure(exc) or hasattr(exc, "error"):
-        return exc
-
-    if isinstance(exc, CellContentRejected):
-        return _attach(
-            exc,
-            "runtime",
-            "cell_rejected",
-            _detail(
-                cell=exc.cell,
-                constraint=exc.result.value,
-                operation=operation,
-            ),
-            function,
-            node,
-        )
-
-    if isinstance(exc, RelationConstraintRejected):
-        return _attach(
-            exc,
-            "runtime",
-            "relation_rejected",
-            _detail(
-                constraint=exc.result.value,
-                operation=operation,
-                relation=exc.relation,
-            ),
-            function,
-            node,
-        )
-
-    if isinstance(exc, ActivationConflict):
-        return _attach(
-            exc,
-            "runtime",
-            "activation_conflict",
-            _detail(reason=exc.reason),
-            function,
-            node,
-        )
-
-    if isinstance(exc, ActivationRejected):
-        fields: dict[str, Any] = {"reason": exc.reason}
-
-        if exc.cell is not None:
-            fields["cell"] = exc.cell
-
-        if exc.result is not None:
-            fields["constraint"] = exc.result.value
-
-        if exc.relation is not None:
-            fields["relation"] = exc.relation
-
-        return _attach(
-            exc,
-            "runtime",
-            "activation_rejected",
-            _detail(**fields),
-            function,
-            node,
-        )
-
-    return exc
-
-
 def _is_int(value: Any) -> bool:
     return isinstance(value, int) and not isinstance(value, bool)
 
@@ -202,214 +108,6 @@ def _items(value: Any) -> tuple[Any, ...] | None:
         return value[2] if value[1] == "tuple" else None
 
     return value if isinstance(value, tuple) else None
-
-
-def _reference(value: Any) -> EntityID | None:
-    if isinstance(value, EntityID):
-        return value
-
-    if isinstance(value, CanonicalNode) and value[1] == "entity_id":
-        return EntityID(value[2])
-
-    return None
-
-
-def _callable(value: Any) -> EntityID | Closure | None:
-    reference = _reference(value)
-    return reference if reference is not None else closure_value(value)
-
-
-def _function(owner: EntityID, params: Any, body: Any) -> Function:
-    params, body = _decode(params), _decode(body)
-
-    if not isinstance(params, tuple):
-        raise LanguageError(
-            f"{owner.value}: function parameters must be a tuple"
-        )
-
-    if not isinstance(body, tuple):
-        raise LanguageError(
-            f"{owner.value}: function body must be a tuple"
-        )
-
-    try:
-        return Function(params, body)
-    except (TypeError, ValueError) as exc:
-        raise LanguageError(str(exc)) from exc
-
-
-def _closure(
-    owner: EntityID,
-    body: EntityID,
-    params: Any,
-    capture_names: Any,
-    env: Mapping[str, Any],
-) -> Closure:
-    params, capture_names = _decode(params), _decode(capture_names)
-
-    if not isinstance(params, tuple):
-        raise LanguageError(
-            f"{owner.value}: closure parameters must be a tuple"
-        )
-
-    if not isinstance(capture_names, tuple):
-        raise LanguageError(
-            f"{owner.value}: closure captures must be a tuple"
-        )
-
-    if not all(
-        isinstance(name, str) and name
-        for name in capture_names
-    ):
-        raise LanguageError(
-            f"{owner.value}: closure captures need non-empty string names"
-        )
-
-    captures = []
-
-    for name in capture_names:
-        if name not in env:
-            raise LanguageError(
-                f"{owner.value}: missing closure capture {name!r}"
-            )
-
-        captures.append((name, env[name]))
-
-    try:
-        return Closure(
-            owner,
-            body,
-            params,
-            tuple(captures),
-        )
-    except (TypeError, ValueError) as exc:
-        raise LanguageError(
-            f"{owner.value}: {exc}"
-        ) from exc
-
-
-def _activation_pairs(
-    runtime: Runtime,
-    owner: EntityID,
-    node: EntityID,
-    entries: tuple[Any, ...],
-    targets: tuple[EntityID, ...],
-    values: list[Any],
-    op: str,
-) -> tuple[Any, dict]:
-    active = runtime.active.state
-    resolved = iter(targets)
-    seen: set[Any] = set()
-    edits: dict[EntityID | tuple[EntityID, str], Any] = {}
-
-    for (name, problem), value in zip(entries, values):
-        if problem is not None:
-            exc = LanguageError(
-                f"{owner.value}: {problem}"
-            )
-            raise _attach(
-                exc,
-                "language",
-                "malformed",
-                _detail(operation=op, problem=problem),
-                owner,
-                node,
-            )
-
-        target = next(resolved)
-        label = name[1] if isinstance(name, tuple) else None
-        key = (
-            (target, label)
-            if label is not None
-            else target
-        )
-
-        if key in seen:
-            problem = (
-                f"{op} target appears twice: {target.value}"
-            )
-            exc = LanguageError(
-                f"{owner.value}: {problem}"
-            )
-            raise _attach(
-                exc,
-                "language",
-                "malformed",
-                _detail(operation=op, problem=problem),
-                owner,
-                node,
-            )
-
-        seen.add(key)
-
-        if target not in active.values:
-            exc = LanguageError(
-                f"{owner.value}: {op} target does not exist: "
-                f"{target.value}"
-            )
-            raise _attach(
-                exc,
-                "language",
-                "absent",
-                _detail(entity=target, operation=op),
-                owner,
-                node,
-            )
-
-        if _definition_of(active.values[target]) is None:
-            exc = LanguageError(
-                f"{owner.value}: {op} target is not a function: "
-                f"{target.value}"
-            )
-            raise _attach(
-                exc,
-                "language",
-                "not_a_function",
-                _detail(entity=target, operation=op),
-                owner,
-                node,
-            )
-
-        function = _function_value(value)
-
-        if label is not None:
-            if function is not None:
-                problem = (
-                    f"{op} value is not an expression: {target.value}"
-                )
-                exc = LanguageError(
-                    f"{owner.value}: {problem}"
-                )
-                raise _attach(
-                    exc,
-                    "language",
-                    "malformed",
-                    _detail(operation=op, problem=problem),
-                    owner,
-                    node,
-                )
-
-            edits[key] = value
-        else:
-            if function is None:
-                problem = (
-                    f"{op} value is not a function: {target.value}"
-                )
-                exc = LanguageError(
-                    f"{owner.value}: {problem}"
-                )
-                raise _attach(
-                    exc,
-                    "language",
-                    "malformed",
-                    _detail(operation=op, problem=problem),
-                    owner,
-                    node,
-                )
-
-            edits[key] = function
-
-    return active, edits
 
 
 def _pop_n(
@@ -665,102 +363,6 @@ def _open_closure(
         raise
 
     return chunk, env, closure.body
-
-
-def _resolved_call(
-    runtime: Runtime,
-    owner: EntityID,
-    node: EntityID,
-    target: EntityID | Closure,
-    operation: str,
-) -> tuple[
-    EntityID,
-    Closure | None,
-]:
-    active = runtime.active.state
-
-    if isinstance(target, Closure):
-        if not active.contains(target.owner):
-            exc = LanguageError(
-                f"{owner.value}: apply of closure whose owner "
-                f"{target.owner.value} is not in the active state"
-            )
-            raise _attach(
-                exc,
-                "language",
-                "absent",
-                _detail(
-                    entity=target.owner,
-                    operation=operation,
-                ),
-                owner,
-                node,
-            )
-
-        if not active.contains(target.body):
-            exc = LanguageError(
-                f"{owner.value}: apply of closure whose body "
-                f"{target.body.value} is not in the active state"
-            )
-            raise _attach(
-                exc,
-                "language",
-                "absent",
-                _detail(
-                    entity=target.body,
-                    operation=operation,
-                ),
-                owner,
-                node,
-            )
-
-        return target.owner, target
-
-    if not active.contains(target):
-        exc = LanguageError(
-            f"{owner.value}: apply of {target.value}, "
-            f"which is not in the active state"
-        )
-        raise _attach(
-            exc,
-            "language",
-            "absent",
-            _detail(
-                entity=target,
-                operation=operation,
-            ),
-            owner,
-            node,
-        )
-
-    return target, None
-
-
-def _define_for_operation(
-    active: Any,
-    edits: Mapping,
-    operation: str,
-    function: EntityID,
-    node: EntityID,
-) -> Any:
-    try:
-        return define(
-            active,
-            edits,
-        )
-    except LanguageError as exc:
-        _attach(
-            exc,
-            "language",
-            "malformed",
-            _detail(
-                operation=operation,
-                problem=str(exc),
-            ),
-            function,
-            node,
-        )
-        raise
 
 
 def _execute(
@@ -1237,70 +839,26 @@ def _execute(
 
                     stack.append(items)
 
-                elif op == "LEN":
-                    stack.append(
-                        len(stack.pop())
-                    )
+                elif op in ("INSPECT", "RECORD", "LEN", "ITEM", "SLICE"):
+                    values = _pop_n(stack, machine_semantics.ARITY[op])
 
-                elif op == "ITEM":
-                    index = stack.pop()
-                    items = stack.pop()
-
-                    if not 0 <= index < len(items):
+                    try:
+                        result = machine_semantics.execute(op, *values)
+                    except machine_semantics.SemanticFailure as error:
                         exc = LanguageError(
                             f"{activation.entity.value}: "
-                            f"item index {index} is outside "
-                            f"a tuple of {len(items)}"
+                            f"{op.lower()}: {error}"
                         )
                         raise _attach(
                             exc,
                             "language",
-                            "out_of_range",
-                            _detail(
-                                index=index,
-                                length=len(items),
-                                operation="item",
-                            ),
+                            error.kind,
+                            error.detail,
                             current_function,
                             current_node,
-                        )
+                        ) from error
 
-                    stack.append(
-                        items[index]
-                    )
-
-                elif op == "SLICE":
-                    stop = stack.pop()
-                    start = stack.pop()
-                    items = stack.pop()
-
-                    if not (
-                        0 <= start
-                        <= stop
-                        <= len(items)
-                    ):
-                        exc = LanguageError(
-                            f"{activation.entity.value}: "
-                            f"slice {start}:{stop} is outside "
-                            f"a tuple of {len(items)}"
-                        )
-                        raise _attach(
-                            exc,
-                            "language",
-                            "out_of_range",
-                            _detail(
-                                length=len(items),
-                                operation="slice",
-                                start=start,
-                                stop=stop,
-                            ),
-                            current_function,
-                            current_node,
-                        )
-
-                    stack.append(
-                        items[start:stop]
-                    )
+                    stack.append(result)
 
                 elif op == "CONCAT":
                     right = stack.pop()
