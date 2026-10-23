@@ -833,11 +833,18 @@ def _execute(
                                 f"{activation.entity.value}: "
                                 f"{instr[1]}: {error}"
                             )
+                            detail = tuple(
+                                (
+                                    key,
+                                    instr[1] if key == "operation" else value,
+                                )
+                                for key, value in error.detail
+                            )
                             raise _attach(
                                 exc,
                                 "language",
                                 error.kind,
-                                error.detail,
+                                detail,
                                 current_function,
                                 current_node,
                             ) from error
