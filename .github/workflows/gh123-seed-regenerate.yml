@@ -1,0 +1,39 @@
+name: GH-123 regenerate hosted seed
+
+on:
+  push:
+    branches:
+      - task/123-complete-constraints
+    paths:
+      - .github/workflows/gh123-seed-regenerate.yml
+
+permissions:
+  contents: write
+
+jobs:
+  regenerate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: true
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+
+      - name: Regenerate and verify seed manifest
+        run: |
+          python -m shear.hosted_bootstrap.seed_cli --write
+          python -m shear.hosted_bootstrap.seed_cli
+          git diff --check
+
+      - name: Commit regenerated manifest
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add shear/hosted_bootstrap/manifest.json
+          if ! git diff --cached --quiet; then
+            git commit -m "GH-123 Regenerate hosted seed manifest"
+            git push origin HEAD:refs/heads/task/123-complete-constraints
+          fi
