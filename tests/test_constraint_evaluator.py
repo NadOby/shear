@@ -6,10 +6,24 @@ import unittest
 from unittest.mock import patch
 
 from shear import bytecode, canonical_serialize, canonicalize, machine
-from shear import CellDeclaration, EntityID, IsKind, Relation
+from shear import (
+    AllOf,
+    AnyOf,
+    CellDeclaration,
+    EntityID,
+    External,
+    IntRange,
+    IsKind,
+    Length,
+    Not,
+    OneOf,
+    Relation,
+    Role,
+)
 from shear.examples._support import program
 from shear.examples.constraint_evaluator import (
     BUDGET_STEP,
+    EVALUATE,
     INT_RANGE,
     IS_KIND,
     LENGTH,
@@ -235,6 +249,90 @@ class ConstraintEvaluatorTests(unittest.TestCase):
             with self.subTest(subject=repr(subject)):
                 self.assert_execution(
                     ONE_OF, (subject, values), expected
+                )
+
+    def test_recursive_primitives(self):
+        cases = (
+            ("é", IsKind("str"), None, (SAT, None)),
+            ("é", IsKind("str"), 1, (SAT, 0)),
+            ("é", IsKind("str"), 0, (UNK, 0)),
+            (True, IntRange(0, 10), 1, (VIO, 0)),
+            ("e\u0301", Length(2, 2), 1, (SAT, 0)),
+            (b"\x00\xff", Length(2, 2), 1, (SAT, 0)),
+            ({"a": 1, "b": 2}, Length(2, 2), 1, (SAT, 0)),
+            ((1, True), OneOf([1, True], (1, True)), 1, (SAT, 0)),
+            (True, OneOf(1, "true"), 1, (VIO, 0)),
+            (IsKind("int"), IsKind("constraint"), 1, (SAT, 0)),
+            (EntityID("item"), IsKind("entity_id"), 1, (SAT, 0)),
+            (5, External("missing"), 1, (UNK, 0)),
+            (5, External("missing"), 0, (UNK, 0)),
+        )
+        for subject, constraint, budget, expected in cases:
+            with self.subTest(
+                subject=repr(subject),
+                constraint=repr(constraint),
+                budget=budget,
+            ):
+                self.assert_execution(
+                    EVALUATE, (subject, constraint, budget), expected
+                )
+
+    def test_recursive_composition_and_budgets(self):
+        both = AllOf(IsKind("int"), IntRange(0, 10))
+        either = AnyOf(IsKind("int"), IntRange(0, 10))
+        cases = (
+            (5, AllOf(), 1, (SAT, 0)),
+            (5, AnyOf(), 1, (VIO, 0)),
+            (5, both, 0, (UNK, 0)),
+            (5, both, 1, (UNK, 0)),
+            (5, both, 2, (UNK, 0)),
+            (5, both, 3, (SAT, 0)),
+            (True, both, 2, (VIO, 0)),
+            (True, both, 3, (VIO, 1)),
+            (5, either, 2, (SAT, 0)),
+            (5, either, 3, (SAT, 1)),
+            (True, either, 2, (UNK, 0)),
+            (True, either, 3, (VIO, 0)),
+            (5, Not(IsKind("bool")), 1, (UNK, 0)),
+            (5, Not(IsKind("bool")), 2, (SAT, 0)),
+            (5, Not(Not(IsKind("int"))), 3, (SAT, 0)),
+            (5, Not(Not(IsKind("int"))), 2, (UNK, 0)),
+        )
+        for subject, constraint, budget, expected in cases:
+            with self.subTest(
+                subject=repr(subject),
+                constraint=repr(constraint),
+                budget=budget,
+            ):
+                self.assert_execution(
+                    EVALUATE, (subject, constraint, budget), expected
+                )
+
+    def test_role_traversal_and_nested_composition(self):
+        role = Role("x", IsKind("int"))
+        nested = AllOf(
+            Not(IsKind("bool")),
+            AnyOf(IsKind("int"), IntRange(0, 10)),
+        )
+        cases = (
+            ({"x": 5}, role, 2, (SAT, 0)),
+            ({"x": True}, role, 2, (VIO, 0)),
+            ({"x": 5}, role, 1, (UNK, 0)),
+            ({}, role, 2, (VIO, 1)),
+            ({"other": 5}, role, 2, (VIO, 1)),
+            (5, role, 2, (VIO, 1)),
+            (5, nested, 5, (SAT, 0)),
+            (5, nested, 4, (UNK, 0)),
+            (5, nested, None, (SAT, None)),
+        )
+        for subject, constraint, budget, expected in cases:
+            with self.subTest(
+                subject=repr(subject),
+                constraint=repr(constraint),
+                budget=budget,
+            ):
+                self.assert_execution(
+                    EVALUATE, (subject, constraint, budget), expected
                 )
 
 
