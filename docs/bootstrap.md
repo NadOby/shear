@@ -78,6 +78,8 @@ Every row corresponds to exactly one operation in
 | `activate` | S | S | D | D |
 | `trial` | S | S | D | D |
 | `tuple` | S | S | S | S |
+| `inspect` | S | S | S | S |
+| `record` | S | S | S | S |
 | `len` | S | S | S | S |
 | `item` | S | S | S | S |
 | `slice` | S | S | S | S |
