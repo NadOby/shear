@@ -100,6 +100,7 @@ LANES: dict[str, tuple[str, ...]] = {
     ),
     "cross-boundary": (
         "test_bootstrap_boundary",
+        "test_constraint_evaluator",
         "test_content_baseline",
         "test_corpus",
         "test_docs",
