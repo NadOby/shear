@@ -154,7 +154,7 @@ SITE_RELATIONSHIPS = {
         "_decode",
     ): ("host_vs_shear_lowering",),
     (
-        "shear/machine.py",
+        "shear/machine_calls.py",
         "_function",
         "_decode",
     ): ("function_roundtrip",),
@@ -462,7 +462,7 @@ def _boundaries() -> list[dict[str, str]]:
             ),
         },
         {
-            "path": "shear/examples/vm.py",
+            "path": "shear/examples/vm_bootstrap.py",
             "function": "_compiled",
             "source_representation": "retained graph-form compiler source",
             "destination_representation": "SHEAR compiler-call expression",
@@ -472,7 +472,7 @@ def _boundaries() -> list[dict[str, str]]:
             ),
         },
         {
-            "path": "shear/examples/vm.py",
+            "path": "shear/examples/vm_bootstrap.py",
             "function": "_swapped_function",
             "source_representation": (
                 "compiler-produced chunk and function metadata"
@@ -484,7 +484,7 @@ def _boundaries() -> list[dict[str, str]]:
             ),
         },
         {
-            "path": "shear/examples/vm.py",
+            "path": "shear/examples/vm_bootstrap.py",
             "function": "bootstrap_entities",
             "source_representation": (
                 "Python-constructed compiler and VM definitions"
