@@ -150,30 +150,37 @@ def lower(node: Relation) -> Chunk:
             ("MKTUPLE", len(items)),
         ]
 
+    elif kind == "inspect":
+        code = [
+            ("EVAL", roles["value"]),
+            ("INSPECT",),
+        ]
+
+    elif kind == "record":
+        code = [
+            ("EVAL", roles["kind"]),
+            ("EVAL", roles["fields"]),
+            ("RECORD",),
+        ]
+
     elif kind == "len":
         code = [
             ("EVAL", roles["tuple"]),
-            ("TUPLE", kind),
             ("LEN",),
         ]
 
     elif kind == "item":
         code = [
             ("EVAL", roles["tuple"]),
-            ("TUPLE", kind),
             ("EVAL", roles["index"]),
-            ("INT", kind),
             ("ITEM",),
         ]
 
     elif kind == "slice":
         code = [
             ("EVAL", roles["tuple"]),
-            ("TUPLE", kind),
             ("EVAL", roles["start"]),
-            ("INT", kind),
             ("EVAL", roles["stop"]),
-            ("INT", kind),
             ("SLICE",),
         ]
 
