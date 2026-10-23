@@ -45,12 +45,16 @@ from tests.constraint_function_oracle import KindSample
 PROJECT_INSPECT = EntityID("constraint.project.inspect")
 PROJECT_EQUAL = EntityID("constraint.project.equal")
 PROJECT_SELECT = EntityID("constraint.project.select")
+PROJECT_LENGTH = EntityID("constraint.project.length")
+PROJECT_SLICE = EntityID("constraint.project.slice")
 
 EVALUATOR_ENTRIES = frozenset({
     BOUND_ENTRY,
     PROJECT_INSPECT,
     PROJECT_EQUAL,
     PROJECT_SELECT,
+    PROJECT_LENGTH,
+    PROJECT_SLICE,
 })
 
 
@@ -230,6 +234,19 @@ def _projection_entities() -> dict:
         ("value", "path", "index"),
         _projection_selection(),
     )
+    entities[PROJECT_LENGTH] = Function(
+        ("value",),
+        ("len", ("arg", "value")),
+    )
+    entities[PROJECT_SLICE] = Function(
+        ("value", "start", "stop"),
+        (
+            "slice",
+            ("arg", "value"),
+            ("arg", "start"),
+            ("arg", "stop"),
+        ),
+    )
 
     entities[EntityID(f"{PROJECT_EQUAL.value}.links")] = links(
         PROJECT_EQUAL,
@@ -274,3 +291,30 @@ def select_projection(value: object, path: tuple) -> object:
         path,
         0,
     )
+
+
+def sequence_projection(
+    value: object,
+    operation: str,
+    *arguments: object,
+) -> object:
+    """Dispatch the requested generic sequence operation to SHEAR.
+
+    Unsupported float operands are rejected before canonical VM entry.
+    Representable but invalid operands reach the admitted operation.
+    """
+    if operation == "len":
+        if arguments:
+            raise TypeError("len takes no bounds")
+        entry = PROJECT_LENGTH
+    elif operation == "slice":
+        if len(arguments) != 2:
+            raise TypeError("slice requires start and stop")
+        if any(type(argument) is float for argument in arguments):
+            raise TypeError("float bounds are not canonical SHEAR values")
+        entry = PROJECT_SLICE
+    else:
+        raise ValueError(f"unknown sequence operation: {operation!r}")
+
+    executor, deployment = _projection_deployment()
+    return executor.run(deployment, entry, value, *arguments)
