@@ -274,6 +274,7 @@ def _lookup() -> Example:
         EntityID("lookup.why.links"): links(why, find=find),
     }
     table = (("a", 1), ("b", 2))
+    malformed_pair = (("a",),)
 
     return Example(
         name="lookup",
@@ -285,25 +286,56 @@ def _lookup() -> Example:
                 Step(find, ("z", table), Raises(LanguageError)),
                 Step(find_or, ("z", table, 0), 0),
                 Step(find_or, ("b", table, 0), 2),
-                Step(find_or, ("a", (7,), 0), Raises(LanguageError)),
-                Step(why, ("z", table), ("program", "missing", (("key", "z"),))),
+                Step(
+                    find_or,
+                    ("a", malformed_pair, 0),
+                    Raises(LanguageError),
+                ),
+                Step(
+                    find_or,
+                    ("a", (7,), 0),
+                    Raises(LanguageError),
+                ),
+                Step(
+                    why,
+                    ("z", table),
+                    ("program", "missing", (("key", "z"),)),
+                ),
+                Step(
+                    why,
+                    ("a", malformed_pair),
+                    (
+                        "language",
+                        "out_of_range",
+                        (
+                            ("index", 1),
+                            ("length", 1),
+                            ("operation", "item"),
+                        ),
+                    ),
+                ),
                 Step(
                     why,
                     ("a", (7,)),
                     (
                         "language",
                         "wrong_kind",
-                        (("expected", "indexable"), ("got", "int"), ("operation", "item")),
+                        (
+                            ("expected", "indexable"),
+                            ("got", "int"),
+                            ("operation", "item"),
+                        ),
                     ),
                 ),
             ),
         ),
         description=(
             "find raises its own missing error with the key as detail. "
-            "find_or catches only missing and falls back to a default, so a "
-            "table that is not a tuple of pairs still fails with the "
-            "language's wrong_kind. why reads the origin, kind and detail of "
-            "both failures."
+            "find_or catches only missing and falls back to a default. "
+            "A pair missing its value produces out_of_range; a scalar "
+            "used as a pair produces wrong_kind. Neither failure is "
+            "silently converted into the default. why preserves the "
+            "origin, kind, and structured detail of each failure."
         ),
     )
 
