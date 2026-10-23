@@ -1,9 +1,14 @@
-"""Discover all 18 frozen GH-123 acceptance modules through unittest.
+"""Discover and shard all 18 frozen GH-123 acceptance modules.
 
-The acceptance modules remain unchanged and independently maintained.
-The complete frozen inventory is loaded without skips or filtering.
+All 78 frozen test methods remain mandatory. Sharding changes only
+execution ownership, never test inputs, assertions or outcomes.
 """
 
+from __future__ import annotations
+
+import argparse
+import sys
+import time
 import unittest
 
 from tests import (
@@ -50,20 +55,155 @@ ACCEPTANCE_MODULES = (
 )
 
 
-def load_tests(loader, standard_tests, pattern):
-    """Load every frozen test and enforce the approved inventory."""
-    if len(ACCEPTANCE_MODULES) != 18:
-        raise AssertionError("GH-123 requires 18 acceptance modules")
+EXPECTED_MODULES = 18
+EXPECTED_TESTS = 78
+MAX_SHARDS = 16
+
+
+def _flatten(suite):
+    for item in suite:
+        if isinstance(item, unittest.TestSuite):
+            yield from _flatten(item)
+        else:
+            yield item
+
+
+def inventory(loader):
+    """Return the complete, unique and deterministically ordered inventory."""
+    if len(ACCEPTANCE_MODULES) != EXPECTED_MODULES:
+        raise AssertionError(
+            f"expected {EXPECTED_MODULES} frozen acceptance modules"
+        )
 
     suite = unittest.TestSuite()
 
     for module in ACCEPTANCE_MODULES:
         suite.addTests(loader.loadTestsFromModule(module))
 
-    count = suite.countTestCases()
-    if count != 78:
+    cases = tuple(sorted(_flatten(suite), key=lambda test: test.id()))
+    identifiers = tuple(test.id() for test in cases)
+
+    if len(cases) != EXPECTED_TESTS:
         raise AssertionError(
-            f"GH-123 requires 78 frozen tests, discovered {count}"
+            f"expected {EXPECTED_TESTS} frozen tests, got {len(cases)}"
         )
 
-    return suite
+    if len(set(identifiers)) != EXPECTED_TESTS:
+        raise AssertionError("duplicate frozen acceptance test identity")
+
+    return cases
+
+
+def load_tests(loader, standard_tests, pattern):
+    """Ordinary unittest discovery still loads the entire frozen suite."""
+    return unittest.TestSuite(inventory(loader))
+
+
+def partition(cases, shards):
+    """Assign every test exactly once using stable round-robin ordering."""
+    if not 1 <= shards <= MAX_SHARDS:
+        raise ValueError(
+            f"shard count must be between 1 and {MAX_SHARDS}"
+        )
+
+    groups = tuple(
+        cases[index::shards]
+        for index in range(shards)
+    )
+
+    original = {test.id() for test in cases}
+    assigned = [
+        test.id()
+        for group in groups
+        for test in group
+    ]
+
+    if len(assigned) != len(cases) or set(assigned) != original:
+        raise AssertionError("frozen acceptance sharding lost a test")
+
+    if len(set(assigned)) != len(assigned):
+        raise AssertionError("frozen acceptance sharding duplicated a test")
+
+    return groups
+
+
+class TimedResult(unittest.TextTestResult):
+    """Expose the active test and its individual execution duration."""
+
+    def startTest(self, test):
+        self._started = time.perf_counter()
+        self.stream.writeln(f"START {test.id()}")
+        self.stream.flush()
+        super().startTest(test)
+
+    def stopTest(self, test):
+        elapsed = time.perf_counter() - self._started
+        super().stopTest(test)
+        self.stream.writeln(
+            f"DURATION {elapsed:.3f}s {test.id()}"
+        )
+        self.stream.flush()
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(
+        description="Run one complete deterministic GH-123 acceptance shard"
+    )
+    parser.add_argument("--shard", type=int, required=True)
+    parser.add_argument("--shards", type=int, required=True)
+    arguments = parser.parse_args(argv)
+
+    if not 1 <= arguments.shards <= MAX_SHARDS:
+        parser.error(
+            f"--shards must be between 1 and {MAX_SHARDS}"
+        )
+
+    if not 0 <= arguments.shard < arguments.shards:
+        parser.error("--shard must be a zero-based valid shard index")
+
+    cases = inventory(unittest.defaultTestLoader)
+    groups = partition(cases, arguments.shards)
+    selected = groups[arguments.shard]
+
+    print(
+        f"GH-123 frozen inventory: {len(ACCEPTANCE_MODULES)} modules, "
+        f"{len(cases)} methods",
+        flush=True,
+    )
+    print(
+        f"SHARD {arguments.shard + 1}/{arguments.shards}: "
+        f"{len(selected)} methods",
+        flush=True,
+    )
+
+    for test in selected:
+        print(f"ASSIGNED {test.id()}", flush=True)
+
+    started = time.perf_counter()
+
+    result = unittest.TextTestRunner(
+        stream=sys.stdout,
+        verbosity=2,
+        resultclass=TimedResult,
+    ).run(unittest.TestSuite(selected))
+
+    elapsed = time.perf_counter() - started
+
+    print(
+        f"SHARD COMPLETE {arguments.shard + 1}/{arguments.shards}: "
+        f"executed={result.testsRun}/{len(selected)}, "
+        f"failures={len(result.failures)}, "
+        f"errors={len(result.errors)}, "
+        f"skipped={len(result.skipped)}, "
+        f"elapsed={elapsed:.3f}s",
+        flush=True,
+    )
+
+    if result.testsRun != len(selected) or result.skipped:
+        return 1
+
+    return 0 if result.wasSuccessful() else 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
