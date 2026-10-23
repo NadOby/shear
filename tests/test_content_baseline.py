@@ -181,7 +181,7 @@ class ContentBaselineTests(unittest.TestCase):
 
         self.assertTrue({
             "shear/examples/self_hosting.py",
-            "shear/examples/vm.py",
+            "shear/examples/vm_bootstrap.py",
         } <= {entry["path"] for entry in boundaries})
 
     def test_survivors_match_the_reviewed_catalog(self) -> None:
