@@ -71,6 +71,12 @@ WITNESSES = {
     "activate": ("activate", "f", L),
     "trial": ("trial", ("call", "f", L), "f", L),
     "tuple": ("tuple", L, X),
+    "inspect": ("inspect", X),
+    "record": (
+        "record",
+        ("lit", "constraint"),
+        ("lit", ("is_kind", ("int",))),
+    ),
     "len": ("len", ("tuple", L)),
     "item": ("item", ("tuple", L), ("lit", 0)),
     "slice": ("slice", ("tuple", L), ("lit", 0), L),
