@@ -1,0 +1,7 @@
+# GH-123: approved generic inspect, sequence access and record
+# construction change canonical self-hosted compiler code identities.
+# These are the only three changed records verified by the golden checker.
+# Behavioral expectations and all unrelated records remain protected.
+programs/bootstrap
+programs/compiler
+programs/instrument
