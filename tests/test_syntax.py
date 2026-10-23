@@ -4,6 +4,7 @@ import dataclasses
 import unittest
 
 from shear import EntityID, Runtime, canonical_serialize, canonicalize, transform_with_mapping
+from shear.constraints import IsKind
 from shear.examples import EXAMPLES, play
 from shear.lang import load, run
 from shear.syntax import SourceError, parse, render, render_program
@@ -68,6 +69,46 @@ fn main():
             run(rt, EntityID("main")),
             (3, 1, (2, 3), (1, 2, 3, 4), 7, 10),
         ))
+
+    def test_semantic_inspection_and_record_construction(self) -> None:
+        source = """\
+fn kind_of(x):
+    item(inspect(x), 0)
+
+fn int_constraint():
+    record("constraint", ("is_kind", ("int",)))
+"""
+        state = load(parse(source))
+        rt = Runtime(state)
+
+        self.assertEqual(run(rt, EntityID("kind_of"), 7), "int")
+        self.assertTrue(same(
+            run(rt, EntityID("int_constraint")),
+            IsKind("int").canonical_node(),
+        ))
+
+        text = render_program(state)
+        self.assertIn("item(inspect(x), 0)", text)
+        self.assertIn(
+            'record("constraint", ("is_kind", ("int",)))',
+            text,
+        )
+        self.assertEqual(render_program(load(parse(text))), text)
+
+    def test_semantic_operation_syntax_errors(self) -> None:
+        for source, line in (
+            ("fn inspect(x):\n    x\n", 1),
+            ("fn record(x):\n    x\n", 1),
+            ("fn f(x):\n    inspect()\n", 2),
+            ("fn f(x):\n    inspect(x, x)\n", 2),
+            ("fn f(x):\n    record(x)\n", 2),
+            ("fn f(x):\n    record(x, x, x)\n", 2),
+        ):
+            with self.subTest(source=source):
+                with self.assertRaises(SourceError) as caught:
+                    parse(source)
+
+                self.assertEqual(caught.exception.line, line)
 
     def test_self_modification_in_text(self) -> None:
         rt = runtime("""\
