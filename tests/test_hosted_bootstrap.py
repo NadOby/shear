@@ -1132,11 +1132,46 @@ class RefusalsAreReachable(unittest.TestCase):
 
     def test_a_failing_compiler_run_is_a_refusal_not_a_program_error(self):
         _, session, state = self.prepared()
+        descriptor = describe(state, body(state, G), G)
+        failure = LanguageError("controlled compiler failure")
 
-        class Garbage:
-            value = ()
+        with mock.patch.object(
+            generations.machine, "run", side_effect=failure,
+        ) as execute:
+            with self.assertRaisesRegex(
+                AdmissionRejected, "the SHEAR compiler failed"
+            ) as caught:
+                session._chain.compile(descriptor, 1)
 
-        self.refused("compiler failed", session._chain.compile, Garbage(), 1)
+        self.assertIs(caught.exception.__cause__, failure)
+        execute.assert_called_once()
+        self.assertEqual(
+            execute.call_args.args[1],
+            generations.COMPILE_NODE,
+        )
+        self.assertIsNotNone(
+            execute.call_args.kwargs.get("resolver"),
+        )
+
+    def test_malformed_descriptor_fails_in_admitted_compiler(self):
+        _, session, state = self.prepared()
+        descriptor = describe(state, body(state, G), G)
+
+        # Preserve a genuine descriptor's identity, but remove both
+        # operands required by the add operation.
+        malformed = dataclasses.replace(
+            descriptor,
+            value=(("add",), descriptor.value[1]),
+        )
+
+        with self.assertRaisesRegex(
+            AdmissionRejected, "the SHEAR compiler failed"
+        ) as caught:
+            session._chain.compile(malformed, 1)
+
+        self.assertIsInstance(
+            caught.exception.__cause__, LanguageError
+        )
 
     def test_a_compiler_run_may_not_change_its_own_source(self):
         _, session, state = self.prepared()
