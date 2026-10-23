@@ -11,7 +11,7 @@ from typing import Any
 RESERVED = frozenset(
     "fn cell let if else true false none quote unquote literal function "
     "activate trial label raw ref code linksof apply len item slice "
-    "concat closure captures catch raise".split()
+    "inspect record concat closure captures catch raise".split()
 )
 
 
