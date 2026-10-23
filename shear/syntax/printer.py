@@ -112,7 +112,7 @@ _INFIX = {
 }
 
 
-_PLAIN = {"len", "item", "slice", "concat", "raise"}
+_PLAIN = {"inspect", "record", "len", "item", "slice", "concat", "raise"}
 
 
 class _Renderer:
