@@ -108,6 +108,37 @@ jobs:
             python -m tests.golden --against origin/main
           fi
 
+  gh123-acceptance:
+    name: GH-123 acceptance shard ${{ matrix.shard }} of 8
+    if: ${{ github.ref == 'refs/heads/task/123-complete-constraints' || github.head_ref == 'task/123-complete-constraints' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    concurrency:
+      group: gh123-acceptance-${{ github.ref }}-${{ matrix.shard }}
+      cancel-in-progress: true
+
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3, 4, 5, 6, 7]
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+
+      - name: Run frozen acceptance shard
+        env:
+          PYTHONUNBUFFERED: "1"
+          SHARD: ${{ matrix.shard }}
+        run: >-
+          python -m tests.test_constraint_functions_complete
+          --shard "$SHARD"
+          --shards 8
+
   content-baseline:
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.content_baseline == true }}
     needs: tests
@@ -199,6 +230,7 @@ jobs:
         run: python -m tests.mutation_coverage build --out mutation-coverage-map.json
 
       - name: Upload the coverage map
+      # This step can fail only after the optional map-building step.
         uses: actions/upload-artifact@v7
         with:
           name: mutation-coverage-map
