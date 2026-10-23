@@ -617,7 +617,7 @@ class _Parser:
         if name in ("true", "false", "none"):
             return ("lit", {"true": True, "false": False, "none": None}[name])
 
-        if name in ("len", "item", "slice", "concat"):
+        if name in ("inspect", "record", "len", "item", "slice", "concat"):
             return (name, *self.fixed_args(token, ARITY[name]))
 
         if name == "apply":
