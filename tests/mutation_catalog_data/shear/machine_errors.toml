@@ -1,0 +1,35 @@
+source_blob = "782ee4051220d6dce9cee05d8ba79ec5703dd481"
+
+[[survivor]]
+kind = "return"
+source = "return _attach("
+occurrence = 2
+classification = "equivalent"
+reason = """
+ActivationConflict is raised only when a result's source is not the active
+state and rebasing fails. A running program's activate and trial build their
+result from runtime.active.state within the same instruction, so no
+ActivationConflict reaches _attach_runtime from a program.
+"""
+
+[[survivor]]
+kind = "return"
+source = "return exc"
+occurrence = 1
+classification = "equivalent"
+reason = """
+Every caller of _attach_runtime discards its return value and re-raises the
+original exception, so returning None instead of the exception is
+unobservable.
+"""
+
+[[survivor]]
+kind = "return"
+source = "return exc"
+occurrence = 2
+classification = "equivalent"
+reason = """
+Every caller of _attach_runtime discards its return value and re-raises the
+original exception, so returning None instead of the exception is
+unobservable.
+"""
