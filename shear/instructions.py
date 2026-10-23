@@ -1,3 +1,4 @@
+
 """The instructions lowering emits, as one table of metadata
 (docs/live_evolution.md section 5.2).
 
@@ -76,6 +77,8 @@ INSTRUCTIONS: Mapping[str, Instruction] = {
     "MUL": _plain(0, 2, 1),
     "LT": _plain(0, 2, 1),
     "EQ": _plain(0, 2, 1),
+    "INSPECT": _plain(0, 1, 1),
+    "RECORD": _plain(0, 2, 1),
     "LEN": _plain(0, 1, 1),
     "ITEM": _plain(0, 2, 1),
     "SLICE": _plain(0, 3, 1),
