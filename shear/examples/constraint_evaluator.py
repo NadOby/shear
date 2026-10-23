@@ -8,6 +8,7 @@ Registered External dispatch and the authenticated adapter follow separately.
 
 from __future__ import annotations
 
+from ..constraints import Constraint
 from ..identity import EntityID
 from ..lang import Function, links
 from ..relations import Relation
@@ -34,6 +35,7 @@ EVAL_ALL = EntityID("constraint.eval.all")
 EVAL_ANY = EntityID("constraint.eval.any")
 EVAL_ROLE = EntityID("constraint.eval.role")
 FIND_ROLE = EntityID("constraint.eval.find_role")
+BOUND_ENTRY = EntityID("constraint.eval.bound")
 
 
 def _arg(name: str) -> tuple:
@@ -524,3 +526,42 @@ def evaluator_entities() -> dict[EntityID, Function | Relation]:
             FIND_ROLE, evaluate=EVALUATE, next=FIND_ROLE,
         ),
     }
+
+
+def bound_evaluator_entities(
+    constraint: Constraint,
+    budget: int | None = None,
+) -> dict[EntityID, Function | Relation]:
+    """Bind immutable constraint inputs, not the runtime subject.
+
+    The admitted SHEAR function receives the original subject,
+    performs recursive evaluation, and returns its own verdict.
+    """
+
+    if not isinstance(constraint, Constraint):
+        raise TypeError("expected a semantic Constraint")
+
+    if budget is not None and (
+        type(budget) is not int or budget < 0
+    ):
+        raise ValueError("budget must be a non-negative integer")
+
+    entities = evaluator_entities()
+    entities[BOUND_ENTRY] = Function(
+        ("subject",),
+        (
+            "item",
+            (
+                "call",
+                "evaluate",
+                _arg("subject"),
+                _lit(constraint),
+                _lit(budget),
+            ),
+            _lit(0),
+        ),
+    )
+    entities[EntityID(f"{BOUND_ENTRY.value}.links")] = links(
+        BOUND_ENTRY, evaluate=EVALUATE,
+    )
+    return entities
