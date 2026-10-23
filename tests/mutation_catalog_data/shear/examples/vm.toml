@@ -1,4 +1,4 @@
-source_blob = "437a7fe3432c79ff61f48e72ea8eb10135bc0266"
+source_blob = "9112f05337cdd929245b140e31928b8500564554"
 
 [[survivor]]
 kind = "constant"
@@ -27,27 +27,6 @@ reason = """
 Valid capability-tagged callables have length 3 or 6; a length-2 value already
 traps later under the exact tag-specific length checks, so changing the early
 threshold from 2 to 3 changes no outcome.
-"""
-
-[[survivor]]
-kind = "constant"
-source = "_lit(True),"
-occurrence = 2
-classification = "equivalent"
-reason = """
-This is the success value of the reference branch in _callable_tagged; its
-caller uses the check only for trapping and discards the successful value in
-seq.
-"""
-
-[[survivor]]
-kind = "constant"
-source = "_lit(True),"
-occurrence = 3
-classification = "equivalent"
-reason = """
-This is the success value of the closure branch in _callable_tagged; its caller
-uses the check only for trapping and discards the successful value in seq.
 """
 
 [[survivor]]
