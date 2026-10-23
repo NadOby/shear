@@ -285,15 +285,15 @@ def _lookup() -> Example:
                 Step(find, ("z", table), Raises(LanguageError)),
                 Step(find_or, ("z", table, 0), 0),
                 Step(find_or, ("b", table, 0), 2),
-                Step(find_or, ("a", ("bad",), 0), Raises(LanguageError)),
+                Step(find_or, ("a", (7,), 0), Raises(LanguageError)),
                 Step(why, ("z", table), ("program", "missing", (("key", "z"),))),
                 Step(
                     why,
-                    ("a", ("bad",)),
+                    ("a", (7,)),
                     (
                         "language",
                         "wrong_kind",
-                        (("expected", "tuple"), ("got", "str"), ("operation", "item")),
+                        (("expected", "indexable"), ("got", "int"), ("operation", "item")),
                     ),
                 ),
             ),
