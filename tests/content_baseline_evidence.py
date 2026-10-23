@@ -138,7 +138,7 @@ MECHANISMS = (
         "Uses graph collapse and constructs a Function record.",
     ),
     (
-        "runtime_function", "shear/machine.py",
+        "runtime_function", "shear/machine_calls.py",
         "_function", "_decode",
         "runtime values for parameters and body",
         "input-format Function record",
@@ -159,14 +159,14 @@ MECHANISMS = (
         "Python seed construction, not a running compiler conversion.",
     ),
     (
-        "vm_compile_source", "shear/examples/vm.py",
+        "vm_compile_source", "shear/examples/vm_bootstrap.py",
         "_compiled", "_item",
         "retained compiler source expression",
         "SHEAR expression invoking active lower",
         "Constructs source for a compiler call, not its result.",
     ),
     (
-        "vm_compiler_wrapper", "shear/examples/vm.py",
+        "vm_compiler_wrapper", "shear/examples/vm_bootstrap.py",
         "_swapped_function", "_item",
         "compiled chunk and original function metadata",
         "SHEAR-VM function-wrapper expression",
