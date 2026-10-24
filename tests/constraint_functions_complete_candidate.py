@@ -142,14 +142,70 @@ def prepare_semantic(
     deployment = executor.deploy(source)
     return executor, deployment, BOUND_ENTRY
 
+# Public preparation remains separately issued and invalidatable.
+# Only the ordinary semantic path reuses private deployments.
+_ORIGINAL_PREPARE_SEMANTIC = prepare_semantic
+_PRIVATE_SEMANTIC_AUTHORITY = object()
+_PRIVATE_COMPILER_GENERATION = 1
+
+
+@lru_cache(maxsize=None)
+def _private_semantic_preparation(
+    constraint: Constraint,
+    budget: int | None,
+    compiler_generation: int,
+    externals: tuple,
+    authority: object,
+) -> tuple[RestrictedExecutor, object, EntityID]:
+    """Reuse private authenticated deployments, never verdicts.
+
+    Canonical Constraint equality and hashing define cache identity.
+    No eviction can conceal invalidation by issuing a replacement.
+    """
+    if externals:
+        raise NotImplementedError(
+            "registered External continuation is not implemented"
+        )
+    if authority is not _PRIVATE_SEMANTIC_AUTHORITY:
+        raise ValueError("incompatible semantic authority")
+
+    source = load(program(
+        bound_evaluator_entities(constraint, budget)
+    ))
+    executor = RestrictedExecutor()
+    deployment = executor.deploy(
+        source, compiler_generation=compiler_generation,
+    )
+    return executor, deployment, BOUND_ENTRY
+
 
 def semantic(case: CandidateInput) -> Observation:
     """Return the actual admitted SHEAR result for the supplied subject."""
-    executor, deployment, entry = prepare_semantic(
-        case.expression,
-        case.budget,
-        case.externals,
-    )
+    # Preserve test-controlled interception and External isolation.
+    if (
+        prepare_semantic is not _ORIGINAL_PREPARE_SEMANTIC
+        or case.externals
+    ):
+        executor, deployment, entry = prepare_semantic(
+            case.expression,
+            case.budget,
+            case.externals,
+        )
+    else:
+        constraint = _constraint(case.expression)
+        if case.budget is not None and (
+            type(case.budget) is not int or case.budget < 0
+        ):
+            raise ValueError("budget must be a non-negative integer")
+
+        executor, deployment, entry = _private_semantic_preparation(
+            constraint,
+            case.budget,
+            _PRIVATE_COMPILER_GENERATION,
+            (),
+            _PRIVATE_SEMANTIC_AUTHORITY,
+        )
+
 
     result = executor.run(
         deployment,
