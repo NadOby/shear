@@ -103,6 +103,7 @@ LANES: dict[str, tuple[str, ...]] = {
         "test_constraint_evaluator",
         "test_constraint_functions_complete",
         "test_constraint_functions_preparation_cache",
+        "test_constraint_functions_projection_closure",
         "test_content_baseline",
         "test_corpus",
         "test_docs",
@@ -182,10 +183,9 @@ def validate_partition() -> None:
                 "missing files: " + ", ".join(sorted(stale))
             )
 
-        if missing or stale:
-            raise RuntimeError(
-                "invalid test-lane partition; " + "; ".join(problems)
-            )
+        raise RuntimeError(
+            "invalid test-lane partition; " + "; ".join(problems)
+        )
 
 
 def suite_for(lane: str) -> unittest.TestSuite:
@@ -272,7 +272,7 @@ def run_all(
         status = "ok" if code == 0 else "FAILED"
         print(f"  {lane:<24} {status:<6} {seconds:6.1f}s")
 
-    return 0 if all(code == 0 for code, _, _ in results) else 1
+    return 0 if all(code == 0 for code, _, seconds in results) else 1
 
 
 def main(argv: list[str] | None = None) -> int:
