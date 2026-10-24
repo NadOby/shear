@@ -276,18 +276,30 @@ class SemanticPreparationCacheTests(unittest.TestCase):
 
         timings = defaultdict(list)
         verified = [0]
+        normalization_depth = [0]
 
         def timed(name, original):
             def measured(*args, **kwargs):
-                start_wall = perf_counter_ns()
-                start_cpu = process_time_ns()
+                if name == "normalize":
+                    normalization_depth[0] += 1
+                    outermost = normalization_depth[0] == 1
+                else:
+                    outermost = True
+
+                if outermost:
+                    start_wall = perf_counter_ns()
+                    start_cpu = process_time_ns()
+
                 try:
                     return original(*args, **kwargs)
                 finally:
-                    timings[name].append((
-                        perf_counter_ns() - start_wall,
-                        process_time_ns() - start_cpu,
-                    ))
+                    if name == "normalize":
+                        normalization_depth[0] -= 1
+                    if outermost:
+                        timings[name].append((
+                            perf_counter_ns() - start_wall,
+                            process_time_ns() - start_cpu,
+                        ))
             return measured
 
         original_verify = Artifact.verify
