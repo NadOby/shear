@@ -142,6 +142,7 @@ def prepare_semantic(
     deployment = executor.deploy(source)
     return executor, deployment, BOUND_ENTRY
 
+
 # Public preparation remains separately issued and invalidatable.
 # Only the ordinary semantic path reuses private deployments.
 _ORIGINAL_PREPARE_SEMANTIC = prepare_semantic
@@ -205,7 +206,6 @@ def semantic(case: CandidateInput) -> Observation:
             (),
             _PRIVATE_SEMANTIC_AUTHORITY,
         )
-
 
     result = executor.run(
         deployment,
@@ -316,10 +316,62 @@ def _projection_entities() -> dict:
     return entities
 
 
-@lru_cache(maxsize=1)
-def _projection_deployment() -> tuple:
-    """Compile and admit generic projection code once, independent of data."""
-    source = load(program(_projection_entities()))
+def _projection_static_closure(
+    entities: dict[EntityID, Function | Relation],
+    entry: EntityID,
+) -> dict[EntityID, Function | Relation]:
+    """Retain every statically linked function and links relation.
+
+    Discover links by their function role, not a conventional entity name.
+    Include the entire transitive closure, including recursive links.
+    """
+    linked: dict[EntityID, tuple[EntityID, Relation]] = {}
+    for entity, value in entities.items():
+        if not isinstance(value, Relation) or value.kind != "links":
+            continue
+        owner = value.roles.get("function")
+        if not isinstance(owner, EntityID) or owner in linked:
+            raise ValueError("malformed or duplicate function links")
+        linked[owner] = (entity, value)
+
+    selected: dict[EntityID, Function | Relation] = {}
+    pending = [entry]
+    while pending:
+        function = pending.pop()
+        if function in selected:
+            continue
+        definition = entities.get(function)
+        if not isinstance(definition, Function):
+            raise ValueError(
+                f"missing static projection function: {function.value}"
+            )
+        selected[function] = definition
+        link = linked.get(function)
+        if link is None:
+            continue
+        relation_entity, relation = link
+        selected[relation_entity] = relation
+        for role, target in relation.roles.items():
+            if role == "function":
+                continue
+            if not isinstance(target, EntityID):
+                raise ValueError("malformed static projection link")
+            pending.append(target)
+    return selected
+
+
+@lru_cache(maxsize=None)
+def _projection_deployment(entry: EntityID) -> tuple:
+    """Issue one minimal authenticated deployment for each public operation."""
+    if entry not in (
+        PROJECT_INSPECT, PROJECT_EQUAL, PROJECT_SELECT,
+        PROJECT_LENGTH, PROJECT_SLICE,
+    ):
+        raise ValueError("unknown projection operation")
+
+    source = load(program(
+        _projection_static_closure(_projection_entities(), entry)
+    ))
     executor = RestrictedExecutor()
     deployment = executor.deploy(source)
     return executor, deployment
@@ -327,19 +379,19 @@ def _projection_deployment() -> tuple:
 
 def inspect_projection(value: object) -> tuple:
     """Return the inspection result produced by admitted SHEAR code."""
-    executor, deployment = _projection_deployment()
+    executor, deployment = _projection_deployment(PROJECT_INSPECT)
     return executor.run(deployment, PROJECT_INSPECT, value)
 
 
 def equal_projection(left: object, right: object) -> bool:
     """Use recursive, type-sensitive SHEAR equality."""
-    executor, deployment = _projection_deployment()
+    executor, deployment = _projection_deployment(PROJECT_EQUAL)
     return executor.run(deployment, PROJECT_EQUAL, left, right)
 
 
 def select_projection(value: object, path: tuple) -> object:
     """Traverse a public semantic path inside the authenticated VM."""
-    executor, deployment = _projection_deployment()
+    executor, deployment = _projection_deployment(PROJECT_SELECT)
     return executor.run(
         deployment,
         PROJECT_SELECT,
@@ -372,5 +424,5 @@ def sequence_projection(
     else:
         raise ValueError(f"unknown sequence operation: {operation!r}")
 
-    executor, deployment = _projection_deployment()
+    executor, deployment = _projection_deployment(entry)
     return executor.run(deployment, entry, value, *arguments)
