@@ -37,7 +37,7 @@ LANES: dict[str, tuple[str, ...]] = {
         "test_mutation_regressions_semantics",
         "test_ownership",
         "test_ownership_lifetime",
-        "test_mutation_regressions_continuity",
+        "test_ownership_lifetime_regressions",
         "test_references",
         "test_relations",
         "test_state",
@@ -182,9 +182,10 @@ def validate_partition() -> None:
                 "missing files: " + ", ".join(sorted(stale))
             )
 
-        raise RuntimeError(
-            "invalid test-lane partition; " + "; ".join(problems)
-        )
+        if missing or stale:
+            raise RuntimeError(
+                "invalid test-lane partition; " + "; ".join(problems)
+            )
 
 
 def suite_for(lane: str) -> unittest.TestSuite:
