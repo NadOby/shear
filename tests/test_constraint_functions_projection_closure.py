@@ -7,7 +7,7 @@ from time import perf_counter, process_time
 import unittest
 from unittest.mock import patch
 
-from shear import EntityID, machine
+from shear import EntityID, canonicalize, canonical_serialize, machine
 from shear.examples._support import program
 from shear.examples.constraint_evaluator import EQUAL_ITEMS, VALUE_EQUAL
 from shear.hosted_bootstrap import restricted
@@ -26,6 +26,10 @@ ENTRIES = (
     candidate.PROJECT_LENGTH,
     candidate.PROJECT_SLICE,
 )
+
+
+def canonical_bytes(value):
+    return canonical_serialize(canonicalize(value))
 
 
 class ProjectionClosureTests(unittest.TestCase):
@@ -137,38 +141,52 @@ class ProjectionClosureTests(unittest.TestCase):
         )
 
     def test_public_operations_remain_vm_backed(self):
+        inspected = candidate.inspect_projection([1, True])
+        self.assertEqual(inspected[:2], ("list", 2))
         self.assertEqual(
-            candidate.inspect_projection([1, True]),
-            ("list", 2, [1, True]),
+            canonical_bytes(inspected[2]),
+            canonical_bytes([1, True]),
         )
+
         self.assertTrue(
             candidate.equal_projection([1, True], [1, True])
         )
         self.assertFalse(
             candidate.equal_projection([1, True], [1, 1])
         )
+
         self.assertEqual(
             candidate.select_projection(
-                {"nested": [1, 2, 3]}, ("nested", 1)
+                (10, 20, 30), (1,)
             ),
-            2,
+            20,
         )
         self.assertEqual(
             candidate.sequence_projection([1, 2, 3], "len"),
             3,
         )
         self.assertEqual(
-            candidate.sequence_projection(
-                [1, 2, 3], "slice", 1, 3
+            canonical_bytes(
+                candidate.sequence_projection(
+                    [1, 2, 3], "slice", 1, 3
+                )
             ),
-            [2, 3],
+            canonical_bytes([2, 3]),
         )
 
     def test_cache_hits_preserve_preflight_and_machine_entry(self):
+        original_run = RestrictedExecutor.run
         original_preflight = restricted.preflight
         original_open = machine._open
+        runs = []
         preflights = []
         openings = []
+
+        def observe_run(executor, deployment, entry, *args, **kwargs):
+            runs.append((executor, deployment, entry))
+            return original_run(
+                executor, deployment, entry, *args, **kwargs
+            )
 
         def observe_preflight(state, artifacts, entry, policy):
             preflights.append(entry)
@@ -185,22 +203,25 @@ class ProjectionClosureTests(unittest.TestCase):
             return result
 
         with (
+            patch.object(RestrictedExecutor, "run", observe_run),
             patch.object(restricted, "preflight", observe_preflight),
             patch.object(machine, "_open", observe_open),
         ):
             for _ in range(2):
+                before = len(openings)
                 self.assertEqual(
                     candidate.select_projection(
-                        {"a": [1, 2]}, ("a", 1)
+                        (10, 20, 30), (1,)
                     ),
-                    2,
+                    20,
                 )
+                self.assertGreater(len(openings), before)
 
+        self.assertEqual(len(runs), 2)
+        self.assertIs(runs[0][0], runs[1][0])
+        self.assertIs(runs[0][1], runs[1][1])
         self.assertEqual(
             preflights, [candidate.PROJECT_SELECT] * 2
-        )
-        self.assertEqual(
-            openings, [candidate.PROJECT_SELECT] * 2
         )
         self.assertEqual(
             candidate._projection_deployment.cache_info().hits, 1
@@ -214,7 +235,7 @@ class ProjectionClosureTests(unittest.TestCase):
         self.assertEqual(
             executor.run(
                 deployment, candidate.PROJECT_SELECT,
-                {"a": 7}, ("a",), 0
+                (5, 7), (1,), 0
             ),
             7,
         )
@@ -222,7 +243,7 @@ class ProjectionClosureTests(unittest.TestCase):
         with self.assertRaises(AdmissionRejected):
             RestrictedExecutor().run(
                 deployment, candidate.PROJECT_SELECT,
-                {"a": 7}, ("a",), 0
+                (5, 7), (1,), 0
             )
 
         executor.invalidate(deployment)
@@ -232,7 +253,7 @@ class ProjectionClosureTests(unittest.TestCase):
             side_effect=AssertionError("unauthorized VM entry"),
         ):
             with self.assertRaises(AdmissionRejected):
-                candidate.select_projection({"a": 7}, ("a",))
+                candidate.select_projection((5, 7), (1,))
 
         self.assertIs(
             candidate._projection_deployment(
@@ -257,19 +278,20 @@ class ProjectionClosureTests(unittest.TestCase):
                 side_effect=AssertionError("unauthorized VM entry"),
             ):
                 with self.assertRaises(AdmissionRejected):
-                    candidate.select_projection(
-                        {"a": 7}, ("a",)
-                    )
+                    candidate.select_projection((5, 7), (1,))
         finally:
             store._artifacts[key] = authentic
 
         self.assertEqual(
-            candidate.select_projection({"a": 7}, ("a",)),
+            candidate.select_projection((5, 7), (1,)),
             7,
         )
 
     def test_preflight_denial_is_not_bypassed(self):
-        candidate.select_projection({"a": 7}, ("a",))
+        self.assertEqual(
+            candidate.select_projection((5, 7), (1,)),
+            7,
+        )
 
         with (
             patch.object(
@@ -286,10 +308,10 @@ class ProjectionClosureTests(unittest.TestCase):
             with self.assertRaisesRegex(
                 AdmissionRejected, "injected projection preflight denial"
             ):
-                candidate.select_projection({"a": 7}, ("a",))
+                candidate.select_projection((5, 7), (1,))
 
     def test_artifact_counts_and_warm_selection_latency(self):
-        # Full and minimal deployments use identical VM instructions.
+        # Same admitted SHEAR selection function, different deployments.
         full_executor = RestrictedExecutor()
         full_deployment = full_executor.deploy(
             load(program(candidate._projection_entities()))
@@ -303,8 +325,8 @@ class ProjectionClosureTests(unittest.TestCase):
             self.assertLess(len(deployment.artifacts), full_count)
             executor._check_deployment(deployment)
 
-        value = {"a": [1, 2, 3]}
-        path = ("a", 1)
+        value = (1, 2, 3)
+        path = (1,)
         minimal_executor, minimal_deployment = (
             candidate._projection_deployment(candidate.PROJECT_SELECT)
         )
