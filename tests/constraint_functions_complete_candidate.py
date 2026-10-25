@@ -1065,3 +1065,18 @@ EVALUATOR_ENTRIES = EVALUATOR_ENTRIES | frozenset({
 def prepare_resource_probe(canonical_value: object, operation: str):
     """Prepare the narrow authenticated probe for resource acceptance."""
     return prepare_narrow_resource_probe(canonical_value, operation)
+
+
+from tests.constraint_functions_resource_probe import (
+    NARROW_RESOURCE_ENTRY,
+    prepare_narrow_resource_probe,
+)
+
+EVALUATOR_ENTRIES = EVALUATOR_ENTRIES | frozenset({
+    NARROW_RESOURCE_ENTRY,
+})
+
+
+def prepare_resource_probe(canonical_value: object, operation: str):
+    """Prepare the narrow authenticated probe for resource acceptance."""
+    return prepare_narrow_resource_probe(canonical_value, operation)
