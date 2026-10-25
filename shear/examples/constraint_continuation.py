@@ -78,7 +78,7 @@ def _evaluate() -> tuple:
     )
 
 
-def _eval_node() -> tuple:
+def _eval_node(registrations: tuple[tuple[str, str], ...] | None) -> tuple:
     subject = _arg("subject")
     remaining = _arg("remaining")
     frames = _arg("frames")
@@ -86,6 +86,21 @@ def _eval_node() -> tuple:
 
     def at(index: int) -> tuple:
         return _item(args, index)
+
+    # Registered, subject-independent verdicts are interpreted by SHEAR in
+    # a single admitted call. Dynamic callbacks use suspension instead.
+    external = _frame(
+        _lit("external"), at(0), subject,
+        _frame(remaining, frames),
+    )
+    if registrations is not None:
+        external = _finish(_lit(UNKNOWN), remaining, frames)
+        for name, verdict in reversed(registrations):
+            external = (
+                "if", ("eq", at(0), _lit(name)),
+                _finish(_lit(verdict), remaining, frames),
+                external,
+            )
 
     cases = (
         "raise", _lit("constraint_form"),
@@ -119,10 +134,7 @@ def _eval_node() -> tuple:
         ("role", _call(
             "role", subject, at(0), at(1), remaining, frames,
         )),
-        ("external", _frame(
-            _lit("external"), at(0), subject,
-            _frame(remaining, frames),
-        )),
+        ("external", external),
     )
     for form, body in reversed(alternatives):
         cases = (
@@ -248,13 +260,28 @@ def _find_role() -> tuple:
 
 
 def continuation_entities(
-    constraint: Constraint, budget: int | None = None,
+    constraint: Constraint,
+    budget: int | None = None,
+    registrations: tuple[tuple[str, str], ...] | None = None,
 ) -> dict[EntityID, Function | Relation]:
-    """Bind declarations to independently admitted resumable SHEAR code."""
+    """Bind a constraint to admitted SHEAR continuation functions.
+
+    With registrations=None, External suspends and awaits host dispatch.
+    With registered constant results, every node returns directly from
+    ordinary SHEAR without invoking a callback or computing a host verdict.
+    """
     if not isinstance(constraint, Constraint):
         raise TypeError("expected a semantic Constraint")
     if budget is not None and (type(budget) is not int or budget < 0):
         raise ValueError("budget must be a non-negative integer")
+    if registrations is not None:
+        seen = set()
+        for name, verdict in registrations:
+            if not isinstance(name, str) or not name or name in seen:
+                raise ValueError("registrations need unique nonempty names")
+            if verdict not in (SATISFIED, VIOLATED, UNKNOWN):
+                raise ValueError("invalid registered External verdict")
+            seen.add(name)
 
     entities = evaluator_entities()
     entities.update({
@@ -273,7 +300,7 @@ def continuation_entities(
         ),
         EVAL_NODE: Function(
             ("subject", "constraint", "remaining", "frames"),
-            _eval_node(),
+            _eval_node(registrations),
         ),
         FOLD_START: Function(
             ("subject", "parts", "remaining", "frames", "decisive", "empty"),
