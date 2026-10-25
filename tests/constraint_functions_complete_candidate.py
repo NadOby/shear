@@ -40,6 +40,12 @@ from shear.examples.constraint_continuation import (
 )
 from shear.examples.constraint_evaluator import (
     BOUND_ENTRY,
+    BUDGET_STEP,
+    INT_RANGE as PRIMITIVE_INT_RANGE,
+    IS_KIND as PRIMITIVE_IS_KIND,
+    LENGTH as PRIMITIVE_LENGTH,
+    LOGIC_NOT,
+    ONE_OF as PRIMITIVE_ONE_OF,
     VALUE_EQUAL,
     bound_evaluator_entities,
     evaluator_entities,
@@ -56,12 +62,21 @@ PROJECT_SELECT = EntityID("constraint.project.select")
 PROJECT_LENGTH = EntityID("constraint.project.length")
 PROJECT_SLICE = EntityID("constraint.project.slice")
 RECONSTRUCT_ENTRY = EntityID("constraint.reconstruct")
+REGISTERED_ENTRY = EntityID("constraint.registered.entry")
+REGISTERED_EVALUATE = EntityID("constraint.registered.evaluate")
+REGISTERED_NODE = EntityID("constraint.registered.node")
+REGISTERED_ALL = EntityID("constraint.registered.all")
+REGISTERED_ANY = EntityID("constraint.registered.any")
+REGISTERED_ROLE = EntityID("constraint.registered.role")
+REGISTERED_FIND = EntityID("constraint.registered.find")
+REGISTERED_LOOKUP = EntityID("constraint.registered.lookup")
 
 EVALUATOR_ENTRIES = frozenset({
     BOUND_ENTRY,
     CONTINUATION_START,
     CONTINUATION_RESUME,
     RECONSTRUCT_ENTRY,
+    REGISTERED_ENTRY,
     PROJECT_INSPECT,
     PROJECT_EQUAL,
     PROJECT_SELECT,
@@ -158,6 +173,238 @@ def _validate_registrations(registrations: tuple) -> None:
         names.add(name)
 
 
+def _registered_entities() -> dict[EntityID, Function | Relation]:
+    """Generic runtime-parameterized SHEAR interpreter for all nine forms.
+
+    Neither constraint, budget, subject nor registered outcomes appear in
+    compiled function bodies. Every evaluation, including short circuit and
+    remaining-node budget, is computed by the admitted machine.
+    """
+    def arg(name: str) -> tuple:
+        return ("arg", name)
+
+    def lit(value: object) -> tuple:
+        return ("lit", value)
+
+    def item(value: tuple, index: int | str) -> tuple:
+        return ("item", value, lit(index))
+
+    def call(name: str, *args: tuple) -> tuple:
+        return ("call", name, *args)
+
+    def outcome(verdict: tuple, remaining: tuple) -> tuple:
+        return ("tuple", verdict, remaining)
+
+    subject = arg("subject")
+    constraint = arg("constraint")
+    remaining = arg("remaining")
+    registrations = arg("registrations")
+    arguments = arg("arguments")
+    parts = arg("parts")
+    index = arg("index")
+    child = arg("child")
+    verdict = item(child, 0)
+    child_remaining = item(child, 1)
+    seen = arg("seen_unknown")
+
+    def evaluate(subject: tuple, constraint: tuple, remaining: tuple,
+                 registrations: tuple) -> tuple:
+        return call("evaluate", subject, constraint, remaining, registrations)
+
+    step = arg("step")
+    evaluate_body = (
+        "let", "step", call("budget", remaining),
+        (
+            "if", item(step, 0),
+            call("node", subject, constraint, item(step, 1), registrations),
+            outcome(lit("unknown"), item(step, 1)),
+        ),
+    )
+
+    negated = (
+        "let", "child", evaluate(subject, item(arguments, 0), remaining,
+                                registrations),
+        outcome(call("negate", item(child, 0)), item(child, 1)),
+    )
+
+    alternatives = (
+        ("is_kind", outcome(
+            call("is_kind", subject, item(arguments, 0)), remaining)),
+        ("int_range", outcome(call(
+            "int_range", subject, item(arguments, 0), item(arguments, 1)),
+            remaining)),
+        ("length", outcome(call(
+            "length", subject, item(arguments, 0), item(arguments, 1)),
+            remaining)),
+        ("one_of", outcome(
+            call("one_of", subject, item(arguments, 0)), remaining)),
+        ("all_of", call(
+            "all", subject, item(arguments, 0), lit(0),
+            remaining, lit(False), registrations)),
+        ("any_of", call(
+            "any", subject, item(arguments, 0), lit(0),
+            remaining, lit(False), registrations)),
+        ("not", negated),
+        ("role", call(
+            "role", subject, item(arguments, 0), item(arguments, 1),
+            remaining, registrations)),
+        ("external", outcome(call(
+            "external", item(arguments, 0), registrations, lit(0)),
+            remaining)),
+    )
+    cases = (
+        "raise", lit("constraint_form"), lit("unknown constraint form"),
+    )
+    for form, body in reversed(alternatives):
+        cases = ("if", ("eq", arg("form"), lit(form)), body, cases)
+    node_body = (
+        "let", "form", item(constraint, "form"),
+        ("let", "arguments", item(constraint, "arguments"), cases),
+    )
+
+    def fold(decisive: str, empty: str) -> tuple:
+        next_seen = (
+            "if", ("eq", verdict, lit("unknown")), lit(True), seen,
+        )
+        return (
+            "if", ("lt", index, ("len", parts)),
+            (
+                "let", "child", evaluate(
+                    subject, ("item", parts, index), remaining, registrations),
+                (
+                    "if", ("eq", verdict, lit(decisive)), child,
+                    call("next", subject, parts, ("add", index, lit(1)),
+                         child_remaining, next_seen, registrations),
+                ),
+            ),
+            outcome(("if", seen, lit("unknown"), lit(empty)), remaining),
+        )
+
+    role_body = (
+        "if", ("eq", item(("inspect", subject), 0), lit("map")),
+        call("find", subject, arg("name"), arg("part"), lit(0),
+             remaining, registrations),
+        outcome(lit("violated"), remaining),
+    )
+    entry = arg("entry")
+    find_body = (
+        "if", ("lt", index, ("len", subject)),
+        (
+            "let", "entry", ("item", subject, index),
+            (
+                "if", ("eq", item(entry, 0), arg("name")),
+                evaluate(item(entry, 1), arg("part"), remaining,
+                         registrations),
+                call("next", subject, arg("name"), arg("part"),
+                     ("add", index, lit(1)), remaining, registrations),
+            ),
+        ),
+        outcome(lit("violated"), remaining),
+    )
+
+    registration = arg("registration")
+    lookup_body = (
+        "if", ("lt", index, ("len", registrations)),
+        (
+            "let", "registration", ("item", registrations, index),
+            (
+                "if", ("eq", item(registration, 0), arg("name")),
+                item(registration, 1),
+                call("next", arg("name"), registrations,
+                     ("add", index, lit(1))),
+            ),
+        ),
+        lit("unknown"),
+    )
+
+    entities = evaluator_entities()
+    entities.update({
+        REGISTERED_ENTRY: Function(
+            ("subject", "constraint", "remaining", "registrations"),
+            item(evaluate(subject, constraint, remaining, registrations), 0),
+        ),
+        REGISTERED_EVALUATE: Function(
+            ("subject", "constraint", "remaining", "registrations"),
+            evaluate_body,
+        ),
+        REGISTERED_NODE: Function(
+            ("subject", "constraint", "remaining", "registrations"),
+            node_body,
+        ),
+        REGISTERED_ALL: Function(
+            ("subject", "parts", "index", "remaining", "seen_unknown",
+             "registrations"), fold("violated", "satisfied"),
+        ),
+        REGISTERED_ANY: Function(
+            ("subject", "parts", "index", "remaining", "seen_unknown",
+             "registrations"), fold("satisfied", "violated"),
+        ),
+        REGISTERED_ROLE: Function(
+            ("subject", "name", "part", "remaining", "registrations"),
+            role_body,
+        ),
+        REGISTERED_FIND: Function(
+            ("subject", "name", "part", "index", "remaining",
+             "registrations"), find_body,
+        ),
+        REGISTERED_LOOKUP: Function(
+            ("name", "registrations", "index"), lookup_body,
+        ),
+        EntityID(f"{REGISTERED_ENTRY.value}.links"): links(
+            REGISTERED_ENTRY, evaluate=REGISTERED_EVALUATE),
+        EntityID(f"{REGISTERED_EVALUATE.value}.links"): links(
+            REGISTERED_EVALUATE, budget=BUDGET_STEP, node=REGISTERED_NODE),
+        EntityID(f"{REGISTERED_NODE.value}.links"): links(
+            REGISTERED_NODE,
+            is_kind=PRIMITIVE_IS_KIND,
+            int_range=PRIMITIVE_INT_RANGE,
+            length=PRIMITIVE_LENGTH,
+            one_of=PRIMITIVE_ONE_OF,
+            all=REGISTERED_ALL,
+            any=REGISTERED_ANY,
+            negate=LOGIC_NOT,
+            evaluate=REGISTERED_EVALUATE,
+            role=REGISTERED_ROLE,
+            external=REGISTERED_LOOKUP,
+        ),
+        EntityID(f"{REGISTERED_ALL.value}.links"): links(
+            REGISTERED_ALL, evaluate=REGISTERED_EVALUATE,
+            next=REGISTERED_ALL),
+        EntityID(f"{REGISTERED_ANY.value}.links"): links(
+            REGISTERED_ANY, evaluate=REGISTERED_EVALUATE,
+            next=REGISTERED_ANY),
+        EntityID(f"{REGISTERED_ROLE.value}.links"): links(
+            REGISTERED_ROLE, find=REGISTERED_FIND),
+        EntityID(f"{REGISTERED_FIND.value}.links"): links(
+            REGISTERED_FIND, evaluate=REGISTERED_EVALUATE,
+            next=REGISTERED_FIND),
+        EntityID(f"{REGISTERED_LOOKUP.value}.links"): links(
+            REGISTERED_LOOKUP, next=REGISTERED_LOOKUP),
+    })
+    return _projection_static_closure(entities, REGISTERED_ENTRY)
+
+
+@lru_cache(maxsize=None)
+def _generic_registered_deployment(
+    registrations: tuple[tuple[str, str], ...],
+    compiler_generation: int,
+    authority: object,
+) -> tuple[RestrictedExecutor, object, EntityID]:
+    """One authenticated program per registration authority, not per tree.
+
+    Values, constraints and node budgets are runtime operands, not literals
+    embedded in the compiled deployment. Cache hits never bypass VM entry.
+    """
+    if authority is not _PRIVATE_SEMANTIC_AUTHORITY:
+        raise ValueError("incompatible semantic authority")
+    source = load(program(_registered_entities()))
+    executor = RestrictedExecutor()
+    deployment = executor.deploy(
+        source, compiler_generation=compiler_generation,
+    )
+    return executor, deployment, REGISTERED_ENTRY
+
+
 def _deploy_continuation(
     constraint: Constraint,
     budget: int | None,
@@ -239,7 +486,6 @@ def _private_semantic_preparation(
     return executor, deployment, BOUND_ENTRY
 
 
-@lru_cache(maxsize=None)
 def _private_registered_preparation(
     constraint: Constraint,
     budget: int | None,
@@ -247,12 +493,22 @@ def _private_registered_preparation(
     compiler_generation: int,
     authority: object,
 ) -> tuple[RestrictedExecutor, object, EntityID]:
-    """Cache admitted static declarations, never evaluation outcomes."""
-    if authority is not _PRIVATE_SEMANTIC_AUTHORITY:
-        raise ValueError("incompatible semantic authority")
-    return _deploy_continuation(
-        constraint, budget, registrations, compiler_generation,
+    """Reuse one admitted program across distinct normalized constraints.
+
+    Keep the established caller signature and cache API. Neither constraint
+    nor budget determines the executable code: both are runtime operands.
+    """
+    return _generic_registered_deployment(
+        registrations, compiler_generation, authority,
     )
+
+
+_private_registered_preparation.cache_info = (
+    _generic_registered_deployment.cache_info
+)
+_private_registered_preparation.cache_clear = (
+    _generic_registered_deployment.cache_clear
+)
 
 
 @lru_cache(maxsize=None)
@@ -311,11 +567,14 @@ def semantic(case: CandidateInput) -> Observation:
                 _PRIVATE_SEMANTIC_AUTHORITY,
             )
 
-    result = executor.run(
-        deployment,
-        entry,
-        _materialize_subject(case.subject),
-    )
+    subject = _materialize_subject(case.subject)
+    if entry == REGISTERED_ENTRY:
+        result = executor.run(
+            deployment, entry, subject, constraint, case.budget,
+            tuple(case.externals),
+        )
+    else:
+        result = executor.run(deployment, entry, subject)
     return _observation(result)
 
 
