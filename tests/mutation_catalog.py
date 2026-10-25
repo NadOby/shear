@@ -262,7 +262,7 @@ def _require_string_list(
 
     if not isinstance(value, list):
         raise CatalogError(
-            f"{context}: {field} must be an array of strings"
+            f"{context}: {field}[{index}] must be an array of strings"
         )
 
     items = []
@@ -530,7 +530,7 @@ def load_catalog(
                     f"{context}: duplicate survivor key {key!r}"
                 )
 
-                survivors[key] = classification
+            survivors[key] = classification
 
     actual_targets = set(source_blobs)
     expected_targets = set(catalog_targets)
