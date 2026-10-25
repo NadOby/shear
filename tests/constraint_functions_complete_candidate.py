@@ -1016,3 +1016,5 @@ def run_corpus_step(runtime, entry, *args, may_activate=False):
     return run_corpus_language(
         runtime, entry, *args, may_activate=may_activate,
     )
+
+from tests.constraint_functions_boundary_adapter import boundary
