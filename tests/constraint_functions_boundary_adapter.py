@@ -198,6 +198,7 @@ class _Runner:
     identity_source: State | None = None
     effect_count: int = 0
     observed_subject: object = None
+    continuity_transitioned: bool = False
 
     def _context(self):
         return EvaluationContext(self.externals)
@@ -315,6 +316,12 @@ class _Runner:
             else:
                 self._result("satisfied")
                 self._after(before, report_live=True)
+                if self.continuity_transitioned:
+                    # Once continuity has explicitly replaced the source
+                    # identity, do not present this successful write as a
+                    # whole-scenario unchanged-state comparison. Rejected
+                    # writes still report their local atomicity separately.
+                    self.state_unchanged = None
             return
         if kind in ("activate_constraint", "trial_constraint"):
             name, expression, transfer = args
@@ -360,6 +367,9 @@ class _Runner:
                 {_entity(old): _entity(new)},
             )
             self.runtime.activate(result)
+            self.continuity_transitioned = (
+                self.runtime.active.state.id != source.id
+            )
             return
         if kind == "assert_entity_absent":
             name, = args
