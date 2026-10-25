@@ -86,7 +86,10 @@ CASES = (
     DirectCase(
         ("all_of", ("is_kind", "int"),
          ("int_range", 0, 10)), 2, (),
-        ((5, UNK), (20, VIO)),
+        # Canonical child order evaluates is_kind before int_range.
+        # Budget 2 visits the root and is_kind only, so neither
+        # subject establishes a decisive conjunction result.
+        ((5, UNK), (20, UNK)),
     ),
     DirectCase(
         ("all_of", ("is_kind", "int"),
