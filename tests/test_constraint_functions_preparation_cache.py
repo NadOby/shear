@@ -40,40 +40,46 @@ class SemanticPreparationCacheTests(unittest.TestCase):
 
         for operation in ("all_of", "any_of"):
             self.assertEqual(
-                self.evaluate((operation, a, b), 3),
-                "satisfied",
+                self.evaluate((operation, a, b), 3), "satisfied"
             )
             self.assertEqual(
-                self.evaluate((operation, b, a, a), 3),
-                "satisfied",
+                self.evaluate((operation, b, a, a), 3), "satisfied"
             )
 
         info = candidate._private_semantic_preparation.cache_info()
-        self.assertEqual((info.misses, info.hits), (2, 2))
+        self.assertEqual((info.misses, info.hits), (1, 3))
 
-    def test_distinct_constraints_remain_separate(self):
-        self.evaluate(("is_kind", "int"))
-        self.evaluate(("is_kind", "bool"))
-
+    def test_distinct_constraints_share_code_but_not_verdicts(self):
         self.assertEqual(
-            candidate._private_semantic_preparation.cache_info().misses,
-            2,
+            self.evaluate(("is_kind", "int")), "satisfied"
+        )
+        self.assertEqual(
+            self.evaluate(("is_kind", "bool")), "violated"
         )
 
-    def test_budget_separation_and_validation(self):
+        info = candidate._private_semantic_preparation.cache_info()
+        self.assertEqual((info.misses, info.hits), (1, 1))
+        self.assertEqual(info.currsize, 1)
+
+    def test_budget_is_a_runtime_operand_and_validation_precedes_cache(self):
         expression = ("is_kind", "int")
 
         self.assertEqual(self.evaluate(expression, 0), "unknown")
         self.assertEqual(self.evaluate(expression, 1), "satisfied")
         self.assertEqual(self.evaluate(expression, 1), "satisfied")
 
+        before = candidate._private_semantic_preparation.cache_info()
+        self.assertEqual((before.misses, before.hits), (1, 2))
+
         with self.assertRaises(ValueError):
             self.evaluate(expression, True)
 
-        info = candidate._private_semantic_preparation.cache_info()
-        self.assertEqual((info.misses, info.hits), (2, 1))
+        self.assertEqual(
+            candidate._private_semantic_preparation.cache_info(),
+            before,
+        )
 
-    def test_external_registrations_use_separate_cache(self):
+    def test_external_registrations_use_distinct_authorized_deployments(self):
         expression = ("external", "registered")
         satisfied = (("registered", "satisfied"),)
         violated = (("registered", "violated"),)
@@ -81,7 +87,9 @@ class SemanticPreparationCacheTests(unittest.TestCase):
         self.assertEqual(
             self.evaluate(("is_kind", "int")), "satisfied"
         )
-        original = candidate._private_semantic_preparation.cache_info()
+        ordinary_before = (
+            candidate._private_semantic_preparation.cache_info()
+        )
 
         self.assertEqual(
             self.evaluate(expression, externals=satisfied),
@@ -90,6 +98,10 @@ class SemanticPreparationCacheTests(unittest.TestCase):
         self.assertEqual(
             self.evaluate(expression, externals=satisfied),
             "satisfied",
+        )
+        self.assertEqual(
+            self.evaluate(("not", expression), externals=satisfied),
+            "violated",
         )
         self.assertEqual(
             self.evaluate(expression, externals=violated),
@@ -100,14 +112,15 @@ class SemanticPreparationCacheTests(unittest.TestCase):
             "unknown",
         )
 
+        # The common generic deployment cache also owns the empty
+        # registration entry used by ordinary semantic evaluation.
         registered = candidate._private_registered_preparation.cache_info()
-        self.assertEqual(
-            (registered.misses, registered.hits),
-            (2, 1),
-        )
+        self.assertEqual((registered.misses, registered.hits), (3, 2))
+        self.assertEqual(registered.currsize, 3)
+
         ordinary = candidate._private_semantic_preparation.cache_info()
-        self.assertEqual(ordinary.misses, original.misses + 1)
-        self.assertEqual(ordinary.hits, original.hits)
+        self.assertEqual(ordinary.misses, ordinary_before.misses)
+        self.assertEqual(ordinary.hits, ordinary_before.hits + 1)
 
         with self.assertRaises(ValueError):
             self.evaluate(
@@ -190,7 +203,7 @@ class SemanticPreparationCacheTests(unittest.TestCase):
         openings = []
 
         def traced_run(executor, deployment, entry, *args, **kwargs):
-            runs.append((executor, deployment, entry))
+            runs.append((executor, deployment, entry, args))
             return original_run(
                 executor, deployment, entry, *args, **kwargs
             )
@@ -205,7 +218,7 @@ class SemanticPreparationCacheTests(unittest.TestCase):
             result = original_open(
                 activation, args, *rest, **kwargs
             )
-            if activation.entity == candidate.BOUND_ENTRY:
+            if activation.entity == candidate.REGISTERED_ENTRY:
                 openings.append(activation.entity)
             return result
 
@@ -218,23 +231,57 @@ class SemanticPreparationCacheTests(unittest.TestCase):
                 self.evaluate(("is_kind", "int")), "satisfied"
             )
             self.assertEqual(
-                self.evaluate(("is_kind", "int"), subject=True),
+                self.evaluate(("is_kind", "bool")), "violated"
+            )
+            self.assertEqual(
+                self.evaluate(("is_kind", "int"), budget=0),
+                "unknown",
+            )
+            self.assertEqual(
+                self.evaluate(
+                    ("is_kind", "int"), budget=1, subject=True
+                ),
                 "violated",
             )
 
-        self.assertEqual(len(runs), 2)
-        self.assertIs(runs[0][0], runs[1][0])
-        self.assertIs(runs[0][1], runs[1][1])
+        self.assertEqual(len(runs), 4)
+        self.assertTrue(all(
+            run[0] is runs[0][0] and run[1] is runs[0][1]
+            for run in runs
+        ))
         self.assertEqual(
-            preflights, [candidate.BOUND_ENTRY] * 2
+            [run[2] for run in runs],
+            [candidate.REGISTERED_ENTRY] * 4,
         )
         self.assertEqual(
-            openings, [candidate.BOUND_ENTRY] * 2
+            [run[3][0] for run in runs],
+            [5, 5, 5, True],
         )
         self.assertEqual(
-            candidate._private_semantic_preparation.cache_info().hits,
-            1,
+            [run[3][1] for run in runs],
+            [
+                candidate._constraint(("is_kind", "int")),
+                candidate._constraint(("is_kind", "bool")),
+                candidate._constraint(("is_kind", "int")),
+                candidate._constraint(("is_kind", "int")),
+            ],
         )
+        self.assertEqual(
+            [run[3][2] for run in runs],
+            [None, None, 0, 1],
+        )
+        self.assertEqual(
+            [run[3][3] for run in runs],
+            [()] * 4,
+        )
+        self.assertEqual(
+            preflights, [candidate.REGISTERED_ENTRY] * 4,
+        )
+        self.assertEqual(
+            openings, [candidate.REGISTERED_ENTRY] * 4,
+        )
+        info = candidate._private_semantic_preparation.cache_info()
+        self.assertEqual((info.misses, info.hits), (1, 3))
 
     def test_invalidation_and_wrong_issuer(self):
         original_deploy = RestrictedExecutor.deploy
@@ -254,7 +301,8 @@ class SemanticPreparationCacheTests(unittest.TestCase):
 
         with self.assertRaises(AdmissionRejected):
             RestrictedExecutor().run(
-                deployment, candidate.BOUND_ENTRY, 5
+                deployment, candidate.REGISTERED_ENTRY,
+                5, candidate._constraint(expression), None, (),
             )
 
         issuer.invalidate(deployment)
@@ -347,7 +395,7 @@ class SemanticPreparationCacheTests(unittest.TestCase):
             )
         )
         self.assertIsInstance(executor, RestrictedExecutor)
-        self.assertEqual(entry, candidate.BOUND_ENTRY)
+        self.assertEqual(entry, candidate.REGISTERED_ENTRY)
         artifact_count = len(deployment.artifacts)
         hits_before = (
             candidate._private_semantic_preparation.cache_info().hits
