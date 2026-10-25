@@ -924,3 +924,68 @@ def sequence_projection(
 
     executor, deployment = _projection_deployment(entry)
     return executor.run(deployment, entry, value, *arguments)
+
+from tests.constraint_functions_budget_trace import (
+    TRACE_ENTRY,
+    add_budget_trace_entities,
+)
+
+# Register the trace entry without removing existing evaluator entries.
+EVALUATOR_ENTRIES = EVALUATOR_ENTRIES | frozenset({TRACE_ENTRY})
+
+
+@lru_cache(maxsize=None)
+def _private_budget_trace_deployment(
+    compiler_generation: int,
+    authority: object,
+) -> tuple[RestrictedExecutor, object]:
+    """Admit a reusable SHEAR-only node-count and verdict trace program.
+
+    Constraints, budgets, registered verdicts and subjects remain runtime
+    operands. The cache never contains computed observations.
+    """
+    if authority is not _PRIVATE_SEMANTIC_AUTHORITY:
+        raise ValueError("incompatible semantic authority")
+    definitions = add_budget_trace_entities(
+        _registered_entities(), REGISTERED_EVALUATE,
+    )
+    source = load(program(definitions))
+    executor = RestrictedExecutor()
+    deployment = executor.deploy(
+        source, compiler_generation=compiler_generation,
+    )
+    return executor, deployment
+
+
+def trace_budget(case: CandidateInput) -> tuple[str, int]:
+    """Return (verdict, visited nodes) from authenticated SHEAR execution.
+
+    When unbounded, the admitted counter establishes a finite node budget.
+    The actual visit count derives entirely from VM-returned budget state.
+    """
+    constraint = _constraint(case.expression)
+    _validate_budget(case.budget)
+    registrations = tuple(case.externals)
+    _validate_registrations(registrations)
+    executor, deployment = _private_budget_trace_deployment(
+        _PRIVATE_COMPILER_GENERATION, _PRIVATE_SEMANTIC_AUTHORITY,
+    )
+    result = executor.run(
+        deployment,
+        TRACE_ENTRY,
+        _materialize_subject(case.subject),
+        constraint,
+        case.budget,
+        registrations,
+    )
+    if (
+        type(result) is not tuple
+        or len(result) != 2
+        or type(result[0]) is not str
+        or result[0] not in _VERDICTS
+        or type(result[1]) is not int
+        or result[1] < 0
+        or (case.budget is not None and result[1] > case.budget)
+    ):
+        raise ValueError("admitted budget trace returned invalid observation")
+    return result
