@@ -27,4 +27,4 @@ occurrence = 0
 classification = "unspecified"
 reason = """
 The number of StateID characters shown by repr is diagnostic only.
-"
+"""
