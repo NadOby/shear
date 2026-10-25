@@ -39,7 +39,7 @@ from typing import Any, Callable, Iterator, Mapping, Protocol
 
 from .canonical import canonicalize
 from .cells import CellDeclaration, cells_of
-from .constraints import ConstraintResult, EvaluationContext
+from .constraints import Constraint, ConstraintResult, EvaluationContext
 from .identity import EntityID, StateID
 from .ownership import owner_of
 from .relations import constraint_relations, role_subject
@@ -116,6 +116,30 @@ def _admission_scope(
     if operation_scope is None:
         return contextlib.nullcontext()
     return operation_scope(target_state_id, operation)
+
+
+def _evaluate_admission_constraint(
+    constraint: Constraint,
+    subject: Any,
+    context: EvaluationContext,
+) -> ConstraintResult:
+    """Evaluate through an optional admission authority, without fallback.
+
+    Ordinary EvaluationContext retains existing runtime behavior.
+    A custom context may expose an evaluate_constraint hook whose verdict
+    must come from its selected authority (e.g. authenticated SHEAR).
+    """
+    evaluate = getattr(context, "evaluate_constraint", None)
+    if evaluate is None:
+        return constraint.evaluate(subject, context)
+
+    if not callable(evaluate):
+        raise TypeError("admission evaluator must be callable")
+
+    result = evaluate(constraint, canonicalize(subject))
+    if type(result) is not ConstraintResult:
+        raise TypeError("admission evaluator must return ConstraintResult")
+    return result
 
 
 class CellError(ValueError):
@@ -227,7 +251,8 @@ def _failed_constraint_relation(
             if affected.isdisjoint(relation.endpoints):
                 continue
 
-        outcome = constraint.evaluate(
+        outcome = _evaluate_admission_constraint(
+            constraint,
             role_subject(relation, content_of),
             context,
         )
@@ -271,7 +296,9 @@ def _check_content(
     context: EvaluationContext,
     operation: str,
 ) -> None:
-    result = declaration.constraint.evaluate(content, context)
+    result = _evaluate_admission_constraint(
+        declaration.constraint, content, context,
+    )
 
     if result is not ConstraintResult.SATISFIED:
         raise CellContentRejected(cell, result, operation)
@@ -812,7 +839,9 @@ class Runtime:
                     cell=cell,
                 )
 
-            outcome = declaration.constraint.evaluate(content, context)
+            outcome = _evaluate_admission_constraint(
+                declaration.constraint, content, context,
+            )
 
             if outcome is not ConstraintResult.SATISFIED:
                 raise ActivationRejected(
