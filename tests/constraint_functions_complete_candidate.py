@@ -51,9 +51,10 @@ from shear.examples.constraint_evaluator import (
     evaluator_entities,
 )
 from shear.hosted_bootstrap.restricted import RestrictedExecutor
-from shear.lang import Function, links, load
+from shear.lang import Function, links, load, run as run_corpus_language
 from tests.constraint_function_acceptance import CandidateInput, Observation
 from tests.constraint_function_oracle import KindSample
+from tests.constraint_functions_runtime_admission import open_candidate_runtime
 
 
 PROJECT_INSPECT = EntityID("constraint.project.inspect")
@@ -1003,3 +1004,15 @@ EVALUATOR_ENTRIES = EVALUATOR_ENTRIES | frozenset({
 def prepare_resource_probe(canonical_value: object, operation: str):
     """Prepare the narrow authenticated probe for resource acceptance."""
     return prepare_narrow_resource_probe(canonical_value, operation)
+
+
+def open_corpus_runtime(loaded_state, context):
+    """Create a real Runtime whose admissions execute the candidate VM."""
+    return open_candidate_runtime(loaded_state, context)
+
+
+def run_corpus_step(runtime, entry, *args, may_activate=False):
+    """Execute ordinary SHEAR corpus code with admitted constraint checks."""
+    return run_corpus_language(
+        runtime, entry, *args, may_activate=may_activate,
+    )
