@@ -220,9 +220,13 @@ class _Runner:
     def _after(self, before, *, report_live):
         now = self._before()
         self.state_unchanged = now == before
-        self.active_version_changed = now[0] != before[0]
-        if report_live:
-            self.live_cells = now[1]
+        # A definite verdict supports reporting the live content and
+        # active-version observation. An Unknown rejection establishes only
+        # atomic non-mutation, not a decisive admission observation.
+        self.active_version_changed = (
+            now[0] != before[0] if report_live else None
+        )
+        self.live_cells = now[1] if report_live else None
 
     def _result(self, actual):
         self.results.append(actual.value if isinstance(actual, ConstraintResult) else actual)
@@ -297,6 +301,9 @@ class _Runner:
             return
         if kind == "write":
             name, value = args
+            # Report the verdict of the current mutation, not the earlier
+            # successful operations used to prepare its live content.
+            self.results.clear()
             before = self._before()
             try:
                 self.runtime.write(_entity(name), value)
@@ -313,6 +320,9 @@ class _Runner:
             name, expression, transfer = args
             if transfer != "preserve_content":
                 raise ValueError("only explicit content continuity supported")
+            # Activation/trial supersedes preparatory write verdicts;
+            # earlier successful writes remain real committed operations.
+            self.results.clear()
             before = self._before()
             source = self.runtime.active.state
             entity = _entity(name)
