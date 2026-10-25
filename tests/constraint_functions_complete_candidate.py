@@ -3,18 +3,20 @@
 Python constructs semantic declarations and admitted programs, but never
 computes semantic verdicts, equality or inspection results.
 
-Registered External continuation and runtime integration remain separate.
-Unsupported cases fail explicitly.
+Named External constants run directly inside SHEAR. Dynamic callbacks
+suspend SHEAR at an External node and resume its authenticated continuation.
 """
 
 from __future__ import annotations
 
 from functools import lru_cache
+from typing import Callable, Mapping
 
 from shear import (
     AllOf,
     AnyOf,
     CellDeclaration,
+    ConstraintResult,
     EntityID,
     External,
     IntRange,
@@ -26,10 +28,16 @@ from shear import (
     Role,
     StateID,
     VersionID,
+    canonicalize,
 )
 from shear.closures import Closure
-from shear.constraints import Constraint
+from shear.constraints import Constraint, _record_host_failure
 from shear.examples._support import program
+from shear.examples.constraint_continuation import (
+    START as CONTINUATION_START,
+    RESUME as CONTINUATION_RESUME,
+    continuation_entities,
+)
 from shear.examples.constraint_evaluator import (
     BOUND_ENTRY,
     VALUE_EQUAL,
@@ -50,12 +58,16 @@ PROJECT_SLICE = EntityID("constraint.project.slice")
 
 EVALUATOR_ENTRIES = frozenset({
     BOUND_ENTRY,
+    CONTINUATION_START,
+    CONTINUATION_RESUME,
     PROJECT_INSPECT,
     PROJECT_EQUAL,
     PROJECT_SELECT,
     PROJECT_LENGTH,
     PROJECT_SLICE,
 })
+
+_VERDICTS = frozenset(("satisfied", "violated", "unknown"))
 
 
 def _constraint(expression: tuple) -> Constraint:
@@ -122,17 +134,46 @@ def _materialize_subject(subject: object) -> object:
     raise ValueError(f"unsupported symbolic subject kind: {kind!r}")
 
 
+def _validate_budget(budget: int | None) -> None:
+    if budget is not None and (
+        type(budget) is not int or budget < 0
+    ):
+        raise ValueError("budget must be a non-negative integer")
+
+
+def _deploy_continuation(
+    constraint: Constraint,
+    budget: int | None,
+    registrations: tuple[tuple[str, str], ...] | None,
+    compiler_generation: int = 1,
+) -> tuple[RestrictedExecutor, object, EntityID]:
+    """Admit subject-independent SHEAR; never precompute a verdict."""
+    source = load(program(
+        continuation_entities(constraint, budget, registrations)
+    ))
+    executor = RestrictedExecutor()
+    deployment = executor.deploy(
+        source, compiler_generation=compiler_generation,
+    )
+    return executor, deployment, CONTINUATION_START
+
+
 def prepare_semantic(
     expression: tuple,
     budget: int | None,
     externals: tuple,
 ) -> tuple[RestrictedExecutor, object, EntityID]:
-    """Prepare one subject-independent, authenticated evaluator."""
+    """Prepare a subject-independent evaluator returning a direct verdict.
+
+    Registered constant Externals are SHEAR code, not host callbacks.
+    Unregistered Externals retain the ordinary Unknown semantics.
+    """
     constraint = _constraint(expression)
+    _validate_budget(budget)
 
     if externals:
-        raise NotImplementedError(
-            "registered External continuation is not implemented"
+        return _deploy_continuation(
+            constraint, budget, tuple(externals)
         )
 
     source = load(program(
@@ -165,7 +206,7 @@ def _private_semantic_preparation(
     """
     if externals:
         raise NotImplementedError(
-            "registered External continuation is not implemented"
+            "registered Externals use separate static preparations"
         )
     if authority is not _PRIVATE_SEMANTIC_AUTHORITY:
         raise ValueError("incompatible semantic authority")
@@ -180,13 +221,51 @@ def _private_semantic_preparation(
     return executor, deployment, BOUND_ENTRY
 
 
+@lru_cache(maxsize=None)
+def _private_registered_preparation(
+    constraint: Constraint,
+    budget: int | None,
+    registrations: tuple[tuple[str, str], ...],
+    compiler_generation: int,
+    authority: object,
+) -> tuple[RestrictedExecutor, object, EntityID]:
+    """Cache admitted static declarations, never evaluation outcomes."""
+    if authority is not _PRIVATE_SEMANTIC_AUTHORITY:
+        raise ValueError("incompatible semantic authority")
+    return _deploy_continuation(
+        constraint, budget, registrations, compiler_generation,
+    )
+
+
+@lru_cache(maxsize=None)
+def _private_dynamic_preparation(
+    constraint: Constraint,
+    budget: int | None,
+    compiler_generation: int,
+    authority: object,
+) -> tuple[RestrictedExecutor, object, EntityID]:
+    """Keep dynamic continuation authority local and invalidatable."""
+    if authority is not _PRIVATE_SEMANTIC_AUTHORITY:
+        raise ValueError("incompatible semantic authority")
+    return _deploy_continuation(
+        constraint, budget, None, compiler_generation,
+    )
+
+
+def _observation(result: object) -> Observation:
+    if type(result) is not str or result not in _VERDICTS:
+        raise ValueError("admitted evaluator returned an invalid verdict")
+    return Observation(
+        outcome=result,
+        route="compiled",
+        incumbent_calls=0,
+    )
+
+
 def semantic(case: CandidateInput) -> Observation:
     """Return the actual admitted SHEAR result for the supplied subject."""
-    # Preserve test-controlled interception and External isolation.
-    if (
-        prepare_semantic is not _ORIGINAL_PREPARE_SEMANTIC
-        or case.externals
-    ):
+    # Preserve test-controlled public preparation interception.
+    if prepare_semantic is not _ORIGINAL_PREPARE_SEMANTIC:
         executor, deployment, entry = prepare_semantic(
             case.expression,
             case.budget,
@@ -194,32 +273,105 @@ def semantic(case: CandidateInput) -> Observation:
         )
     else:
         constraint = _constraint(case.expression)
-        if case.budget is not None and (
-            type(case.budget) is not int or case.budget < 0
-        ):
-            raise ValueError("budget must be a non-negative integer")
+        _validate_budget(case.budget)
 
-        executor, deployment, entry = _private_semantic_preparation(
-            constraint,
-            case.budget,
-            _PRIVATE_COMPILER_GENERATION,
-            (),
-            _PRIVATE_SEMANTIC_AUTHORITY,
-        )
+        if case.externals:
+            executor, deployment, entry = _private_registered_preparation(
+                constraint,
+                case.budget,
+                tuple(case.externals),
+                _PRIVATE_COMPILER_GENERATION,
+                _PRIVATE_SEMANTIC_AUTHORITY,
+            )
+        else:
+            executor, deployment, entry = _private_semantic_preparation(
+                constraint,
+                case.budget,
+                _PRIVATE_COMPILER_GENERATION,
+                (),
+                _PRIVATE_SEMANTIC_AUTHORITY,
+            )
 
     result = executor.run(
         deployment,
         entry,
         _materialize_subject(case.subject),
     )
+    return _observation(result)
 
-    if result not in ("satisfied", "violated", "unknown"):
-        raise ValueError("admitted evaluator returned an invalid verdict")
 
-    return Observation(
-        outcome=result,
-        route="compiled",
-        incumbent_calls=0,
+def _run_external_continuation(
+    constraint: Constraint,
+    subject: object,
+    budget: int | None,
+    callbacks: Mapping[str, Callable[[object], ConstraintResult]],
+) -> Observation:
+    """Run SHEAR until completion, dispatching only requested callbacks.
+
+    Host code never interprets a constraint or continuation frame; each
+    response re-enters authenticated SHEAR using its unchanged token.
+    """
+    _validate_budget(budget)
+    executor, deployment, entry = _private_dynamic_preparation(
+        constraint,
+        budget,
+        _PRIVATE_COMPILER_GENERATION,
+        _PRIVATE_SEMANTIC_AUTHORITY,
+    )
+    result = executor.run(deployment, entry, _materialize_subject(subject))
+
+    while isinstance(result, tuple):
+        if (
+            len(result) != 4
+            or result[0] != "external"
+            or type(result[1]) is not str
+            or not result[1]
+            or not isinstance(result[3], tuple)
+            or len(result[3]) != 2
+        ):
+            raise ValueError("malformed External continuation from SHEAR")
+
+        _, name, canonical_subject, continuation = result
+        callback = callbacks.get(name)
+        if callback is None:
+            verdict = ConstraintResult.UNKNOWN
+        else:
+            try:
+                verdict = callback(canonicalize(canonical_subject))
+            except BaseException as exc:
+                _record_host_failure(exc)
+                raise
+            if not isinstance(verdict, ConstraintResult):
+                raise TypeError(
+                    "external callback must return ConstraintResult"
+                )
+
+        result = executor.run(
+            deployment,
+            CONTINUATION_RESUME,
+            continuation,
+            verdict.value,
+        )
+
+    return _observation(result)
+
+
+def evaluate_external(
+    name: str,
+    subject: object,
+    budget: int | None,
+    callback: Callable[[object], ConstraintResult] | None = None,
+) -> Observation:
+    """Evaluate a named External through authenticated SHEAR continuation.
+
+    Missing callbacks yield Unknown; callback failures escape by identity.
+    Budget exhaustion is handled by SHEAR before any host dispatch.
+    """
+    if callback is not None and not callable(callback):
+        raise TypeError("external callback must be callable")
+    callbacks = {} if callback is None else {name: callback}
+    return _run_external_continuation(
+        External(name), subject, budget, callbacks,
     )
 
 
