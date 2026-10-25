@@ -7,7 +7,10 @@ from time import perf_counter, process_time
 import unittest
 from unittest.mock import patch
 
-from shear import EntityID, canonicalize, canonical_serialize, machine
+from shear import (
+    AllOf, CellDeclaration, EntityID, IsKind, Relation,
+    canonicalize, canonical_serialize, machine,
+)
 from shear.examples._support import program
 from shear.examples.constraint_evaluator import EQUAL_ITEMS, VALUE_EQUAL
 from shear.hosted_bootstrap import restricted
@@ -15,7 +18,7 @@ from shear.hosted_bootstrap.restricted import (
     AdmissionRejected,
     RestrictedExecutor,
 )
-from shear.lang import load, links
+from shear.lang import LanguageError, load, links
 from tests import constraint_functions_complete_candidate as candidate
 
 
@@ -26,6 +29,15 @@ ENTRIES = (
     candidate.PROJECT_LENGTH,
     candidate.PROJECT_SLICE,
 )
+
+# Map paths are positional and canonical-key ordered. Named components
+# belong to semantic records, not ordinary mappings.
+NESTED_VALUE = {
+    "z": (0, False),
+    "a": {"nested": [5, 7]},
+}
+NESTED_PATH = (0, 1, 0, 1, 1)
+NESTED_RESULT = 7
 
 
 def canonical_bytes(value):
@@ -155,12 +167,40 @@ class ProjectionClosureTests(unittest.TestCase):
             candidate.equal_projection([1, True], [1, 1])
         )
 
+        # Restore nested paths rather than weakening to tuple indexing.
+        self.assertEqual(
+            candidate.select_projection(NESTED_VALUE, NESTED_PATH),
+            NESTED_RESULT,
+        )
+        cell = CellDeclaration(IsKind("map"), NESTED_VALUE)
         self.assertEqual(
             candidate.select_projection(
-                (10, 20, 30), (1,)
+                cell, ("initial",) + NESTED_PATH,
+            ),
+            NESTED_RESULT,
+        )
+        relation = Relation(
+            "example", {"root": EntityID("root")},
+            {"a": [10, 20]},
+        )
+        self.assertEqual(
+            candidate.select_projection(
+                relation, ("payload", 0, 1, 1),
             ),
             20,
         )
+        self.assertEqual(
+            candidate.select_projection(
+                AllOf(IsKind("int")),
+                ("arguments", 0, 0, "form"),
+            ),
+            "is_kind",
+        )
+        with self.assertRaises(LanguageError):
+            candidate.select_projection(NESTED_VALUE, ("a",))
+        with self.assertRaises(LanguageError):
+            candidate.select_projection(cell, ("not_a_field",))
+
         self.assertEqual(
             candidate.sequence_projection([1, 2, 3], "len"),
             3,
@@ -211,9 +251,9 @@ class ProjectionClosureTests(unittest.TestCase):
                 before = len(openings)
                 self.assertEqual(
                     candidate.select_projection(
-                        (10, 20, 30), (1,)
+                        NESTED_VALUE, NESTED_PATH,
                     ),
-                    20,
+                    NESTED_RESULT,
                 )
                 self.assertGreater(len(openings), before)
 
@@ -235,15 +275,15 @@ class ProjectionClosureTests(unittest.TestCase):
         self.assertEqual(
             executor.run(
                 deployment, candidate.PROJECT_SELECT,
-                (5, 7), (1,), 0
+                NESTED_VALUE, NESTED_PATH, 0
             ),
-            7,
+            NESTED_RESULT,
         )
 
         with self.assertRaises(AdmissionRejected):
             RestrictedExecutor().run(
                 deployment, candidate.PROJECT_SELECT,
-                (5, 7), (1,), 0
+                NESTED_VALUE, NESTED_PATH, 0
             )
 
         executor.invalidate(deployment)
@@ -253,7 +293,7 @@ class ProjectionClosureTests(unittest.TestCase):
             side_effect=AssertionError("unauthorized VM entry"),
         ):
             with self.assertRaises(AdmissionRejected):
-                candidate.select_projection((5, 7), (1,))
+                candidate.select_projection(NESTED_VALUE, NESTED_PATH)
 
         self.assertIs(
             candidate._projection_deployment(
@@ -278,19 +318,19 @@ class ProjectionClosureTests(unittest.TestCase):
                 side_effect=AssertionError("unauthorized VM entry"),
             ):
                 with self.assertRaises(AdmissionRejected):
-                    candidate.select_projection((5, 7), (1,))
+                    candidate.select_projection(NESTED_VALUE, NESTED_PATH)
         finally:
             store._artifacts[key] = authentic
 
         self.assertEqual(
-            candidate.select_projection((5, 7), (1,)),
-            7,
+            candidate.select_projection(NESTED_VALUE, NESTED_PATH),
+            NESTED_RESULT,
         )
 
     def test_preflight_denial_is_not_bypassed(self):
         self.assertEqual(
-            candidate.select_projection((5, 7), (1,)),
-            7,
+            candidate.select_projection(NESTED_VALUE, NESTED_PATH),
+            NESTED_RESULT,
         )
 
         with (
@@ -308,7 +348,7 @@ class ProjectionClosureTests(unittest.TestCase):
             with self.assertRaisesRegex(
                 AdmissionRejected, "injected projection preflight denial"
             ):
-                candidate.select_projection((5, 7), (1,))
+                candidate.select_projection(NESTED_VALUE, NESTED_PATH)
 
     def test_artifact_counts_and_warm_selection_latency(self):
         # Same admitted SHEAR selection function, different deployments.
