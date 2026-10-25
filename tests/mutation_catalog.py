@@ -75,6 +75,7 @@ TARGETS = (
     # A kill here is not evidence that a behavioural test caught the change;
     # that evidence is tests/test_hosted_bootstrap.py's differential test.
     "shear/examples/compiler_source.py",
+    "shear/examples/constraint_continuation.py",
     "shear/examples/constraint_evaluator.py",
     "shear/examples/self_hosting.py",
     "shear/examples/vm.py",
@@ -529,7 +530,7 @@ def load_catalog(
                     f"{context}: duplicate survivor key {key!r}"
                 )
 
-            survivors[key] = classification
+                survivors[key] = classification
 
     actual_targets = set(source_blobs)
     expected_targets = set(catalog_targets)
@@ -541,14 +542,12 @@ def load_catalog(
 
         if missing:
             problems.append(
-                "missing catalogs: "
-                + ", ".join(sorted(missing))
+                "missing catalogs: " + ", ".join(sorted(missing))
             )
 
         if unexpected:
             problems.append(
-                "unlisted catalogs: "
-                + ", ".join(sorted(unexpected))
+                "unlisted catalogs: " + ", ".join(sorted(unexpected))
             )
 
         raise CatalogError(
