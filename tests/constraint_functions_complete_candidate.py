@@ -3,8 +3,8 @@
 Python constructs semantic declarations and admitted programs, but never
 computes semantic verdicts, equality or inspection results.
 
-Named External constants run directly inside SHEAR. Dynamic callbacks
-suspend SHEAR at an External node and resume its authenticated continuation.
+Ordinary and registered constraints use shared generic authenticated code.
+Dynamic callbacks suspend SHEAR and resume its authenticated continuation.
 """
 
 from __future__ import annotations
@@ -457,6 +457,23 @@ _PRIVATE_COMPILER_GENERATION = 1
 
 
 @lru_cache(maxsize=None)
+def _generic_ordinary_deployment(
+    compiler_generation: int,
+    authority: object,
+) -> tuple[RestrictedExecutor, object, EntityID]:
+    """Admit one generic evaluator for all ordinary constraints and budgets.
+
+    No semantic input is embedded in compiled code. The underlying generic
+    deployment is issued and authenticated exactly once per authority and
+    compiler generation; every call still re-enters restricted execution.
+    """
+    if authority is not _PRIVATE_SEMANTIC_AUTHORITY:
+        raise ValueError("incompatible semantic authority")
+    return _generic_registered_deployment(
+        (), compiler_generation, authority,
+    )
+
+
 def _private_semantic_preparation(
     constraint: Constraint,
     budget: int | None,
@@ -464,10 +481,10 @@ def _private_semantic_preparation(
     externals: tuple,
     authority: object,
 ) -> tuple[RestrictedExecutor, object, EntityID]:
-    """Reuse private authenticated deployments, never verdicts.
+    """Legacy private preparation interface, with generic VM execution.
 
-    Canonical Constraint equality and hashing define cache identity.
-    No eviction can conceal invalidation by issuing a replacement.
+    Constraint and budget are validated by the caller and passed as live
+    runtime operands. They must not become part of deployment identity.
     """
     if externals:
         raise NotImplementedError(
@@ -475,15 +492,17 @@ def _private_semantic_preparation(
         )
     if authority is not _PRIVATE_SEMANTIC_AUTHORITY:
         raise ValueError("incompatible semantic authority")
-
-    source = load(program(
-        bound_evaluator_entities(constraint, budget)
-    ))
-    executor = RestrictedExecutor()
-    deployment = executor.deploy(
-        source, compiler_generation=compiler_generation,
+    return _generic_ordinary_deployment(
+        compiler_generation, authority,
     )
-    return executor, deployment, BOUND_ENTRY
+
+
+_private_semantic_preparation.cache_info = (
+    _generic_ordinary_deployment.cache_info
+)
+_private_semantic_preparation.cache_clear = (
+    _generic_ordinary_deployment.cache_clear
+)
 
 
 def _private_registered_preparation(
@@ -569,6 +588,8 @@ def semantic(case: CandidateInput) -> Observation:
 
     subject = _materialize_subject(case.subject)
     if entry == REGISTERED_ENTRY:
+        # Ordinary and registered invocations use the same generic VM code.
+        # No semantic verdict or budget decisions are computed in Python.
         result = executor.run(
             deployment, entry, subject, constraint, case.budget,
             tuple(case.externals),
