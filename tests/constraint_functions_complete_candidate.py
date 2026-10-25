@@ -55,11 +55,13 @@ PROJECT_EQUAL = EntityID("constraint.project.equal")
 PROJECT_SELECT = EntityID("constraint.project.select")
 PROJECT_LENGTH = EntityID("constraint.project.length")
 PROJECT_SLICE = EntityID("constraint.project.slice")
+RECONSTRUCT_ENTRY = EntityID("constraint.reconstruct")
 
 EVALUATOR_ENTRIES = frozenset({
     BOUND_ENTRY,
     CONTINUATION_START,
     CONTINUATION_RESUME,
+    RECONSTRUCT_ENTRY,
     PROJECT_INSPECT,
     PROJECT_EQUAL,
     PROJECT_SELECT,
@@ -141,6 +143,21 @@ def _validate_budget(budget: int | None) -> None:
         raise ValueError("budget must be a non-negative integer")
 
 
+def _validate_registrations(registrations: tuple) -> None:
+    """Reject malformed static inputs before entering the deployment cache.
+
+    A rejected registration is never admitted and never changes the cache's
+    hit/miss counters or creates an otherwise unreachable entry.
+    """
+    names = set()
+    for name, verdict in registrations:
+        if type(name) is not str or not name or name in names:
+            raise ValueError("registrations need unique nonempty names")
+        if type(verdict) is not str or verdict not in _VERDICTS:
+            raise ValueError("invalid registered External verdict")
+        names.add(name)
+
+
 def _deploy_continuation(
     constraint: Constraint,
     budget: int | None,
@@ -172,6 +189,7 @@ def prepare_semantic(
     _validate_budget(budget)
 
     if externals:
+        _validate_registrations(tuple(externals))
         return _deploy_continuation(
             constraint, budget, tuple(externals)
         )
@@ -276,6 +294,7 @@ def semantic(case: CandidateInput) -> Observation:
         _validate_budget(case.budget)
 
         if case.externals:
+            _validate_registrations(tuple(case.externals))
             executor, deployment, entry = _private_registered_preparation(
                 constraint,
                 case.budget,
@@ -373,6 +392,53 @@ def evaluate_external(
     return _run_external_continuation(
         External(name), subject, budget, callbacks,
     )
+
+
+@lru_cache(maxsize=1)
+def _reconstruction_deployment() -> tuple[RestrictedExecutor, object]:
+    """Admit one generic SHEAR reconstruction, independent of its input.
+
+    Record validation and canonical identity are handled by the semantic
+    RECORD instruction. No host-side canonical-content reconstruction runs.
+    """
+    original = ("arg", "original")
+    source = load(program({
+        RECONSTRUCT_ENTRY: Function(
+            ("original",),
+            (
+                "tuple",
+                original,
+                (
+                    "record",
+                    ("lit", "constraint"),
+                    (
+                        "tuple",
+                        ("item", original, ("lit", "form")),
+                        ("item", original, ("lit", "arguments")),
+                    ),
+                ),
+            ),
+        ),
+    }))
+    executor = RestrictedExecutor()
+    return executor, executor.deploy(source)
+
+
+def reconstruct_constraint(expression: tuple) -> tuple:
+    """Return original and VM-rebuilt typed constraint content.
+
+    Only the admitted SHEAR return supplies the pair. The host may reject a
+    malformed machine result, but must not synthesize or repair either value.
+    """
+    original = _constraint(expression)
+    executor, deployment = _reconstruction_deployment()
+    result = executor.run(deployment, RECONSTRUCT_ENTRY, original)
+    if type(result) is not tuple or len(result) != 2:
+        error = ValueError("invalid SHEAR reconstruction result")
+        error.projection_operation = "reconstruct_constraint"
+        error.rejected_vm_output = result
+        raise error
+    return result
 
 
 def _projection_inspection() -> tuple:
