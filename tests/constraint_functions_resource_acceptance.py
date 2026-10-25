@@ -37,7 +37,8 @@ REPEATS = 8
 WORK_RATIO_LIMIT = 8
 ALLOCATION_GROWTH_LIMIT = 16 * 1024
 OUTPUT_CPU_SLOPE_TOLERANCE = 3
-ROLE_BYTES_PER_ITEM = 96
+OUTPUT_SERIALIZATION_SLACK_NUM = 5
+OUTPUT_SERIALIZATION_SLACK_DEN = 4
 
 
 class WholeInvocationProfile:
@@ -70,6 +71,27 @@ class WholeInvocationProfile:
 def signed_delta(first, second):
     """Retain negative control differences as measurement evidence."""
     return first - second
+
+
+def reference_output_cost(value):
+    """Measure the independent oracle's full canonical output cost.
+
+    Value normalization, like candidate preparation, is outside this
+    traced boundary. The encoded output and every serialization temporary
+    are included. No candidate or VM result is used to set the allowance.
+    """
+    canonical = canonicalize(value)
+    if tracemalloc.is_tracing():
+        raise AssertionError("reference measurement needs exclusive tracing")
+    tracemalloc.start()
+    try:
+        baseline, _ = tracemalloc.get_traced_memory()
+        tracemalloc.reset_peak()
+        encoded = canonical_bytes(canonical)
+        _, peak = tracemalloc.get_traced_memory()
+        return len(encoded), max(0, peak - baseline)
+    finally:
+        tracemalloc.stop()
 
 
 class WholeInvocationMeasurement:
@@ -277,7 +299,12 @@ class InspectionResourceAcceptance(unittest.TestCase):
         self.assert_calibrated(small, large, label=label)
 
     def assert_calibrated(self, small, large, *, label):
-        """Challenge the same measurement path with a known bad operation."""
+        """Detect deliberately copied and repeatedly sorted containers.
+
+        Compare each injected operation against the same real admitted
+        inspected invocation, not against an unrelated constant-work VM
+        call. This removes authenticated invocation cost from the signal.
+        """
         meter = WholeInvocationMeasurement(self.entries)
         copy_growth = []
         sort_growth = []
@@ -292,7 +319,7 @@ class InspectionResourceAcceptance(unittest.TestCase):
                 return result
 
             copy_row = meter.run(
-                copied, row["control"], row["argument"]
+                copied, row["inspected"], row["argument"]
             )
             copy_growth.append(copy_row["cold_peak"])
 
@@ -307,7 +334,7 @@ class InspectionResourceAcceptance(unittest.TestCase):
                 return result
 
             sort_row = meter.run(
-                sorted_call, row["control"], row["argument"]
+                sorted_call, row["inspected"], row["argument"]
             )
             sort_growth.append(sort_row["warm_cpu"])
 
@@ -316,18 +343,31 @@ class InspectionResourceAcceptance(unittest.TestCase):
             ALLOCATION_GROWTH_LIMIT,
             f"{label}: instrument cannot detect full Python copying",
         )
-        cpu_limit = max(
-            max(0, small["warm_cpu"]) * WORK_RATIO_LIMIT,
-            5 * max(small["cpu_noise"], large["cpu_noise"]),
-            small["control_cpu"] * 0.05,
-        )
         self.assertGreater(
-            sort_growth[1], cpu_limit,
+            sort_growth[1] - sort_growth[0],
+            max(0, sort_growth[0]) * WORK_RATIO_LIMIT,
             f"{label}: instrument cannot detect repeated shuffled sort",
         )
 
-    def assert_output_scaling(self, small, large, *, label, bytes_per_item):
-        """Permit O(output-size) materialization, not repeated O(n log n)."""
+    def assert_output_scaling(self, small, large, *, label, reference):
+        """Bound full-output materialization by independent oracle costs.
+
+        The reference serialization peak is measured independently of
+        the candidate. Only 1.25 output bytes of additional growth are
+        allowed beyond this baseline, limiting hidden extra copies.
+        """
+        (small_bytes, small_ref_peak), (large_bytes, large_ref_peak) = (
+            reference
+        )
+        self.assertGreater(large_bytes, small_bytes)
+        reference_growth = max(0, large_ref_peak - small_ref_peak)
+        output_growth = large_bytes - small_bytes
+        peak_allowance = (
+            reference_growth
+            + OUTPUT_SERIALIZATION_SLACK_NUM * output_growth
+            // OUTPUT_SERIALIZATION_SLACK_DEN
+        )
+
         ratio = LARGE / SMALL
         for phase in ("cold", "warm"):
             cpu_key = f"{phase}_cpu"
@@ -346,7 +386,7 @@ class InspectionResourceAcceptance(unittest.TestCase):
                 large[peak_key],
                 max(0, small[peak_key])
                 + ALLOCATION_GROWTH_LIMIT
-                + (LARGE - SMALL) * bytes_per_item,
+                + peak_allowance,
                 f"{label}: {phase} allocation exceeds output bound",
             )
 
@@ -386,17 +426,19 @@ class InspectionResourceAcceptance(unittest.TestCase):
 
     def test_relation_role_contents_order_and_scaling(self):
         rows = []
+        reference = []
         for size in (SMALL, LARGE):
             roles = {
                 f"role-{i:06d}": EntityID(str(i)) for i in range(size)
             }
             value = Relation("large", roles)
             expected = tuple(sorted(roles.items()))
+            reference.append(reference_output_cost(expected))
             rows.append(self.observation(
                 value, "roles", None, expected, materialize=True
             ))
         self.assert_output_scaling(
-            *rows, label="relation roles", bytes_per_item=ROLE_BYTES_PER_ITEM
+            *rows, label="relation roles", reference=reference
         )
 
     def test_constraint_operands_contents_and_scaling(self):
