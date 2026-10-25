@@ -22,9 +22,11 @@ from tests import constraint_functions_complete_candidate as candidate
 class SemanticPreparationCacheTests(unittest.TestCase):
     def setUp(self):
         candidate._private_semantic_preparation.cache_clear()
+        candidate._private_registered_preparation.cache_clear()
 
     def tearDown(self):
         candidate._private_semantic_preparation.cache_clear()
+        candidate._private_registered_preparation.cache_clear()
 
     @staticmethod
     def evaluate(expression, budget=None, externals=(), subject=5):
@@ -71,19 +73,96 @@ class SemanticPreparationCacheTests(unittest.TestCase):
         info = candidate._private_semantic_preparation.cache_info()
         self.assertEqual((info.misses, info.hits), (2, 1))
 
-    def test_external_registrations_fail_without_cache_reuse(self):
-        self.evaluate(("is_kind", "int"))
-        before = candidate._private_semantic_preparation.cache_info()
+    def test_external_registrations_use_separate_cache(self):
+        expression = ("external", "registered")
+        satisfied = (("registered", "satisfied"),)
+        violated = (("registered", "violated"),)
 
-        with self.assertRaises(NotImplementedError):
+        self.assertEqual(
+            self.evaluate(("is_kind", "int")), "satisfied"
+        )
+        original = candidate._private_semantic_preparation.cache_info()
+
+        self.assertEqual(
+            self.evaluate(expression, externals=satisfied),
+            "satisfied",
+        )
+        self.assertEqual(
+            self.evaluate(expression, externals=satisfied),
+            "satisfied",
+        )
+        self.assertEqual(
+            self.evaluate(expression, externals=violated),
+            "violated",
+        )
+        self.assertEqual(
+            self.evaluate(expression, externals=()),
+            "unknown",
+        )
+
+        registered = candidate._private_registered_preparation.cache_info()
+        self.assertEqual(
+            (registered.misses, registered.hits),
+            (2, 1),
+        )
+        ordinary = candidate._private_semantic_preparation.cache_info()
+        self.assertEqual(ordinary.misses, original.misses + 1)
+        self.assertEqual(ordinary.hits, original.hits)
+
+        with self.assertRaises(ValueError):
             self.evaluate(
-                ("is_kind", "int"),
-                externals=(("registered", "satisfied"),),
+                expression,
+                externals=(("registered", "invalid"),),
             )
 
         self.assertEqual(
-            candidate._private_semantic_preparation.cache_info(),
-            before,
+            candidate._private_registered_preparation.cache_info(),
+            registered,
+        )
+
+    def test_registered_external_cache_retains_admission_authority(self):
+        expression = ("external", "policy")
+        registrations = (("policy", "satisfied"),)
+
+        self.assertEqual(
+            self.evaluate(expression, externals=registrations),
+            "satisfied",
+        )
+
+        executor, deployment, entry = (
+            candidate._private_registered_preparation(
+                candidate._constraint(expression),
+                None,
+                registrations,
+                candidate._PRIVATE_COMPILER_GENERATION,
+                candidate._PRIVATE_SEMANTIC_AUTHORITY,
+            )
+        )
+
+        with self.assertRaises(AdmissionRejected):
+            RestrictedExecutor().run(deployment, entry, 5)
+
+        with self.assertRaises(ValueError):
+            candidate._private_registered_preparation(
+                candidate._constraint(expression),
+                None,
+                registrations,
+                candidate._PRIVATE_COMPILER_GENERATION,
+                object(),
+            )
+
+        executor.invalidate(deployment)
+
+        with patch.object(
+            machine, "_open",
+            side_effect=AssertionError("unauthorized VM entry"),
+        ):
+            with self.assertRaises(AdmissionRejected):
+                self.evaluate(expression, externals=registrations)
+
+        self.assertEqual(
+            candidate._private_registered_preparation.cache_info().misses,
+            2,
         )
 
     def test_public_preparation_interception(self):
