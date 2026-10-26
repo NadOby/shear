@@ -680,5 +680,186 @@ class SemanticPreparationCacheTests(unittest.TestCase):
             )
 
 
+
+    def test_multiple_external_continuations_preserve_order_and_budget(self):
+        """Exercise two callbacks, short circuiting and exact remaining budgets.
+
+        The complete strong-Kleene tables are traversed in canonical order.
+        Every continuation is issued by admitted SHEAR code, not a host tree
+        evaluator. No callback is replayed after resumption.
+        """
+        from itertools import product
+
+        from shear import AllOf, AnyOf, ConstraintResult, External, canonicalize
+        from tests.constraint_functions_complete_acceptance import (
+            candidate_execution_guard,
+        )
+
+        subject = {"payload": [1, True]}
+        canonical_subject = canonicalize(subject)
+        verdicts = tuple(ConstraintResult)
+
+        def execute(constraint, budget, callbacks):
+            remaining = []
+            with candidate_execution_guard(candidate.EVALUATOR_ENTRIES) as opened:
+                guarded_run = RestrictedExecutor.run
+
+                def traced_run(executor, deployment, entry, *args, **kwargs):
+                    value = guarded_run(
+                        executor, deployment, entry, *args, **kwargs,
+                    )
+                    if (isinstance(value, tuple) and len(value) == 4
+                            and value[0] == "external"):
+                        remaining.append(value[3][0])
+                    return value
+
+                with patch.object(RestrictedExecutor, "run", traced_run):
+                    result = candidate._run_external_continuation(
+                        constraint, subject, budget, callbacks,
+                    ).outcome
+            self.assertTrue(opened, "no authenticated continuation")
+            return result, remaining
+
+        for form, constructor in (("all_of", AllOf), ("any_of", AnyOf)):
+            constraint = constructor(External("first"), External("second"))
+            ordered = tuple(part.name for part in constraint.parts)
+            self.assertEqual(set(ordered), {"first", "second"})
+
+            for first, second in product(verdicts, repeat=2):
+                with self.subTest(form=form, results=(first, second)):
+                    replies = dict(zip(ordered, (first, second)))
+                    calls = []
+
+                    def callback(name):
+                        def dispatch(actual):
+                            calls.append((name, actual))
+                            return replies[name]
+                        return dispatch
+
+                    actual, remaining = execute(
+                        constraint, 3,
+                        {name: callback(name) for name in ordered},
+                    )
+                    if form == "all_of":
+                        expected = (
+                            "violated" if ConstraintResult.VIOLATED in replies.values()
+                            else "satisfied" if all(
+                                value is ConstraintResult.SATISFIED
+                                for value in replies.values()
+                            ) else "unknown"
+                        )
+                        decisive = first is ConstraintResult.VIOLATED
+                    else:
+                        expected = (
+                            "satisfied" if ConstraintResult.SATISFIED
+                            in replies.values()
+                            else "violated" if all(
+                                value is ConstraintResult.VIOLATED
+                                for value in replies.values()
+                            ) else "unknown"
+                        )
+                        decisive = first is ConstraintResult.SATISFIED
+
+                    visited = ordered[:1] if decisive else ordered
+                    self.assertEqual(actual, expected)
+                    self.assertEqual(
+                        calls, [(name, canonical_subject) for name in visited],
+                    )
+                    self.assertEqual(remaining, [1, 0][:len(visited)])
+
+            for first in verdicts:
+                with self.subTest(form=form, budget=2, first=first):
+                    calls = []
+
+                    def first_callback(actual):
+                        calls.append((ordered[0], actual))
+                        return first
+
+                    def impossible_callback(_):
+                        self.fail("second callback entered after budget exhaustion")
+
+                    actual, remaining = execute(constraint, 2, {
+                        ordered[0]: first_callback,
+                        ordered[1]: impossible_callback,
+                    })
+                    decisive = (
+                        first is ConstraintResult.VIOLATED
+                        if form == "all_of"
+                        else first is ConstraintResult.SATISFIED
+                    )
+                    self.assertEqual(
+                        actual, first.value if decisive else "unknown",
+                    )
+                    self.assertEqual(calls, [(ordered[0], canonical_subject)])
+                    self.assertEqual(remaining, [0])
+
+            for budget in (0, 1):
+                with self.subTest(form=form, budget=budget):
+                    def impossible_callback(_):
+                        self.fail("External callback entered without budget")
+
+                    actual, remaining = execute(
+                        constraint, budget,
+                        {name: impossible_callback for name in ordered},
+                    )
+                    self.assertEqual(actual, "unknown")
+                    self.assertEqual(remaining, [])
+
+    def test_second_external_host_failure_preserves_runtime_atomicity(self):
+        """A late callback fault neither replays earlier work nor commits write."""
+        from shear import (
+            AllOf, CellDeclaration, ConstraintResult, EntityID, EvaluationContext,
+            Evaluator, External, State, Value, canonicalize,
+        )
+        from tests.constraint_functions_complete_acceptance import (
+            candidate_execution_guard,
+        )
+        from tests.constraint_functions_runtime_admission import (
+            open_candidate_runtime,
+        )
+
+        constraint = AllOf(External("first"), External("second"))
+        first, second = (part.name for part in constraint.parts)
+        cell = EntityID("gh123.multi_external.atomic")
+        state = State.create({
+            cell: Value.create(cell, CellDeclaration(constraint, 1)),
+        })
+        observed = []
+        sentinel = RuntimeError("second External callback failed")
+
+        def callback(name):
+            def evaluate(subject):
+                observed.append((name, subject))
+                if name == second and subject == canonicalize(2):
+                    raise sentinel
+                return ConstraintResult.SATISFIED
+            return evaluate
+
+        context = EvaluationContext({
+            first: Evaluator(callback(first)),
+            second: Evaluator(callback(second)),
+        })
+        with candidate_execution_guard(candidate.EVALUATOR_ENTRIES) as opened:
+            runtime = open_candidate_runtime(state, context)
+            previous = runtime.read(cell)
+            active = runtime.active
+            before = len(observed)
+            with self.assertRaises(RuntimeError) as caught:
+                runtime.write(cell, 2)
+
+        self.assertIs(caught.exception, sentinel)
+        self.assertEqual(
+            observed[:before],
+            [(first, canonicalize(1)), (second, canonicalize(1))],
+        )
+        self.assertEqual(
+            observed[before:],
+            [(first, canonicalize(2)), (second, canonicalize(2))],
+        )
+        self.assertIs(runtime.active, active)
+        self.assertEqual(runtime.read(cell), previous)
+        self.assertTrue(opened, "no admitted External runtime evaluation")
+
+
 if __name__ == "__main__":
     unittest.main()
