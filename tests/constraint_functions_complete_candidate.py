@@ -63,6 +63,8 @@ PROJECT_SELECT = EntityID("constraint.project.select")
 PROJECT_LENGTH = EntityID("constraint.project.length")
 PROJECT_SLICE = EntityID("constraint.project.slice")
 RECONSTRUCT_ENTRY = EntityID("constraint.reconstruct")
+RECONSTRUCT_NODE = EntityID("constraint.reconstruct.node")
+RECONSTRUCT_PARTS = EntityID("constraint.reconstruct.parts")
 REGISTERED_ENTRY = EntityID("constraint.registered.entry")
 REGISTERED_EVALUATE = EntityID("constraint.registered.evaluate")
 REGISTERED_NODE = EntityID("constraint.registered.node")
@@ -677,30 +679,96 @@ def evaluate_external(
 
 @lru_cache(maxsize=1)
 def _reconstruction_deployment() -> tuple[RestrictedExecutor, object]:
-    """Admit one generic SHEAR reconstruction, independent of its input.
+    """Admit recursive reconstruction of every typed constraint node.
 
-    Record validation and canonical identity are handled by the semantic
-    RECORD instruction. No host-side canonical-content reconstruction runs.
+    Each nested constraint is inspected and rebuilt by an ordinary SHEAR
+    function. RECORD is the sole value-construction primitive; its result,
+    not a child taken from the input tree, becomes the parent's operand.
+    The host never reconstructs canonical content after execution.
     """
-    original = ("arg", "original")
-    source = load(program({
-        RECONSTRUCT_ENTRY: Function(
-            ("original",),
+    def arg(name: str) -> tuple:
+        return ("arg", name)
+
+    def lit(value: object) -> tuple:
+        return ("lit", value)
+
+    def item(value: tuple, index: int | str) -> tuple:
+        return ("item", value, lit(index))
+
+    def rebuild(value: tuple) -> tuple:
+        return ("call", "rebuild", value)
+
+    original = arg("original")
+    form = arg("form")
+    arguments = arg("arguments")
+    parts = arg("parts")
+    index = arg("index")
+    rebuilt = arg("rebuilt")
+
+    # Compositions expose one tuple of typed children. Build a fresh tuple
+    # from recursive SHEAR results, including for empty compositions.
+    composition = (
+        "tuple",
+        ("call", "parts", item(arguments, 0), lit(0), ("tuple",)),
+    )
+    unary = ("tuple", rebuild(item(arguments, 0)))
+    role = ("tuple", item(arguments, 0), rebuild(item(arguments, 1)))
+    rebuilt_arguments = (
+        "if", ("eq", form, lit("all_of")), composition,
+        (
+            "if", ("eq", form, lit("any_of")), composition,
             (
-                "tuple",
-                original,
-                (
-                    "record",
-                    ("lit", "constraint"),
-                    (
-                        "tuple",
-                        ("item", original, ("lit", "form")),
-                        ("item", original, ("lit", "arguments")),
-                    ),
-                ),
+                "if", ("eq", form, lit("not")), unary,
+                ("if", ("eq", form, lit("role")), role, arguments),
             ),
         ),
-    }))
+    )
+
+    node_body = (
+        "let", "form", item(original, "form"),
+        (
+            "let", "arguments", item(original, "arguments"),
+            (
+                "record", lit("constraint"),
+                ("tuple", form, rebuilt_arguments),
+            ),
+        ),
+    )
+    parts_body = (
+        "if", ("lt", index, ("len", parts)),
+        (
+            "call", "next", parts,
+            ("add", index, lit(1)),
+            (
+                "concat", rebuilt,
+                ("tuple", rebuild(("item", parts, index))),
+            ),
+        ),
+        rebuilt,
+    )
+
+    entities = {
+        RECONSTRUCT_ENTRY: Function(
+            ("original",),
+            ("tuple", original, rebuild(original)),
+        ),
+        RECONSTRUCT_NODE: Function(("original",), node_body),
+        RECONSTRUCT_PARTS: Function(
+            ("parts", "index", "rebuilt"), parts_body,
+        ),
+        EntityID(f"{RECONSTRUCT_ENTRY.value}.links"): links(
+            RECONSTRUCT_ENTRY, rebuild=RECONSTRUCT_NODE,
+        ),
+        EntityID(f"{RECONSTRUCT_NODE.value}.links"): links(
+            RECONSTRUCT_NODE,
+            rebuild=RECONSTRUCT_NODE, parts=RECONSTRUCT_PARTS,
+        ),
+        EntityID(f"{RECONSTRUCT_PARTS.value}.links"): links(
+            RECONSTRUCT_PARTS,
+            rebuild=RECONSTRUCT_NODE, next=RECONSTRUCT_PARTS,
+        ),
+    }
+    source = load(program(entities))
     executor = RestrictedExecutor()
     return executor, executor.deploy(source)
 
