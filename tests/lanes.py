@@ -104,6 +104,7 @@ LANES: dict[str, tuple[str, ...]] = {
         "test_constraint_functions_complete",
         "test_constraint_functions_preparation_cache",
         "test_constraint_functions_projection_closure",
+        "test_constraint_functions_recursive_reconstruction",
         "test_content_baseline",
         "test_corpus",
         "test_docs",
