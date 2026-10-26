@@ -194,6 +194,148 @@ class SemanticPreparationCacheTests(unittest.TestCase):
 
         self.assertEqual(calls, [(expression, None, ())])
 
+    def test_actual_semantic_path_binds_all_nine_forms_to_admitted_vm(self):
+        """Bind normal execution, not the monkeypatched public preparation.
+
+        The frozen binding suite intentionally intercepts prepare_semantic,
+        selecting a separate bound evaluator. This non-frozen discriminator
+        inspects the unmodified production-like semantic() branch instead.
+        """
+        from shear import canonical_serialize, canonicalize
+        from tests.constraint_functions_complete_acceptance import (
+            candidate_execution_guard,
+        )
+
+        witnesses = (
+            (("is_kind", "int"), 5, None, (), "satisfied"),
+            (("int_range", 0, 10), 5, None, (), "satisfied"),
+            (("length", 2, 2), (5, 6), None, (), "satisfied"),
+            (("one_of", (5, 6)), 5, None, (), "satisfied"),
+            (("all_of", ("is_kind", "int"),
+              ("int_range", 0, 10)), 5, None, (), "satisfied"),
+            (("any_of", ("is_kind", "bool"),
+              ("int_range", 0, 10)), 5, None, (), "satisfied"),
+            (("not", ("is_kind", "bool")), 5, None, (), "satisfied"),
+            (("role", "x", ("is_kind", "int")),
+             {"x": 5}, None, (), "satisfied"),
+            (("external", "missing"), 5, None, (), "unknown"),
+            (("external", "policy"), 5, None,
+             (("policy", "violated"),), "violated"),
+            (("not", ("is_kind", "bool")), 5, 1, (), "unknown"),
+        )
+        native_run = RestrictedExecutor.run
+        native_ordinary = candidate._private_semantic_preparation
+        native_registered = candidate._private_registered_preparation
+
+        def identity(value):
+            return canonical_serialize(canonicalize(value))
+
+        for expression, subject, budget, registrations, expected in witnesses:
+            with self.subTest(expression=expression, budget=budget,
+                              registrations=registrations):
+                # Do not patch prepare_semantic: that would replace the
+                # evaluator under test before reaching these discriminators.
+                self.assertIs(
+                    candidate.prepare_semantic,
+                    candidate._ORIGINAL_PREPARE_SEMANTIC,
+                )
+                preparations = []
+                invocations = []
+
+                def ordinary_spy(*args):
+                    preparations.append(("ordinary", args))
+                    return native_ordinary(*args)
+
+                def registered_spy(*args):
+                    preparations.append(("registered", args))
+                    return native_registered(*args)
+
+                def run_spy(executor, deployment, entry, *args, **kwargs):
+                    if entry == candidate.REGISTERED_ENTRY:
+                        invocations.append((executor, deployment, args))
+                    return native_run(
+                        executor, deployment, entry, *args, **kwargs,
+                    )
+
+                with (
+                    patch.object(candidate, "_private_semantic_preparation",
+                                 ordinary_spy),
+                    patch.object(candidate, "_private_registered_preparation",
+                                 registered_spy),
+                    patch.object(RestrictedExecutor, "run", run_spy),
+                    candidate_execution_guard(
+                        frozenset({candidate.REGISTERED_ENTRY})
+                    ) as opened,
+                ):
+                    result = candidate.semantic(CandidateInput(
+                        expression, subject, budget, registrations,
+                    ))
+
+                self.assertEqual(result.outcome, expected)
+                self.assertEqual(result.incumbent_calls, 0)
+                self.assertTrue(opened, "normal path bypassed admitted code")
+                self.assertEqual(
+                    opened[-1][1], candidate.REGISTERED_ENTRY,
+                )
+                self.assertEqual(len(preparations), 1)
+                self.assertEqual(len(invocations), 1)
+                kind, prepared = preparations[0]
+                self.assertEqual(
+                    kind, "registered" if registrations else "ordinary",
+                )
+                self.assertEqual(identity(prepared[0]), identity(
+                    candidate._constraint(expression)
+                ))
+                self.assertEqual(prepared[1], budget)
+                self.assertIs(
+                    prepared[-1], candidate._PRIVATE_SEMANTIC_AUTHORITY,
+                )
+                if registrations:
+                    self.assertEqual(prepared[2], registrations)
+                    self.assertEqual(
+                        prepared[3], candidate._PRIVATE_COMPILER_GENERATION,
+                    )
+                else:
+                    self.assertEqual(
+                        prepared[2], candidate._PRIVATE_COMPILER_GENERATION,
+                    )
+                    self.assertEqual(prepared[3], ())
+
+                executor, deployment, arguments = invocations[0]
+                self.assertIsInstance(executor, RestrictedExecutor)
+                self.assertIsNotNone(deployment.source_state_id)
+                self.assertEqual(len(arguments), 4)
+                self.assertEqual(identity(arguments[0]), identity(subject))
+                self.assertEqual(identity(arguments[1]), identity(
+                    candidate._constraint(expression)
+                ))
+                self.assertEqual(arguments[2], budget)
+                self.assertEqual(arguments[3], registrations)
+
+                alternative = (
+                    "violated" if expected == "satisfied" else "satisfied"
+                )
+                with candidate_execution_guard(
+                    frozenset({candidate.REGISTERED_ENTRY}),
+                    forced=alternative,
+                ) as forced_opened:
+                    forced_result = candidate.semantic(CandidateInput(
+                        expression, subject, budget, registrations,
+                    ))
+                self.assertTrue(forced_opened)
+                self.assertEqual(forced_result.outcome, alternative)
+
+    def test_broken_normal_preparation_cannot_pass_as_public_binding(self):
+        """A failure in the real private preparation must escape unchanged."""
+        sentinel = RuntimeError("normal preparation disabled")
+        with patch.object(
+            candidate, "_private_semantic_preparation",
+            side_effect=sentinel,
+        ):
+            with self.assertRaises(RuntimeError) as observed:
+                self.evaluate(("is_kind", "int"))
+        self.assertIs(observed.exception, sentinel)
+
     def test_authenticated_runner_and_preflight_on_cache_hits(self):
         original_run = RestrictedExecutor.run
         original_preflight = restricted.preflight
