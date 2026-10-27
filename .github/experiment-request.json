@@ -6,7 +6,7 @@
     "--output-dir",
     "experiment-output",
     "--suite",
-    "representative",
+    "full",
     "--samples",
     "8"
   ]
