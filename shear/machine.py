@@ -44,6 +44,25 @@ _RESOLVER: ContextVar[ChunkResolver | None] = ContextVar(
 )
 
 
+def _definition_for(
+    version: Any,
+    entity: EntityID,
+    value: Value,
+) -> Any:
+    """Use a pinned function definition when the resolver provides one.
+
+    The original execution path remains unchanged without this optional
+    interface. A restricted resolver can bind function metadata to the
+    same authenticated version as its admitted bytecode.
+    """
+    resolver = _RESOLVER.get()
+    if resolver is not None:
+        scoped = getattr(resolver, "for_definition", None)
+        if scoped is not None:
+            return scoped(version, entity)
+    return _definition_of(value)
+
+
 def _chunk_for(
     version: Any,
     entity: EntityID,
@@ -170,7 +189,11 @@ def _open(
     state = activation.hold.version.state
     activation.values = state.values
     value = state.values[entity]
-    definition = _definition_of(value)
+    definition = _definition_for(
+        activation.hold.version,
+        entity,
+        value,
+    )
 
     if definition is None:
         unloaded = function_of(value) is not None
@@ -275,7 +298,11 @@ def _open_closure(
             *where,
         )
 
-    if _definition_of(owner_value) is None:
+    if _definition_for(
+        activation.hold.version,
+        closure.owner,
+        owner_value,
+    ) is None:
         raise _attach(
             LanguageError(message),
             "language",
