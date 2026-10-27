@@ -8,6 +8,6 @@
     "--suite",
     "smoke",
     "--samples",
-    "3"
+    "4"
   ]
 }
