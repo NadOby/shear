@@ -2,12 +2,12 @@
   "argv": [
     "python",
     "-m",
-    "tests.constraint_functions_live_admission_spike",
+    "tests.constraint_functions_definition_snapshot_experiment",
     "--output-dir",
     "experiment-output",
     "--suite",
-    "representative",
+    "smoke",
     "--samples",
-    "8"
+    "4"
   ]
 }
