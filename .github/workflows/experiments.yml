@@ -1,0 +1,144 @@
+name: Experiments (opt-in)
+
+# Separate from Semantic model: ordinary source/test pushes do not run this job.
+on:
+  workflow_dispatch:
+    inputs:
+      command:
+        description: "Experiment command and arguments (no shell expansion)"
+        required: true
+        type: string
+        default: "python -m tests.constraint_functions_security_stage_experiment --output-dir experiment-output --suite representative"
+  push:
+    paths:
+      - .github/workflows/experiments.yml
+      - .github/experiment-request.json
+
+permissions:
+  contents: read
+
+jobs:
+  experiment:
+    name: Run requested experiment
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      PYTHONHASHSEED: "0"
+      PYTHONUNBUFFERED: "1"
+      EXPERIMENT_OUTPUT_DIR: experiment-output
+      DISPATCH_COMMAND: ${{ inputs.command }}
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+
+      - name: Run experiment and retain its result
+        shell: bash
+        run: |
+          python - <<'PYRUN'
+          import datetime
+          import json
+          import os
+          from pathlib import Path
+          import platform
+          import shlex
+          import subprocess
+          import sys
+          import time
+
+          request_path = Path('.github/experiment-request.json')
+          if os.environ['GITHUB_EVENT_NAME'] == 'workflow_dispatch':
+              command = shlex.split(os.environ['DISPATCH_COMMAND'])
+              request_source = 'workflow_dispatch'
+          elif request_path.is_file():
+              request = json.loads(request_path.read_text(encoding='utf-8'))
+              command = request['argv']
+              request_source = str(request_path)
+          else:
+              # Bootstrap a newly added workflow without requiring two
+              # files to be created atomically in the GitHub web editor.
+              command = [
+                  'python', '-m',
+                  'tests.constraint_functions_security_stage_experiment',
+                  '--output-dir', 'experiment-output',
+                  '--suite', 'smoke', '--processes', '1',
+                  '--samples', '2', '--warmups', '1', '--bootstrap', '20',
+              ]
+              request_source = 'bootstrap-smoke'
+
+          if (not isinstance(command, list) or not command
+                  or any(not isinstance(arg, str) for arg in command)
+                  or not command[0]):
+              raise ValueError('request argv must be a nonempty string array')
+
+          Path(os.environ['EXPERIMENT_OUTPUT_DIR']).mkdir(parents=True, exist_ok=True)
+          started = time.monotonic()
+          stamp = datetime.datetime.now(datetime.timezone.utc).isoformat()
+          manifest = {
+              'request_source': request_source,
+              'argv': command,
+              'head_sha': os.environ['GITHUB_SHA'],
+              'run_id': os.environ['GITHUB_RUN_ID'],
+              'run_attempt': os.environ['GITHUB_RUN_ATTEMPT'],
+              'python': sys.version,
+              'platform': platform.platform(),
+              'started_utc': stamp,
+              'output_dir': os.environ['EXPERIMENT_OUTPUT_DIR'],
+          }
+          return_code = 127
+          with Path('experiment-run.log').open('w', encoding='utf-8') as logfile:
+              try:
+                  print('Executing:', shlex.join(command), flush=True)
+                  proc = subprocess.Popen(
+                      command,
+                      stdout=subprocess.PIPE,
+                      stderr=subprocess.STDOUT,
+                      text=True,
+                      bufsize=1,
+                  )
+                  assert proc.stdout is not None
+                  for line in proc.stdout:
+                      sys.stdout.write(line)
+                      sys.stdout.flush()
+                      logfile.write(line)
+                      logfile.flush()
+                  return_code = proc.wait()
+              except OSError as exc:
+                  message = f'Could not start experiment: {exc}\n'
+                  print(message, file=sys.stderr, flush=True)
+                  logfile.write(message)
+
+          manifest['exit_code'] = return_code
+          manifest['elapsed_seconds'] = round(time.monotonic() - started, 3)
+          Path('experiment-manifest.json').write_text(
+              json.dumps(manifest, indent=2, sort_keys=True) + '\n',
+              encoding='utf-8',
+          )
+          summary = os.getenv('GITHUB_STEP_SUMMARY')
+          if summary:
+              with Path(summary).open('a', encoding='utf-8') as handle:
+                  handle.write('### Experiment\n\n')
+                  handle.write(f'- Exit code: `{return_code}`\n')
+                  handle.write(f'- Commit: `{manifest["head_sha"]}`\n')
+                  handle.write(f'- Duration: {manifest["elapsed_seconds"]} s\n')
+                  handle.write(f'- Request: `{request_source}`\n')
+                  handle.write('- Evidence: download the experiment artifact.\n')
+          raise SystemExit(return_code)
+          PYRUN
+
+      - name: Upload logs, metadata and results (also on failure)
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: experiment-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            experiment-run.log
+            experiment-manifest.json
+            experiment-output/
+          retention-days: 14
+          if-no-files-found: warn
