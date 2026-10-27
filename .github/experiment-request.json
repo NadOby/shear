@@ -2,12 +2,12 @@
   "argv": [
     "python",
     "-m",
-    "tests.constraint_functions_definition_snapshot_experiment",
+    "tests.constraint_functions_definition_oracle_comparison",
     "--output-dir",
     "experiment-output",
     "--suite",
-    "representative",
+    "smoke",
     "--samples",
-    "8"
+    "4"
   ]
 }
