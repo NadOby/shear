@@ -2,10 +2,12 @@
   "argv": [
     "python",
     "-m",
-    "tests.constraint_functions_seal_audit",
+    "tests.constraint_functions_sealed_snapshot_experiment",
     "--output-dir",
     "experiment-output",
     "--suite",
-    "full"
+    "smoke",
+    "--samples",
+    "3"
   ]
 }
