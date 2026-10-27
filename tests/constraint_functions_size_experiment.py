@@ -37,7 +37,8 @@ from shear.identity import EntityID
 from shear.lang import Function, links, load
 from tests import constraint_functions_complete_candidate as candidate
 from tests.constraint_functions_comparative_benchmark import (
-    _calibrate, _cases, _digest, _git_head, _percentile, _time_batch,
+    _calibrate, _cases as _comparison_cases, _digest, _git_head,
+    _percentile, _time_batch,
 )
 from tests.constraint_functions_complete_acceptance import (
     candidate_execution_guard,
@@ -56,6 +57,48 @@ DEFAULTS = {
     "bootstrap": 2000,
 }
 GENERATION = candidate._PRIVATE_COMPILER_GENERATION
+
+
+def _cases(suite: str) -> list[dict]:
+    """Retain frozen cases; correct the experimental scaling node counts.
+
+    The shared comparison generator's ``all_of_distinct_N`` cases contain
+    N leaves plus one composite node. Only this experiment changes those
+    supplementary workloads; it does not edit the frozen oracle or the
+    original comparative benchmark.
+    """
+    if suite not in ("representative-scaling", "full"):
+        return _comparison_cases(suite)
+
+    ordinary = _comparison_cases(
+        "representative" if suite == "representative-scaling" else "full"
+    )
+    ordinary = [
+        row for row in ordinary
+        if row["name"] not in {
+            "all_of_distinct_8", "all_of_distinct_64", "all_of_distinct_256"
+        }
+    ]
+    for size in (8, 64, 256):
+        # AllOf is one constraint node, so use exactly size - 1 leaves.
+        expression = (
+            "all_of",
+            *(("int_range", -i, size + i) for i in range(size - 1)),
+        )
+        normalized = candidate._constraint(expression)
+        if len(normalized.parts) + 1 != size:
+            raise AssertionError("scaling workload has incorrect node count")
+        ordinary.append({
+            "name": f"all_of_nodes_{size}",
+            "expression": expression,
+            "subject": 5,
+            "budget": None,
+            "externals": (),
+            "expected": "satisfied",
+            "origin": "exact total constraint nodes (root included)",
+            "constraint_nodes": size,
+        })
+    return ordinary
 
 
 def _forms(expression: tuple) -> frozenset[str]:
@@ -339,9 +382,11 @@ def _summarize(rows: list[dict], bootstrap: int, seed: int) -> dict:
     groups = defaultdict(list)
     for row in rows:
         groups[row["process"]].append(row)
+    # Each observation is a block mean, not one invocation. In particular,
+    # the 95th percentile below is NOT an individual-invocation tail p95.
     measures = {
-        "median": statistics.median,
-        "p95": lambda values: _percentile(values, .95),
+        "median_block_mean": statistics.median,
+        "p95_block_mean": lambda values: _percentile(values, .95),
     }
     rng = random.Random(seed)
     ratios = {
@@ -365,6 +410,9 @@ def _summarize(rows: list[dict], bootstrap: int, seed: int) -> dict:
             draws[int(.975 * (len(draws) - 1))],
         ]
     return {
+        "latency_observation": "mean wall nanoseconds per invocation in each timed block",
+        "p95_block_mean_is_individual_tail_p95": False,
+        "individual_call_tail_unmeasured": True,
         "ratios_specialized_over_generic": ratios,
         "generic": {
             name + "_ns": fun(
@@ -413,6 +461,9 @@ def _controller(args) -> int:
         },
         "sampling_meets_warm_protocol": protocol_ok,
         "experiment_not_gh123_acceptance": True,
+        "latency_observation": "per-block invocation-average wall time",
+        "tail_latency": "individual-call p95 NOT measured; summary p95_block_mean is a percentile of block means",
+        "scaling_nodes": "all_of_nodes_N has N - 1 unique leaves plus the AllOf root, exactly N nodes",
         "compare": (
             "identical four-operand RestrictedExecutor.run "
             "for original generic versus form-set specialized generic"
@@ -429,6 +480,7 @@ def _controller(args) -> int:
             "budget": row["budget"],
             "externals": repr(row["externals"]),
             "expected": row["expected"],
+            "constraint_nodes": row.get("constraint_nodes"),
         } for row in rows],
     }
     (destination / "metadata.json").write_text(
@@ -472,6 +524,8 @@ def _controller(args) -> int:
         "experiment": "form-set deployment size",
         "complete": not failures,
         "sampling_meets_warm_protocol": protocol_ok,
+        "latency_observation": "per-block invocation-average wall time",
+        "individual_call_tail_unmeasured": True,
         "workloads": {},
         "failures": failures,
     }
@@ -510,7 +564,7 @@ def _controller(args) -> int:
         "complete": summary["complete"],
         "failures": len(failures),
         "ratios": {
-            name: data["ratios_specialized_over_generic"]["median"]["ratio"]
+            name: data["ratios_specialized_over_generic"]["median_block_mean"]["ratio"]
             for name, data in summary["workloads"].items()
             if "ratios_specialized_over_generic" in data
         },
