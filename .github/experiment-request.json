@@ -6,8 +6,8 @@
     "--output-dir",
     "experiment-output",
     "--suite",
-    "smoke",
+    "representative",
     "--samples",
-    "4"
+    "8"
   ]
 }
