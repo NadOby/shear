@@ -43,7 +43,8 @@ from shear.hosted_bootstrap import AdmissionRejected, restricted
 from shear.hosted_bootstrap.artifacts import artifact_id
 from shear.hosted_bootstrap.restricted_policy import RestrictionPolicy, preflight
 from shear.hosted_bootstrap.restricted import RestrictedExecutor
-from shear.lang import _definition_of, load, program
+from shear.examples._support import program
+from shear.lang import _definition_of, load
 from shear.machine import run as machine_run
 from shear.runtime import Runtime
 from shear.state import State
