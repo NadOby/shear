@@ -1,103 +1,129 @@
 # GH-123 – Authenticated execution-proof authority contract
 
-**Status: Provisional proposal for independent Review, not a Task 32 amendment.**
-**Basis:** `task/123-complete-constraints` at `e03dae1b3ff3db9665f6477a9601b8438346c8d1`.
-**Scope:** GH-123 proof caching only. General executable-region fusion belongs to #130.
+**Status: Provisional – revised after independent CONDITIONAL review. Not approved for production integration.**  
+**Basis:** `task/123-complete-constraints` at `0ca4630100de010f871cddea9acc709ef37f8a43`.  
+**Scope:** GH-123 proof caching with existing expression-node artifacts. Executable-region design belongs to #130.
 
-## 1. Decision proposed
+## 1. Decision and precedence
 
-Prefer **B: authoritative immutable-snapshot semantics** to **A: strict mutation-detection parity for every superseded Python backing object**, but only if the unchanged Task 32 and GH-123 acceptance requirements can be met.
+**Provisional:** Prefer an authenticated, immutable execution reference (Option B) over redoing unchanged production/admission proofs at every invocation. The reference does **not** replace required live authority checks. In particular, GH-123 frozen witnesses require rejection when protected backing bindings are substituted at invocation, even if authentic code survives in a snapshot.
 
-Task 32 requires an immutable admitted-artifact view for an invocation, compiler production **and** host admission, whole-reachable-graph effect preflight (including dead branches), pinned execution, failure provenance and fail-closed revocation. It does not require checking an object that has ceased to be an execution authority merely because Python code can still refer to that object.
+**Decided by existing specifications and tests:** Task 32 requires genuine compiler-production and admission authority, pinned runtime execution, complete transitive source-and-instruction effect preflight (including dead branches), authentic artifact identity, failure provenance and fail-closed invalidation. GH-123 adds observable backing-binding rejection and recovery. Neither specification nor frozen tests are amended by this proposal.
 
-This is a proposed interpretation, not permission to change existing tests, security behavior or the public restricted-runner interface. The current runner remains authoritative until independent Review approves a concrete implementation.
+A genuine detached snapshot may make some *unprotected, superseded* storage irrelevant, but a binding directly challenged by GH-123 acceptance cannot be reclassified as irrelevant simply because a proof exists. The current `RestrictedExecutor.run` remains the production authority until a reviewed replacement passes unchanged tests.
 
-## 2. What the proof authorizes
+## 2. Proof scope and pinned evaluator version
 
-An issued proof is a host-owned capability for exactly:
+A proof is owned by one issuing `RestrictedExecutor` and binds exactly:
 
-- One issuing `RestrictedExecutor` and its issued deployment identity.
-- One pinned runtime **Version object**, source `StateID`, entry `EntityID` and function-definition version.
-- One compiler generation and its authentic producer/admitter evidence.
-- One exact `RestrictionPolicy` (including the effect allowlist), not a subset chosen later.
-- The complete transitive allowed function/code-node set, with owner and `VersionID` for each node.
-- An immutable executable chunk view and canonical function-definition view for those nodes.
-- A revocation/lifetime state owned by the issuer, not reconstructed from a caller-provided hash.
+- Issued `RestrictedDeployment` identity and its issuer's issuance record.
+- The evaluator runtime's **one active `Version` object** and its exact source `StateID`; entry function `EntityID` and authenticated definition/version.
+- The producing compiler generation, its live authority and genuine production/admission evidence.
+- One exact `RestrictionPolicy` including the allowed-effect set.
+- The fully preflighted transitive function and expression-node set, with owner, `EntityID`, `VersionID`, admitted artifact identity and emitted instructions.
+- An immutable authenticated reference for executed chunks, source definitions, dependency/link metadata and provenance used by proof consumers.
+- Proof lifetime, explicit revocation and required issuer/version binding checks.
 
-Source and admitted bytecode are both checked before proof issuance. Structural validation, artifact integrity, genuine production/admission events and source/bytecode effect restrictions are distinct obligations. Unknown code, indirect dispatch, forged reuse ancestry and unauthorized effects reject before VM entry.
+A matching `StateID`, constraint normalization key, content hash or cached result is not sufficient authority. Proofs cannot cross issuers, deployments, entries, effect policies or evaluator-runtime `Version` objects.
 
-A proof's hash or cached result alone never establishes its authority. Proof caching must not be keyed only by `StateID`, normalized constraint or semantic equality: these do not identify an issuer, an active runtime version, a policy or the lifetime of an admitted deployment.
+**Bounded scope:** The evaluator runtime is stable during GH-123 restricted execution (`may_activate=False`). Activation inside the evaluator runtime, concurrent evaluator activation and transferable proofs are not introduced. Evolution of the **constrained target runtime** is a distinct D5 operation and retains its existing behavior. Named evaluator replacement is a separate operation-scoped registry change; it is not evaluator-runtime activation.
 
-## 3. Authority transition and object identity
+## 3. Issuance, publication, object identity and source authority
 
-Issuance must define the exact transition at which the authenticated execution snapshot becomes authoritative. The VM may obtain executable chunks and definitions **only** from that snapshot, in the same pinned runtime; it may not fall back to source decoding, host lowering or the current mutable artifact mapping.
+The following are a single serialized authority transition relative to managed invalidation: verify the issuer/deployment and producing generation; authenticate source and admitted artifacts; perform complete source-and-emitted-instruction preflight; construct the trusted reference; revalidate any bindings that could have changed during preparation; then publish the proof. A failed step publishes no grant. Explicit revocation cannot race with publication to leave a usable stale proof. A lock, generation token, transactional swap or equivalent mechanism may implement this; no internal state machine is prescribed.
 
-**Frozen acceptance constraint:** `tests/constraint_functions_complete_acceptance.py::candidate_execution_guard` and Task 32 witnesses require each VM-opened chunk to be the **same Python object** as `deployment.artifacts[(node, version)].chunk`. The current experiment privately copies chunks, so it does not meet this witness. Production design must make the published authenticated deployment view and the VM execution view identical at the tested boundary. Do not rewrite the witness to compare chunk equality instead.
+The reference must bind all metadata consumed by preflight, VM execution, definition resolution, dependency checking and provenance/traces. Function definitions must be reconstructed or checked against canonical source; mutable `Value._definition` and relation memos cannot independently create authority. Before fresh proof issuance, an inconsistent decoded definition must reject before VM entry. After issuance, only metadata actually transferred into the authoritative reference may be treated as obsolete; no consumer may silently fall back to a changed memo or live unproved definition.
 
-The implementation must also prove that chunk contents, decoded definitions and nested metadata used by the VM are stable for the invocation. `MappingProxyType`, frozen dataclasses and tuple outer containers are insufficient evidence by themselves if inner objects remain writable by an untrusted actor. The source graph and any derived definition must be version-bound; `Value._definition` is a mutable memo, not a fresh authority.
+**Unchanged chunk-identity witness:** Every VM-opened chunk must satisfy:
 
-**Open:** Whether to publish sealed chunk objects during `deploy()` or establish an equivalent protected authoritative view before the first invocation. Neither design is approved by this document. It must preserve the existing artifact provenance and object-identity witnesses.
+`chunk is deployment.artifacts[(node, version)].chunk`
 
-## 4. Replacement, revocation and retention
+Equality of bytes, hashes or copied tuples does not meet the witness. The production view and VM resolver must use the **same published admitted chunk objects**, while the issuer retains an independently authenticated record of their authorized contents and identity. Private chunk copies in the live-admission and definition-snapshot experiments do not satisfy this condition. A design may publish sealed objects at admission or establish an equivalent safe authoritative view, but cannot revise the frozen witness.
 
-| Event | Proposed rule |
+An outer `tuple`, frozen dataclass or `MappingProxyType` does not by itself prove that nested execution/source data cannot change. The design must either protect the consumed data against the supported mutations or validate it against independently authenticated contents where the contract requires detection. Forged self-consistently rehashed artifacts gain no producer/admitter authority.
+
+## 4. Mandatory invocation-time backing validation and recovery
+
+**Frozen behavioral invariants:**
+
+1. If protected artifact or chunk bindings are substituted when an invocation checks them, raise `AdmissionRejected` **before VM entry**. An authentic immutable snapshot does not authorize execution through a currently substituted protected binding.
+2. After authentic bindings are restored, execution must be permitted again **subject to every other admission check**. This does not guarantee any particular semantic verdict.
+3. Explicit deployment invalidation permanently withdraws authority from that deployment. Restoring backing bindings cannot revive it.
+4. Explicit invalidation of a producing compiler generation permanently withdraws authority dependent on that invalidated generation. Reintroducing a mapping entry cannot revive the invalidated generation.
+
+These are observable requirements, **not** a prescribed three-state machine. A substitution reversed entirely between invocations need not be detected historically. Rejection caused solely by a temporary binding substitution is not irreversible revocation. Recovery may compare restored bindings to an existing immutable authenticated reference; it need not recompile, redeploy or repeat proof obligations already proven unchanged. An implementation may retain/revalidate a proof or discard and reissue one.
+
+**Protected binding set, as exercised by existing frozen tests:**
+
+- The issuing executor's record for the exact deployment; deployment `_owner`, `_session`, `_target`, `_artifact_set`, `artifacts`, `source_state_id` and `compiler_generation`, and the associated target/session/active-version bindings.
+- The admitted artifact set's current `_artifacts` and `_chunks` mappings, **including bindings not opened by this particular evaluation**; their key sets, authenticated artifact object identities and corresponding exact chunk identities.
+- The published `deployment.artifacts[(entity, version)]` bindings and each artifact's bound owner, node/version, source identity, producing generation, authenticated ID and genuine chunk contents.
+- The selected evaluator-runtime `Version` identity, artifact-set validity, producing generation object and its validity, plus the canonical source/definition bindings actually relied on for executing or reporting the proof.
+
+This list specifies required observables, not a demand to detect every arbitrary privileged Python write. In particular, the frozen GH-123 cache witness substitutes an **arbitrary** `store._artifacts` entry, not necessarily a reachable execution node. Checking only the entry chunk or proof-reachable chunks is insufficient. The authority witness also substitutes both `_artifacts[key]` and `_chunks[key]`; checking only one table is insufficient as a general contract.
+
+**Concrete conservative mechanism proposed for initial implementation:** retain a private authenticated reference manifest at issuance. Before each invocation, verify the issuer and live lifecycle bindings and compare the entire protected `_artifacts`/`_chunks` key sets and per-key object identities with that reference, including `artifact.chunk is expected_chunk` and authenticated metadata needed to prevent in-place changes of an admitted record from escaping. Recheck any independently mutable consumed source metadata at its required boundary or protect it in the published authoritative representation. A mismatch refuses before VM entry; a restored exact binding permits fresh validation against the same reference. The mechanism does **not** have to repeat full compilation, SHA-256 verification of unchanged artifacts or transitive preflight on every invocation.
+
+Without a reliable write barrier or protected storage, direct Python dictionary mutations cannot generally be detected by an O(1) epoch check. The conservative comparison is O(number of protected bindings) per invocation. Its performance is **unmeasured** and may fail the GH-123 resource limit. A faster design may replace it only by proving equivalent coverage of the actual frozen mutations, not by assuming all writers use cooperative APIs. The existing runner remains the fallback if equivalence or performance cannot be established.
+
+## 5. Invocation, opening and continuation boundaries
+
+A proof and its issuer/lifetime checks must be valid at each invocation entry. Current protected-binding substitution must reject there, before `machine.run` or any other VM entry. Live authority and pinned-version checks also apply at **function-definition openings**, **code-node openings** and **External continuation resumption** before resumed SHEAR execution. Reusing a proof does not exempt a new invocation or resumed continuation from required live checks.
+
+If explicit invalidation occurs between relevant openings, the next required opening rejects before executing further unproved code; a fresh invocation rejects before VM entry. The contract does **not** add mandatory checks before every `READ`, immediately before target commit, after the last opening or between every Python opcode. It does not promise rollback of a callback's independently performed external side effects; existing target-runtime failure/rollback semantics remain binding.
+
+All restrictions remain in force on code executed from an already issued proof: no unproved static/dynamic dispatch, forbidden effects, alternate lowering, incumbent Python constraint fallback, or exception-to-verdict coercion. Trace/error provenance must identify the actual admitted node/version, evaluator entry, producing generation, artifact ID, constrained target operation and relevant failure source.
+
+## 6. Replacement, evolution, irreversible invalidation and reclamation
+
+| Event | Required behavior |
 | --- | --- |
-| New invocation with valid matching grant | Use the pinned proof; live issuer/lifetime checks remain mandatory. |
-| Normal named-evaluator registry replacement | Existing operation finishes on its pinned selection; the next operation selects the replacement. No retroactive revalidation. |
-| New semantic version / successful activation | Old frames may finish on a retained old version under D5; fresh calls obey existing active-version selection. No implicit grant transfer. |
-| Explicit `invalidate(deployment)` or artifact-set invalidation | Reject new invocations before VM entry; in-flight execution fails closed at its next required authority safe point. Do not redirect to a replacement. |
-| Producing compiler-generation invalidation or issuer withdrawal | Revoke dependent grants and reject at the same boundaries. |
-| Policy change, entry change or deployment identity change | A distinct proof is required; never silently reuse the old one. |
-| Failed candidate preparation, preflight or proof issuance | Publish no grant, leave existing admitted runtime state unchanged and preserve failure provenance. |
-| Replacement of a superseded, non-authoritative backing map | Cannot authorize forged execution. Continuing with independently pinned genuine code may be acceptable only after Review confirms all frozen tests. |
-| Mutation of still-authoritative code or definition | Must not execute altered code. Reject or make the mutation impossible within the declared threat model. |
+| Named evaluator registry replacement | Current target admission operation retains its originally selected deployment; next operation selects the replacement. No retroactive revalidation. Replacement alone is not proof revocation. |
+| Constrained target runtime activation | Preserve existing D5 target version/hold/old-frame rules. Do not transfer evaluator proofs or change evaluator selection mid-operation. |
+| Evaluator runtime active-Version change | Existing restricted invocation rejects stale-version use; no old-evaluator-version continuation extension is authorized. One proof binds one stable evaluator `Version`. |
+| Temporary issuer/deployment/backing binding substitution | Refuse if observed at required check; restoring authentic bindings allows revalidation and resumed eligibility, absent another failure. |
+| Explicit deployment or artifact-set invalidation | Permanently withdraw the deployment's execution authority; no recovery through restored bindings or replacement registry entries. |
+| Producing compiler-generation invalidation | Permanently withdraw dependent authority; a temporarily missing but valid chain mapping is not equivalent to irreversible `invalidate()`. |
+| New entry, policy or issuer | Require distinct authorization; do not reinterpret an existing proof. |
+| Failed issuance/preparation | Publish nothing; preserve existing admitted state and failure provenance. |
+| Retired evaluator Version / no remaining legitimate owner | Release associated proofs/artifacts with existing D5 retention and hold semantics; cache keys must not indefinitely retain retired versions or obsolete deployments. |
 
-**Safe-point requirement:** a live grant must be checked at entry and at the existing code-node/function-opening boundaries at minimum, until a separately reviewed contract permits coarser checks. An invalidation between openings must be observed before the next opening. Do not claim immediate interruption of a Python opcode already executing.
+Proof publication, explicit withdrawal and reclamation must have defined ordering so a revoked or reclaimed reference cannot be newly used. No new concurrency semantics, stronger mid-instruction cancellation or generalized concurrent evaluator activation is implied.
 
-Ordinary replacement is *not* revocation. Explicit invalidation *is* revocation. In-flight retention does not grant immunity from explicit invalidation.
+## 7. Worked behavioral witnesses
 
-## 5. Threat model and limits
+**Authentic execution:** Genuine produce/admit events and full transitive source/bytecode preflight establish proof authority. The invoked runner checks current protected mappings; the real VM opens the same published admitted chunk objects and uses authenticated definitions and provenance.
 
-Untrusted SHEAR code and caller-supplied constraint data must not be able to obtain or modify the issuer's proof, its executable storage, runtime-version binding, effect policy or revocation state.
+**Forged binding, then recovery:** A validly rehashed replacement is placed under an original `_artifacts` key, with the corresponding `_chunks` substitution. An invocation raises `AdmissionRejected` before VM entry even though the private proof still holds authentic code. Restoring both bindings permits another invocation, subject to remaining checks. A substitution removed between invocations need not create a historical taint.
 
-Arbitrary privileged Python reflection (`object.__setattr__`, rewriting private dictionaries, monkeypatching trusted methods) can defeat ordinary Python immutability. Two possible host threat models must not be conflated:
+**Cached unrelated-key substitution:** An arbitrary current `_artifacts` key is replaced by `object()` on a cache hit. The current invocation rejects before VM entry. Restoring the original entry permits evaluation again. Proof-reachable-only validation does not satisfy this witness.
 
-- **Trusted-host model:** privileged reflective mutation of the *authoritative* issuer/proof is outside the adversary model. Public and SHEAR-visible operations still fail closed, and test instrumentation may mutate obsolete storage without gaining code authority.
-- **Host-private-mutation adversary:** even privileged reflective writes to authoritative objects must be detected or isolated. An O(1) Python guard is not a general write barrier; use stronger isolation or retain verification scans.
+**Issuer-binding substitution:** `object.__setattr__(deployment, '_session', other)` rejects before VM entry; restoring the authentic session permits execution again subject to other checks. Reflection resistance is required for this named binding, not asserted for all privileged Python mutations.
 
-**Open owner/Review decision:** which model the project actually commits to, and whether current frozen mutation witnesses permit the chosen implementation. No performance optimization may quietly narrow an already required threat boundary.
+**Irreversible invalidation:** Explicit deployment `invalidate()` or producing-generation `invalidate()` permanently withdraws the dependent authority, independently of backing-store restoration. A different valid deployment remains usable.
 
-## 6. Worked execution and adversarial cases
+**Source definition poisoning:** Before fresh preflight, a decoded definition inconsistent with canonical source rejects. A previously issued proof may use authenticated definition data only where all execution/provenance consumers are bound to it; a poisoned current authoritative dependency cannot be ignored.
 
-**Authentic invocation:** producer and admission events establish artifact authority; full source/bytecode preflight includes transitive dead branches; proof binds issuer/version/entry/policy and a stable execution view; the real VM opens the published authenticated chunk objects; its execution trace identifies the actual code node and source version.
+**Operation-scoped replacement:** The named evaluator switches from A to B during a target admission operation. That operation keeps A; the next operation uses B. Neither canonical constraint identity nor target state identity changes solely because of registry replacement.
 
-**Self-consistently rehashed forgery:** an attacker replaces a retired backing `ArtifactSet` entry with a validly rehashed but unauthorized chunk. It never becomes part of the proof. A runner may reject or execute the original pinned chunk if its view is demonstrably independent and the unchanged acceptance witnesses permit it. Substituting an authoritative chunk must reject.
+**Stale evaluator Version:** A proof issued for evaluator `Version` V cannot be reused after that evaluator runtime's active version becomes V2. D5 old-frame continuation for the *constrained target* does not authorize this extension.
 
-**Poisoned decoded definition:** before issuance, a mismatching cached `_definition` must not silently pass as a valid proof; compare with the canonical definition and refuse. After issuance, corruption of an *obsolete* memo must not change execution. Corruption of the *authoritative* definition cannot be allowed. The same rule applies transitively to callees.
+**Dead-branch forbidden effect:** An authenticated, structurally valid `WRITE` concealed in a dead branch under the read policy rejects before VM entry. No execution proof or snapshot bypasses transitive effect preflight.
 
-**Replacement during an operation:** evaluator name `policy` changes from deployment A to B between two constraint checks. Both checks in the existing operation execute A; a subsequent operation executes B. Canonical constraint and target-state identities do not change.
+**External continuation:** On each resumed SHEAR segment, applicable authority is revalidated. No callback is replayed, reordered or silently converted to `Unknown`; existing exact budget, subject and failure behavior is preserved.
 
-**Explicit invalidation during execution:** an invalidated proof does not begin a new machine run. If invalidation happens between code-node openings, the next opening rejects as a host failure, without Python fallback or admission of partial target changes.
+## 8. Production gates and stop rule
 
-**Forbidden effect in dead branch:** a valid `WRITE` emitted under a read-only policy rejects in preflight before any target VM instruction. A pinned snapshot does not relax source or emitted-effect validation.
+1. Fresh independent Review accepts the explicit rejection/restoration/permanent-invalidation contract, protected-binding coverage, stable evaluator Version, publication/revocation ordering, chunk identity and provenance obligations.
+2. Production proof ownership remains in the generic `RestrictedExecutor` path. No constraint-specific second interpreter or test-only monkeypatch becomes production authority.
+3. Unchanged Task 32/GH-123 frozen witnesses pass: wrong issuer, validly rehashed substitution, arbitrary cache-hit binding replacement, restored authentic bindings, compiler generation/deployment invalidation, actual chunk object identity, decoded-definition preflight, forbidden dead effects and read authority.
+4. Existing semantic/boundary/admission/continuation/rollback/failure-provenance acceptance remains unchanged and passes.
+5. Only after correctness/security acceptance, use the Plan-owned statistically qualified cold/warm/resource benchmark. The 107-workload exploratory result cannot establish resource acceptance, especially if invocation-time binding validation adds O(number of artifacts) work.
 
-**Multi-External and budgets:** the exact canonical callback subject, callback count/order, Unknown/exception behavior, remaining node budget and operation-scoped selection must agree with the incumbent. A successful semantic verdict alone is insufficient evidence.
+**Stop rule:** If direct backing-map mutation cannot be detected without prohibitive cost under the applicable frozen contract, do not substitute an O(1) guard for the required comparison. Do not weaken tests or claim production approval. Retain the current runner or return to a separately approved architecture decision.
 
-## 7. Required production gates
+## 9. Separation and next action
 
-1. Independent Review accepts the chosen threat model, authority transition, revocation safe points and old-version behavior, with explicit Task 32 citations. No Plan amendment is implicit.
-2. Issued proof and resolver are owned by the production restricted-execution module, not the test harness. No additional constraint-specific verifier or interpreter is added.
-3. Opened chunk *identity*, owner, version, producing compiler generation, artifact ID, source-node and failure provenance pass the **unchanged** independent witnesses.
-4. Wrong issuer, stale version, forbidden transitive/dead effect, forged/rehashed code, invalidated artifact set/generation, tampered definition and failed preparation all fail closed under the approved threat model.
-5. The unchanged Task 32 and GH-123 acceptance suites pass, including read authority, write/activation/trial rollback, error provenance, callbacks and budget continuation. Any behavioral divergence is reported, not concealed.
-6. Only after security equivalence is established, run the Plan-owned full performance protocol: three processes, paired blocks, bootstrap intervals, cold/warm cost, memory and scaling. The exploratory 107-workload result is **not** resource acceptance.
+This contract changes no execution granularity; authenticated function/basic-block regions, specialization and native/JIT work remain in #130. The representation of internal proof states and the means of reissuing/retaining proofs are intentionally open.
 
-**Stop rule:** If a stable published execution view cannot satisfy the frozen object-identity and security witnesses, or if the required threat model includes untracked hostile mutation of authoritative Python objects without isolation, do **not** install a constant-time proof cache. Keep the current restricted runner and investigate less aggressive verification optimizations. Do not edit the frozen tests to make the experiment pass.
-
-## 8. Separation from issue #130
-
-This proposal changes no execution granularity. GH-123 only concerns authenticating ordinary existing per-expression artifacts efficiently. Function/basic-block fusion, specialization, native/JIT execution, and source-to-region provenance are explicitly delegated to #130.
-
-## 9. Next action
-
-Submit this provisional contract to a **fresh independent adversarial Review**. The reviewer must return APPROVE / REJECT / CONDITIONAL with concrete conflicts against `docs/restricted_execution.md`, frozen tests and D5 lifetime rules. Only then prepare a minimal production integration plan. No implementation or benchmark was authorized by this document.
+**Next:** Submit this revision alone for independent adversarial re-review. No production integration, new benchmark, frozen-test edit or Task 32 Plan amendment is authorized by this document.
