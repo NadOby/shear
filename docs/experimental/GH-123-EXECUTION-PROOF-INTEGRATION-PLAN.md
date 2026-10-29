@@ -1,6 +1,6 @@
 # GH-123 – Minimal execution-proof production integration plan
 
-**Status: Proposed Plan – independent Review required before Execute.**
+**Status: Proposed Plan – revised after independent CONDITIONAL review; re-review required before Execute.**
 **Branch baseline:** `task/123-complete-constraints` at `ecfecc838aefc0c3ce75bffbc0c0fd3b6f89841f`.
 **Authority:** `docs/experimental/GH-123-EXECUTION-PROOF-AUTHORITY.md`, independently APPROVED after the Section 4 P2 correction.
 **Task:** #123 only. The executable-region architecture in #130 is out of scope.
@@ -49,6 +49,14 @@ This is expected to require **O(number of admitted artifacts)** work per invocat
 2. Bind and verify all source/definition metadata consumed by the VM and traces, including nested callees; preserve canonical/source-memo disagreement rejection on first proof issuance.
 3. Preserve original admitted chunk object identities, transitive effect restrictions and actual machine execution. Compare ordinary generic pure and `READ` cases and their execution/trace provenance with the existing runner.
 
+**Required authenticated-definition/provenance consumer checklist (Gate A):**
+
+- `RestrictedExecutor.run()` currently calls `_definition_of` to derive entry/root. For proof-backed execution, derive that identity from authenticated metadata; a mutable decoded entry memo must not establish new authority.
+- `machine._definition_for()` supports resolver `for_definition()`. Bind the entry and every statically reachable transitive callee definition, its links/versions and the metadata actually used at each definition opening to the proof.
+- `RestrictedRegistry._record_operation()` independently uses `_definition_of` for operation trace artifact lookup, including failure reporting. Migrate this consumer to proof-authenticated entry/root/artifact metadata without claiming execution for pre-VM failures.
+- Inventory additional consumers in preflight, resolver, External continuation and tracing. Any live decoded metadata they rely upon must be authenticated, or the consumer must use the published proof-bound representation.
+- When admission or invocation fails, preserve the original `AdmissionRejected` or other host failure. A secondary provenance/trace metadata lookup must not replace the primary exception or fabricate a successful execution event.
+
 **Gate:** No change in source/verdict, bytecode identity, provenance or authorized effects. No private copied chunk is executed. Stop if immutable authority cannot coexist with the published admitted objects.
 
 ### Gate B – Live binding guard, rejection and recovery
@@ -64,17 +72,31 @@ This is expected to require **O(number of admitted artifacts)** work per invocat
 7. Check live proof authority at entry, each function-definition opening, each code-node opening and each SHEAR continuation resumption. No stronger immediate commit/READ cancellation requirement is added.
 8. Preserve named evaluator operation-scoped replacement, exact External ordering/budgets, read authority, language errors versus host failure, trace association and target-write/activation/trial rollback.
 9. Ensure stale evaluator-runtime `Version` is rejected and proof references are reclaimed under D5 lifetime, without a cache retaining retired versions indefinitely. No evaluator-runtime activation or concurrency expansion.
+10. Independently observe cache release after the last legitimate deployment/evaluator-Version owner and all in-flight holds are released. Use weak-reference collection or equivalent retention evidence to prove that proof entries and admitted artifact references do not remain indefinitely reachable. A `WeakKeyDictionary` alone is not evidence: stored values may reach the key through strong references. Still-owned, operation-pinned deployments must remain valid.
 
-**Gate:** Full unchanged Task 32 and GH-123 frozen acceptance, semantic/boundary suite, negative mutation witnesses and applicable normal CI are green. Independent code Review then evaluates security and authority equivalence.
+**Gate:** The unchanged Task 32 and GH-123 frozen security/semantic, mutation, continuation and rollback witnesses pass. Classify the pre-existing inspection-resource failure separately; it is not a pass or waiver. Compare the integration run with the documented baseline, and require independent code Review. No final green-CI or resource acceptance claim while any required witness fails.
 
 ### Gate D – Resource qualification (only after Gate C)
 
-10. Run the existing Plan-owned comparison (`docs/constraint_functions_complete_benchmarks.md`): matched prepared/cold paths; at least three processes, warm paired blocks, stratified bootstrap intervals, median/p95 ratios, memory, preparation, 8/64/256 scaling and mechanism ledger.
-11. Report the cost of required invocation-time binding validation separately. If the 1,000× median or p95 ceiling is exceeded, do **not** bypass a frozen guard: classify the failure and return a narrowly scoped optimization/design choice for owner review.
+11. Run the existing Plan-owned comparison (`docs/constraint_functions_complete_benchmarks.md`): matched prepared/cold paths; at least three processes, warm paired blocks, stratified bootstrap intervals, median/p95 ratios, memory, preparation, 8/64/256 scaling and mechanism ledger.
+12. Report the cost of required invocation-time binding validation separately. If the 1,000× median or p95 ceiling is exceeded, do **not** bypass a frozen guard: classify the failure and return a narrowly scoped optimization/design choice for owner review.
 
 **Gate:** Resource-qualified positive, qualified negative or explicit inconclusive outcome. The 107-workload, eight-sample experiment remains exploratory evidence only.
 
-## 5. Pre-existing non-frozen regression conflict – explicit Plan decision
+## 5. Pre-Execute CI baseline classification and disposition
+
+**Recorded baseline: pre-existing, repeated GH-123 resource-acceptance failure; underlying cause unresolved. Not waived.** Two documentation-only revisions failed the unchanged `tests/constraint_functions_resource_acceptance.py::InspectionResourceAcceptance.test_shallow_inspection_scaling` cold-inspection CPU assertion at line 468 (`assert_scaling` in lines 276–299):
+
+| Run | Commit | Observed CPU units | Allowed CPU units | Outcome |
+| --- | --- | ---: | ---: | --- |
+| `40610193220` | `ecfecc838aefc0c3ce75bffbc0c0fd3b6f89841f` | 1,163,432 | 76,595 | FAIL |
+| `40654214796` | `45350aa99a0efdc368319e69d7a0e62d2c3b4604` | 1,151,879 | 62,215 | FAIL |
+
+Both runs passed all seven other GH-123 acceptance shards and the general tests job. The repetition is evidence of an unresolved baseline failure, not proof of an optimization-induced regression or harmless noise. No proof-cache production implementation existed in these commits.
+
+**Pre-Execute disposition:** Owner acknowledgment is required that Execute may proceed with this failure tracked as a pre-existing, unresolved terminal-acceptance blocker; this does not grant a waiver, amend the test, or make the required CI green. Security/semantic equivalence and new resource regressions must be classified separately. Require comparable pre/post runs before attributing any new failure or improvement to integration. The unchanged shallow-inspection test remains mandatory for positive terminal acceptance, and its failure must be resolved or reported as a qualified negative/inconclusive outcome under the existing Plan.
+
+## 6. Pre-existing non-frozen regression conflict – explicit Plan decision
 
 `tests/test_constraint_functions_preparation_cache.py::test_authenticated_runner_and_preflight_on_cache_hits` explicitly asserts that `restricted.preflight` is **called once on every cached evaluation**. This is a non-frozen observation of the old algorithm, not a requirement stated by the approved execution-proof contract; the approved design instead requires proof at issuance and current live authorization at invocation/openings.
 
@@ -83,9 +105,9 @@ An implementation that skips repeated preflight will fail that existing test eve
 - **Recommended:** update this *non-frozen* regression together with implementation to assert full first-issuance preflight, genuine authenticated VM openings and live fail-closed checks on every cache hit, with direct-mutation and recovery witnesses unchanged. Record the change and its rationale; do not touch frozen tests.
 - Keep the existing per-invocation preflight call and accept its cost; separately determine whether that meets the resource objective.
 
-No test modification is authorized by this proposed Plan until the owner accepts the regression contract decision. The reviewer should explicitly assess the recommendation before implementation.
+Independent Plan Review finds the proposed non-frozen assertion replacement justified, **subject to explicit owner authorization**. Preserve the test's existing four-invocation, operand, authentic-runner and VM-opening witnesses. Replace only the per-invocation preflight-call-count assumption with independent first-issuance preflight and live cache-hit authority/rejection/recovery checks. Maintain wrong-issuer, stale-version, policy and invalidation witnesses. Frozen tests and semantic expectations are unchanged. Reviewer approval does not itself constitute owner authorization.
 
-## 6. Implementation constraints
+## 7. Implementation constraints
 
 - Keep the public `RestrictedExecutor.deploy/run/invalidate/registry` contracts and the existing compiler/artifact/VM boundaries.
 - No new per-constraint semantic dispatch, no Python incumbent fallback, no interpreter written in the host to replace the SHEAR evaluator.
@@ -94,7 +116,7 @@ No test modification is authorized by this proposed Plan until the owner accepts
 - Preserve root causes of `AdmissionRejected` and other host failures rather than coercing failures into semantic `Unknown`.
 - No function/basic-block fusion, JIT/native backend, general security redesign or modification of issue #130 in this work.
 
-## 7. Required independent Plan review
+## 8. Required independent Plan re-review
 
 Return **APPROVE / CONDITIONAL / REJECT**, with exact conflicting source/test citations. Specifically verify:
 
@@ -105,5 +127,8 @@ Return **APPROVE / CONDITIONAL / REJECT**, with exact conflicting source/test ci
 5. Version ownership, publication/revocation ordering and cache retention are feasible without unapproved evaluator-runtime evolution.
 6. The **non-frozen preflight-on-cache-hit test conflict** is resolved by an explicit acceptable decision, not hidden by a semantic change or test gaming.
 7. Acceptance and performance gates follow the approved contract and existing Plan; no frozen test or resource ceiling is redefined.
+8. Gate A inventories runner, VM/transitive, registry trace and continuation metadata consumers, including preservation of the primary host failure.
+9. Gate C includes an observable final-owner proof-cache reclamation witness.
+10. The repeated pre-existing cold-inspection CI failure has a recorded, non-waiving disposition and a required owner acknowledgment.
 
-After independent approval and the owner decision on the non-frozen regression, Execute may make a bounded generic implementation change. No benchmark result or production correctness is claimed by this planning document.
+After independent re-review, explicit owner authorization of the non-frozen regression update and owner acknowledgment of the pre-existing CI baseline disposition, Execute may make a bounded generic implementation change. No benchmark result or production correctness is claimed by this planning document.
